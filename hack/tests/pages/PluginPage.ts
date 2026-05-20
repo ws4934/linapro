@@ -13,6 +13,7 @@ const cancelActionPattern = /取\s*消|cancel/iu;
 
 type PluginColumnHelpName =
   | "mockData"
+  | "runtimeState"
   | "supportsMultiTenant"
   | "tenantProvisioning"
   | "type";
@@ -35,6 +36,7 @@ export class PluginPage {
   pluginColumnHelpIcon(name: PluginColumnHelpName): Locator {
     const testIds = {
       mockData: "plugin-mock-data-column-help-icon",
+      runtimeState: "plugin-runtime-state-column-help-icon",
       supportsMultiTenant: "plugin-supports-multi-tenant-column-help-icon",
       tenantProvisioning: "plugin-tenant-provisioning-column-help-icon",
       type: "plugin-type-column-help-icon",
@@ -165,6 +167,13 @@ export class PluginPage {
   tableColumn(title: string): Locator {
     return this.page
       .locator(".vxe-table--header .vxe-cell--title", { hasText: title })
+      .first();
+  }
+
+  tableHeaderCell(title: string): Locator {
+    return this.page
+      .locator(".vxe-table--header .vxe-header--column")
+      .filter({ hasText: title })
       .first();
   }
 
@@ -979,6 +988,120 @@ export class PluginPage {
     expect(targetIndex, `${targetTitle} 应位于 ${nextTitle} 之前`).toBeLessThan(
       nextIndex,
     );
+  }
+
+  async expectTableColumnAfter(targetTitle: string, previousTitle: string) {
+    const headerTitles = (
+      await this.page
+        .locator(".vxe-table--header .vxe-cell--title")
+        .allTextContents()
+    )
+      .map((title) => title.trim())
+      .filter(Boolean);
+
+    const targetIndex = headerTitles.indexOf(targetTitle);
+    const previousIndex = headerTitles.indexOf(previousTitle);
+
+    expect(targetIndex, `未找到列表列: ${targetTitle}`).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(
+      previousIndex,
+      `未找到列表列: ${previousTitle}`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      targetIndex,
+      `${targetTitle} 应位于 ${previousTitle} 之后`,
+    ).toBeGreaterThan(previousIndex);
+  }
+
+  async expectTableColumnOrder(expectedTitles: string[]) {
+    const headerTitles = (
+      await this.page
+        .locator(".vxe-table--header .vxe-cell--title")
+        .allTextContents()
+    )
+      .map((title) => title.trim())
+      .filter(Boolean);
+
+    expect(
+      headerTitles.slice(0, expectedTitles.length),
+      "插件管理列表前置列顺序不符合预期",
+    ).toEqual(expectedTitles);
+  }
+
+  async expectTableColumnAligned(title: string, expectedAlign: string) {
+    const cell = this.tableHeaderCell(title);
+    await expect(cell, `未找到列表列: ${title}`).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          await cell.evaluate(
+            (element) => globalThis.getComputedStyle(element).textAlign,
+          ),
+        { message: `${title} 列标题应${expectedAlign}对齐` },
+      )
+      .toBe(expectedAlign);
+  }
+
+  async expectTableColumnBodyAligned(title: string, expectedAlign: string) {
+    const headerTitles = (
+      await this.page
+        .locator(".vxe-table--header .vxe-cell--title")
+        .allTextContents()
+    )
+      .map((headerTitle) => headerTitle.trim())
+      .filter(Boolean);
+    const columnIndex = headerTitles.indexOf(title);
+
+    expect(columnIndex, `未找到列表列: ${title}`).toBeGreaterThanOrEqual(0);
+
+    const bodyCell = this.page
+      .locator(".vxe-table--main-wrapper .vxe-body--row")
+      .first()
+      .locator(".vxe-body--column")
+      .nth(columnIndex);
+    await expect(bodyCell, `未找到列表单元格: ${title}`).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          await bodyCell.evaluate(
+            (element) => globalThis.getComputedStyle(element).textAlign,
+          ),
+        { message: `${title} 列内容应${expectedAlign}对齐` },
+      )
+      .toBe(expectedAlign);
+  }
+
+  async expectTableColumnLeftAligned(title: string) {
+    await this.expectTableColumnBodyAligned(title, "left");
+  }
+
+  async expectTableColumnCentered(title: string) {
+    await this.expectTableColumnAligned(title, "center");
+  }
+
+  async expectTableColumnWiderThan(
+    widerTitle: string,
+    narrowerTitles: string[],
+  ) {
+    const widerCell = this.tableHeaderCell(widerTitle);
+    await expect(widerCell, `未找到列表列: ${widerTitle}`).toBeVisible();
+    const widerWidth = await widerCell.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    );
+
+    for (const narrowerTitle of narrowerTitles) {
+      const narrowerCell = this.tableHeaderCell(narrowerTitle);
+      await expect(narrowerCell, `未找到列表列: ${narrowerTitle}`).toBeVisible();
+      const narrowerWidth = await narrowerCell.evaluate(
+        (element) => element.getBoundingClientRect().width,
+      );
+      expect(
+        widerWidth,
+        `${widerTitle} 列宽应大于 ${narrowerTitle}`,
+      ).toBeGreaterThan(narrowerWidth);
+    }
   }
 
   async expectBooleanTableCell(
