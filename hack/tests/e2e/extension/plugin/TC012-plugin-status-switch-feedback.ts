@@ -150,8 +150,8 @@ async function mockPluginStatusApis(page: Page) {
   };
 }
 
-test.describe('TC-243 插件状态开关即时反馈', () => {
-  test('TC-243a: 启用接口较慢时状态开关立即切到目标状态并显示加载态', async ({
+test.describe('TC-12 插件状态开关即时反馈', () => {
+  test('TC-12a: 启用接口较慢时状态开关立即切到目标状态并显示加载态', async ({
     adminPage,
   }) => {
     const mock = await mockPluginStatusApis(adminPage);
@@ -174,7 +174,7 @@ test.describe('TC-243 插件状态开关即时反馈', () => {
     await expect(pluginPage.messageNotice('插件已启用')).toBeVisible();
   });
 
-  test('TC-243b: 启用失败时状态开关回滚到原状态', async ({
+  test('TC-12b: 启用失败时状态开关回滚到原状态', async ({
     adminPage,
   }) => {
     await mockPluginStatusApis(adminPage);

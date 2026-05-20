@@ -232,8 +232,16 @@ jobs:
         shard:
           - name: extension-plugin
             command: pnpm test:module -- extension:plugin
-          - name: plugins
-            command: pnpm test:module -- plugins
+          - name: plugins-1-of-5
+            command: pnpm test:module -- plugins -- --shard=1/5
+          - name: plugins-2-of-5
+            command: pnpm test:module -- plugins -- --shard=2/5
+          - name: plugins-3-of-5
+            command: pnpm test:module -- plugins -- --shard=3/5
+          - name: plugins-4-of-5
+            command: pnpm test:module -- plugins -- --shard=4/5
+          - name: plugins-5-of-5
+            command: pnpm test:module -- plugins -- --shard=5/5
     uses: ./.github/workflows/reusable-e2e-tests.yml
     with:
       submodules: recursive

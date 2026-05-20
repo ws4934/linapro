@@ -65,6 +65,7 @@
 - [x] **FB-7**: GitHub Actions host-only E2E 仍运行部分 plugin-full 或插件依赖用例，导致共享种子和宿主断言失败。
 - [x] **FB-8**: GitHub Actions plugin-full E2E 中动态插件示例记录和英文布局回归用例存在跨用例状态泄漏。
 - [x] **FB-9**: 完整 E2E 中角色新增/编辑抽屉会在异步初始化完成后覆盖已填写字段，导致提交未发出角色保存请求。
+- [x] **FB-10**: Nightly plugin-full `plugins` scope 仍在单个 CI job 中串行执行全部源码插件自有 E2E，导致最长分片接近 1 小时。
 
 ## Feedback 验证记录
 
@@ -129,6 +130,14 @@
 - FB-9 已通过角色精确回归：`E2E_BROWSER_CHANNEL=chrome E2E_BASE_URL=http://127.0.0.1:5666 E2E_API_BASE_URL=http://127.0.0.1:8080/api/v1/ E2E_PUBLIC_BASE_URL=http://127.0.0.1:8080 pnpm -C hack/tests exec playwright test e2e/iam/role/TC001-role-crud.ts e2e/iam/role/TC004-role-permission-drawer-close.ts --config playwright.config.ts --project=chromium --workers=1`，结果 `13 passed (52.6s)`。
 - FB-9 i18n 影响：本次只调整 E2E 页面对象的等待与导览处理，不新增或修改用户可见文本、语言包、插件 manifest i18n 或 apidoc i18n JSON。
 - FB-9 缓存一致性影响：本次不修改生产缓存逻辑；角色 POM 仅等待前端权限树初始化和角色保存响应，不改变权限缓存、角色授权缓存或跨实例失效语义。
+- FB-10 日志分析结论：用户提供的 GitHub Actions 日志显示 `plugin-full / plugins` job 从 `2026-05-19T23:55:31` 开始执行 Playwright，到 `2026-05-20T00:56:21` 结束，`138` 个文件全部进入 serial pool，`272 passed, 7 skipped (1.0h)`；最慢文件为 `linapro-demo-dynamic/hack/tests/e2e/runtime/TC001-runtime-wasm-lifecycle.ts`，耗时 `7.4m`。按日志聚合，`linapro-org-core` 约 `12.1m`、`linapro-content-notice` 约 `10.1m`、`linapro-demo-dynamic` 约 `9.3m`，主瓶颈是单 job 串行执行所有源码插件自有用例。
+- FB-10 已将 plugin-full CI matrix 中的 `plugins` 单分片拆为 `plugins-1-of-5` 至 `plugins-5-of-5`，每个分片继续使用通用 `plugins` scope，并通过 Playwright 原生 `--shard=N/5` 在独立 runner、独立 PostgreSQL 和独立 plugin-full 服务实例中执行，避免在同一数据库内并发污染；`extension:plugin` 分片保持不变。
+- FB-10 已通过用户日志耗时映射估算 `plugins --shard=N/5` 分布：`1/5` 约 `17.9m`、`2/5` 约 `11.7m`、`3/5` 约 `11.1m`、`4/5` 约 `13.4m`、`5/5` 约 `4.2m` 的测试用例耗时；相比原单 job 约 `58.3m` 的已解析测试用例耗时，最长测试体量预计下降约 `69%`。选择 5 分片是因为 6 分片估算最长仍约 `17.5m`，收益很小；7 分片最长约 `13.9m` 但会额外增加两个 CI job。
+- FB-10 已通过 `pnpm -C hack/tests test:module -- plugins -- --shard=1/5 --list`、`--shard=2/5 --list`、`--shard=3/5 --list`、`--shard=4/5 --list`、`--shard=5/5 --list` 验证每个分片可解析并列出测试。
+- FB-10 已修复本次验证中暴露的既有 E2E 治理问题：将 `hack/tests/e2e/extension/plugin/TC0243-plugin-status-switch-feedback.ts` 重命名为模块本地连续编号 `TC012-plugin-status-switch-feedback.ts`，并同步测试标题为 `TC-12`，使 `pnpm -C hack/tests test:validate` 可通过。
+- FB-10 i18n 影响：本次只调整 GitHub Actions E2E job matrix 和 OpenSpec 任务记录，不新增或修改前端运行时文案、插件 manifest i18n 或 apidoc i18n JSON。
+- FB-10 缓存一致性影响：本次不修改生产缓存逻辑；CI 层把 `plugins` scope 分散到独立 runner 与独立服务实例中执行，不改变运行时缓存、插件启用状态快照、i18n 缓存或跨实例失效语义。
+- Review(FB-10): 已完成 `lina-review` 审查。审查范围来源：`git status --short --ignore-submodules=none`、`git ls-files --others --exclude-standard`、`openspec status --change optimize-e2e-suite-runtime --json`、`git diff -- .github/workflows/reusable-test-verification-suite.yml openspec/changes/optimize-e2e-suite-runtime/tasks.md`。确认本次只将 plugin-full `plugins` scope 从单个 CI job 拆为 5 个 Playwright shard，仍使用通用 `plugins` 入口和 plugin-full 服务启动语义；artifact 名称继续包含 `matrix.shard.name`，不会覆盖其他分片证据。未修改生产 Go/前端代码、业务 API、数据库 schema、运行时缓存逻辑、数据权限逻辑或 i18n 资源。严重问题 0；警告 0。
 - 本次完整单元测试已通过 host-only Go 单元测试：`cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml && make init confirm=init rebuild=true && make pack.assets && LINA_TEST_PGSQL_LINK='pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable' make test.go plugins=0 race=true verbose=true`。
 - 本次完整单元测试已通过 plugin-full Go 单元测试：`cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml && make init confirm=init rebuild=true && make pack.assets && LINA_TEST_PGSQL_LINK='pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable' make test.go plugins=1 race=true verbose=true`。
 - 本次完整前端单元测试已通过：`pnpm -C apps/lina-vben test:unit`，结果 `Test Files 42 passed (42)`、`Tests 347 passed (347)`。
