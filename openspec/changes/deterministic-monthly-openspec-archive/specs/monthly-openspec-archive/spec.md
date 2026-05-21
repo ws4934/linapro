@@ -20,7 +20,10 @@
 #### Scenario: Manual archive run
 - **WHEN** 维护者通过 `workflow_dispatch` 手动触发 monthly OpenSpec 归档工作流
 - **THEN** workflow 不受月度 schedule 窗口限制
-- **AND** workflow 继续执行默认分支限制、OpenSpec 完成候选预检查和确定性归档
+- **AND** workflow may be dispatched from any branch ref that exposes the workflow
+- **AND** workflow checkout 该触发分支并在该分支内容上执行 OpenSpec 完成候选预检查和确定性归档
+- **AND** workflow 以该触发分支作为归档 PR 的目标分支
+- **AND** workflow 使用包含该触发分支安全化标识的归档 PR 来源分支
 
 #### Scenario: No completed active changes
 - **WHEN** monthly OpenSpec 归档工作流触发
@@ -146,7 +149,7 @@
 - **AND** workflow records archived and failed candidates in the GitHub step summary
 
 ### Requirement: Monthly workflow must fail fast after each archive phase
-系统 SHALL 在 monthly OpenSpec 自动归档和归档聚合阶段后执行确定性阶段检查；AI consolidation 失败、产生无效 OpenSpec 状态或 deterministic archive 留下无法归档的 completed active change 时，workflow 必须输出明确失败原因。
+系统 SHALL 在 monthly OpenSpec 自动归档和归档聚合阶段后执行确定性阶段检查；deterministic archive 留下无法归档的 completed active change 时，workflow 必须输出明确失败原因。AI consolidation 是可选增强阶段，失败或产生无效 OpenSpec 状态时 MUST NOT 阻塞已经通过校验的 deterministic archive PR。
 
 #### Scenario: Deterministic archive leaves completed changes active
 - **WHEN** deterministic auto archive finishes
@@ -165,5 +168,21 @@
 - **WHEN** 任一工具专属 reusable workflow 执行 `Run Lina Archive Consolidate`
 - **AND** AI 工具进程返回成功
 - **AND** `openspec validate --all` 执行失败
-- **THEN** workflow 在执行 `Finalize Archive Pull Request` 前失败
-- **AND** workflow 不创建或更新归档 PR
+- **THEN** workflow captures the invalid consolidation diff and validation log as AI tool diagnostics
+- **AND** workflow restores the previously validated deterministic archive result
+- **AND** workflow validates the restored deterministic archive state
+- **AND** workflow may create or update the archive PR using only the deterministic archive result
+
+#### Scenario: Archive consolidation command fails
+- **WHEN** 任一工具专属 reusable workflow 执行 `Run Lina Archive Consolidate`
+- **AND** AI 工具进程返回失败
+- **THEN** workflow captures the failed consolidation diff and validation log as AI tool diagnostics
+- **AND** workflow restores the previously validated deterministic archive result
+- **AND** workflow may create or update the archive PR using only the deterministic archive result
+
+#### Scenario: Repository policy blocks pull request creation
+- **WHEN** monthly OpenSpec 归档 workflow 已成功提交并推送归档来源分支
+- **AND** GitHub repository policy prevents `GITHUB_TOKEN` from creating or updating pull requests
+- **THEN** workflow outputs the pushed archive source branch and manual pull request URL
+- **AND** workflow succeeds because the archive branch already contains the validated archive result
+- **AND** workflow only fails for pull request command errors unrelated to repository pull request policy

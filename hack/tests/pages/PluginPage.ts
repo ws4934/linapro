@@ -986,9 +986,9 @@ export class PluginPage {
   }
 
   async expectTableColumnBetween(
-    targetTitle: string,
-    previousTitle: string,
-    nextTitle: string,
+    targetTitle: string | string[],
+    previousTitle: string | string[],
+    nextTitle: string | string[],
   ) {
     const headerTitles = (
       await this.page
@@ -998,28 +998,33 @@ export class PluginPage {
       .map((title) => title.trim())
       .filter(Boolean);
 
-    const targetIndex = headerTitles.indexOf(targetTitle);
-    const previousIndex =
-      previousTitle === "版本"
-        ? headerTitles.findIndex(
-            (title) => title === "版本" || title === "版本号",
-          )
-        : headerTitles.indexOf(previousTitle);
-    const nextIndex = headerTitles.indexOf(nextTitle);
+    const findHeaderIndex = (titleOrTitles: string | string[]) => {
+      const titles = Array.isArray(titleOrTitles) ? titleOrTitles : [titleOrTitles];
+      return headerTitles.findIndex((title) => titles.includes(title));
+    };
+    const formatTitle = (titleOrTitles: string | string[]) =>
+      Array.isArray(titleOrTitles) ? titleOrTitles.join(" / ") : titleOrTitles;
 
-    expect(targetIndex, `未找到列表列: ${targetTitle}`).toBeGreaterThanOrEqual(
+    const targetIndex = findHeaderIndex(targetTitle);
+    const previousIndex = findHeaderIndex(previousTitle);
+    const nextIndex = findHeaderIndex(nextTitle);
+    const targetLabel = formatTitle(targetTitle);
+    const previousLabel = formatTitle(previousTitle);
+    const nextLabel = formatTitle(nextTitle);
+
+    expect(targetIndex, `未找到列表列: ${targetLabel}`).toBeGreaterThanOrEqual(
       0,
     );
     expect(
       previousIndex,
-      `未找到列表列: ${previousTitle}`,
+      `未找到列表列: ${previousLabel}`,
     ).toBeGreaterThanOrEqual(0);
-    expect(nextIndex, `未找到列表列: ${nextTitle}`).toBeGreaterThanOrEqual(0);
+    expect(nextIndex, `未找到列表列: ${nextLabel}`).toBeGreaterThanOrEqual(0);
     expect(
       targetIndex,
-      `${targetTitle} 应位于 ${previousTitle} 之后`,
+      `${targetLabel} 应位于 ${previousLabel} 之后`,
     ).toBeGreaterThan(previousIndex);
-    expect(targetIndex, `${targetTitle} 应位于 ${nextTitle} 之前`).toBeLessThan(
+    expect(targetIndex, `${targetLabel} 应位于 ${nextLabel} 之前`).toBeLessThan(
       nextIndex,
     );
   }

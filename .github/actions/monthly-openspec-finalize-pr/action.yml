@@ -131,8 +131,47 @@ runs:
         # 检查是否已存在打开的 PR，如存在则更新，否则创建新的。
         pr_number="$(gh pr list --head "${PR_BRANCH}" --state open --json number --jq '.[0].number // ""')"
         if [ -n "${pr_number}" ]; then
-          gh pr edit "${pr_number}" --title "${PR_TITLE}" --body-file "${pr_body}" --base "${BASE_BRANCH}"
-          echo "Updated archive PR #${pr_number}."
+          pr_output="${RUNNER_TEMP}/monthly-openspec-pr-edit.log"
+          if gh pr edit "${pr_number}" --title "${PR_TITLE}" --body-file "${pr_body}" --base "${BASE_BRANCH}" > "${pr_output}" 2>&1; then
+            echo "Updated archive PR #${pr_number}."
+          else
+            cat "${pr_output}" >&2
+            if grep -q "GitHub Actions is not permitted to create or approve pull requests" "${pr_output}"; then
+              manual_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/new/${PR_BRANCH}"
+              echo "GitHub Actions token is not permitted to update pull requests in this repository."
+              echo "Archive branch was pushed successfully: ${PR_BRANCH}"
+              echo "Manual PR URL: ${manual_url}"
+              {
+                echo "Archive branch pushed, but GitHub Actions cannot update the pull request."
+                echo ""
+                echo "- Base branch: ${BASE_BRANCH}"
+                echo "- Head branch: ${PR_BRANCH}"
+                echo "- Manual PR URL: ${manual_url}"
+              } >> "${GITHUB_STEP_SUMMARY}"
+            else
+              exit 1
+            fi
+          fi
         else
-          gh pr create --base "${BASE_BRANCH}" --head "${PR_BRANCH}" --title "${PR_TITLE}" --body-file "${pr_body}"
+          pr_output="${RUNNER_TEMP}/monthly-openspec-pr-create.log"
+          if gh pr create --base "${BASE_BRANCH}" --head "${PR_BRANCH}" --title "${PR_TITLE}" --body-file "${pr_body}" > "${pr_output}" 2>&1; then
+            cat "${pr_output}"
+          else
+            cat "${pr_output}" >&2
+            if grep -q "GitHub Actions is not permitted to create or approve pull requests" "${pr_output}"; then
+              manual_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/new/${PR_BRANCH}"
+              echo "GitHub Actions token is not permitted to create pull requests in this repository."
+              echo "Archive branch was pushed successfully: ${PR_BRANCH}"
+              echo "Manual PR URL: ${manual_url}"
+              {
+                echo "Archive branch pushed, but GitHub Actions cannot create the pull request."
+                echo ""
+                echo "- Base branch: ${BASE_BRANCH}"
+                echo "- Head branch: ${PR_BRANCH}"
+                echo "- Manual PR URL: ${manual_url}"
+              } >> "${GITHUB_STEP_SUMMARY}"
+            else
+              exit 1
+            fi
+          fi
         fi
