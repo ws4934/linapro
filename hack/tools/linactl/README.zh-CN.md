@@ -90,6 +90,88 @@ go run . i18n.check
 
 默认扫描`allowlist`维护在`hack/tools/linactl/internal/runtimei18n/allowlist.json`。
 
+## Agent 软链管理（agents.* 命令树）
+
+`linactl agents.<resource>.<action>` 用于管理仓库内三类资源的本地软链，把 `.agents/`（以及 `AGENTS.md`）下的标准源映射到各 AI Coding 工具的私有项目路径：
+
+- **skills**：目录级软链，`.<tool>/skills` → `.agents/skills`。受支持的 Agent 列表与 [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents) 官方项目路径表一致。
+- **prompts**：目录级软链，`.<tool>/.../opsx` → `.agents/prompts/opsx`（每个 Agent 显式声明源路径）。
+- **md**：单文件软链，`.<tool>.md`（或其他私有规范文件）→ 仓库根 `AGENTS.md`。
+
+命令只在仓库根目录范围内操作，不会修改 `HOME` 或任何系统全局路径，也不会自动删除真实目录或文件（`FORCE=1` 同样不会）。
+
+### 聚合菜单
+
+```bash
+make agents                                  # 终端下进入资源 → 动作 → Agent 三层菜单
+                                             # CI/管道下打印用法指引
+```
+
+### 各资源子命令
+
+```bash
+# skills
+make agents.skills.link                              # 终端下交互式选择；CI/管道下只读列表
+make agents.skills.link AGENT=claude-code            # 非交互：为单个 Agent 创建软链
+make agents.skills.link AGENT=claude-code,qoder      # 为多个 Agent 创建软链
+make agents.skills.link AGENT=all                    # 为所有 link 类 Agent 创建软链
+make agents.skills.link AGENT=all FORCE=1            # 强制重建指向错误源的旧软链
+make agents.skills.unlink                            # 终端下交互式选择（仅列出受管软链）
+make agents.skills.unlink AGENT=claude-code          # 移除单个 Agent 的受管软链
+make agents.skills.unlink AGENT=all                  # 移除所有受管软链
+
+# prompts
+make agents.prompts.link AGENT=claude-code           # 链接 .claude/commands/opsx -> .agents/prompts/opsx
+make agents.prompts.link AGENT=all                   # 为所有受支持 Agent 创建 prompts 软链
+make agents.prompts.unlink AGENT=claude-code         # 移除 prompts 软链
+
+# md
+make agents.md.link AGENT=claude-code                # 链接 CLAUDE.md -> AGENTS.md
+make agents.md.link AGENT=all                        # 为所有 link 类 Agent 创建私有规范文件软链
+make agents.md.unlink AGENT=claude-code              # 移除 AGENTS.md 软链
+```
+
+### 交互模式
+
+`make agents` 在终端下展示资源 → 动作 → Agent 三层菜单。各资源子命令在未传入 `AGENT` 且标准输入连接到真实终端时也会进入交互式选择：以 3 列网格展示 `link` 类 Agent 候选，每个单元格使用单字符状态符号和图例，整体能在 24 行终端中完整显示。命令读取以逗号分隔的选择（或 `all` / `q`）；若选中的 Agent 中存在 `mismatch` 状态，命令会再次询问是否使用 `FORCE=1` 重建。CI 与管道环境保持非交互：`agents.<resource>.link` 退化为只读列表，`agents.<resource>.unlink` 必须显式传入 `AGENT=`。
+
+交互式网格中的状态符号：
+
+- `[+]` linked — 软链存在且指向标准源
+- `[~]` mismatch — 软链存在但指向其他位置
+- `[.]` absent — 尚未建立软链（或 `native`，无需操作）
+- `[!]` conflict — 真实目录或文件阻止建立软链
+- `[*]` root-collision — Agent 使用仓库根冲突路径（仅 skills 资源中的 `openclaw`）
+- `[?]` error — 检测失败，详情请运行非交互列表
+
+### 分类
+
+- `native`：Agent 直接读取标准源，无需软链（例如 skills 中的 `cursor`、`gemini-cli`、`codex`；md 中所有原生读取 `AGENTS.md` 的 Agent）。
+- `link`：Agent 使用其它项目路径，按需创建相对软链指向标准源。
+- `rootCollision`：项目路径为仓库根的裸名（仅 skills 中的 `skills/`，由 `openclaw` 使用）。默认跳过；显式 `AGENT=openclaw FORCE=1` 才创建。prompts 与 md 资源中不存在该分类。
+
+> **md 资源的 fallback 行为说明**：部分 Agent 在私有规范文件（如 `CODEBUDDY.md`、`CLAUDE.md`）不存在时，会自动 fallback 读取 `AGENTS.md`。`CodeBuddy` 就是这样一个 Agent——根据腾讯官方文档，CodeBuddy 优先读取 `CODEBUDDY.md`，但当 `CODEBUDDY.md` 不存在时会自动加载 `AGENTS.md`。这类有官方文档支持的自动 fallback 机制的 Agent，在 md 注册表中按 `native` 注册，这样仓库 clone 即可用，无需建链；只有当 Agent 仅读取私有规范文件、不存在 fallback 路径时，才注册为 `link` 以便用户显式建链接入。每条 Agent 的证据来源都记录在 `internal/agents/md/md_agents.go` 的行内注释中。
+
+任何情况下命令都不会自动删除已存在的真实目录或文件，包含 `FORCE=1` 时也不会。`FORCE=1` 仅作用于"已是软链但指向其它位置"的情况。所有 skills 与 prompts 受管软链目录已在 `.gitignore` 中忽略，本地创建不会污染仓库。
+
+### 从 `make skills.*` 迁移
+
+旧的 `make skills` / `make skills.link` / `make skills.unlink` 目标，以及对应的 `linactl skills*` 子命令均已**删除**，被 `agents.*` 命令树取代。**没有保留任何别名**；现有脚本与文档必须更新：
+
+| 已删除（不再生效） | 新命令 |
+| --- | --- |
+| `make skills` | `make agents` |
+| `make skills.link` | `make agents.skills.link` |
+| `make skills.link AGENT=<name>` | `make agents.skills.link AGENT=<name>` |
+| `make skills.link AGENT=all FORCE=1` | `make agents.skills.link AGENT=all FORCE=1` |
+| `make skills.unlink` | `make agents.skills.unlink` |
+| `make skills.unlink AGENT=<name>` | `make agents.skills.unlink AGENT=<name>` |
+| `linactl skills` | `linactl agents` |
+| `linactl skills.link` | `linactl agents.skills.link` |
+| `linactl skills.unlink` | `linactl agents.skills.unlink` |
+
+`agents.skills.*` 子命令的行为与原 `skills.*` 完全一致（同一注册表、同一状态机、同一 TTY/CI 行为），仅命令名称变化。
+
 ## Release Tag 校验
 
 `release.tag.check` 会读取 `apps/lina-core/manifest/config/metadata.yaml`，并校验 release tag 与 `framework.version` 完全一致。
