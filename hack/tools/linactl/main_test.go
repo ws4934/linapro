@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"linactl/internal/devservice"
 	"linactl/internal/fileutil"
 	"linactl/internal/plugins"
+	"linactl/internal/process"
 	"linactl/internal/repository"
 	"linactl/internal/runtimei18n"
 	"linactl/internal/toolutil"
@@ -36,7 +38,7 @@ func init() {
 }
 
 func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
-	input, err := parseCommandInput([]string{"confirm=init", "rebuild=true", "--platforms=linux/amd64,linux/arm64", "-h", "extra"})
+	input, err := parseCommandInput([]string{"confirm=init", "rebuild=true", "--platforms=linux/amd64,linux/arm64", "AGENT=ClaudeCode", "-h", "extra"})
 	if err != nil {
 		t.Fatalf("parseCommandInput returned error: %v", err)
 	}
@@ -53,6 +55,9 @@ func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
 	input.Params["base_image"] = "alpine"
 	if input.Get("base-image") != "alpine" {
 		t.Fatalf("hyphenated key did not resolve normalized parameter")
+	}
+	if input.Get("agent") != "ClaudeCode" {
+		t.Fatalf("upper-case key did not resolve normalized parameter")
 	}
 	if !input.HasBool("h") {
 		t.Fatalf("expected -h to be parsed as true")
@@ -759,11 +764,101 @@ func TestWaitHTTPAcceptsRedirectWithoutFollowingLoop(t *testing.T) {
 	defer server.Close()
 
 	pidFile := filepath.Join(t.TempDir(), "service.pid")
-	if err := os.WriteFile(pidFile, []byte("12345"), 0o644); err != nil {
+	// Use the current test process PID so process.Alive reports the recorded
+	// process as live; we are validating redirect handling, not liveness.
+	// 使用当前测试进程 PID，让 process.Alive 视为存活，专注校验重定向处理。
+	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		t.Fatalf("write pid file: %v", err)
 	}
-	if err := devservice.WaitHTTP("Backend", server.URL+"/", pidFile, "service.log", time.Second); err != nil {
+	if err := devservice.WaitHTTP("Backend", server.URL+"/", pidFile, "service.log", time.Second, nil); err != nil {
 		t.Fatalf("devservice.WaitHTTP should accept redirect readiness responses: %v", err)
+	}
+}
+
+// TestWaitHTTPFailsFastWhenProcessExits验证 waitHTTP 在 PID 进程不存活时立即返回错误，
+// 避免子进程已 fatal 退出却被外部端口占用方"假装"为就绪。
+func TestWaitHTTPFailsFastWhenProcessExits(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// External occupant returns 404 — would have looked "ready" before.
+		// 模拟外部占用方返回 404，旧逻辑会误判为就绪。
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	pidFile := filepath.Join(t.TempDir(), "service.pid")
+	// Spawn a tiny process and Wait for it so we get a PID that is
+	// guaranteed to no longer be alive when waitHTTP inspects it.
+	// 启动并等待一个一次性子进程，得到一个保证已退出的真实 PID。
+	helper := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+	if err := helper.Start(); err != nil {
+		t.Fatalf("start helper: %v", err)
+	}
+	deadPID := helper.Process.Pid
+	if err := helper.Wait(); err != nil {
+		t.Fatalf("helper Wait: %v", err)
+	}
+	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(deadPID)), 0o644); err != nil {
+		t.Fatalf("write pid file: %v", err)
+	}
+
+	start := time.Now()
+	err := devservice.WaitHTTP("Backend", server.URL+"/api.json", pidFile, "service.log", 10*time.Second, process.Alive)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatalf("devservice.WaitHTTP should fail when recorded process is not alive")
+	}
+	if !strings.Contains(err.Error(), "process") {
+		t.Fatalf("expected process-exited error, got: %v", err)
+	}
+	if elapsed > 3*time.Second {
+		t.Fatalf("devservice.WaitHTTP should fail fast on dead process, took %s", elapsed)
+	}
+}
+
+// TestRunDevRejectsOccupiedPort验证当端口已被外部进程占用时，runDev 立即报错而非
+// 让后端在静默 fatal 后被假就绪覆盖。
+func TestRunDevRejectsOccupiedPort(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.template.yaml"), "template: true\n")
+	// portcheck.Verify 在 runDev 入口校验后端 server.address 与前端 vite proxy
+	// target 是否与 defaultBackendPort 对齐，用例需要自带最小一致夹具，否则
+	// 测试会在端口校验前的 portcheck 阶段失败，无法覆盖 EnsurePortsAvailable
+	// 的端口占用拒绝逻辑。
+	// portcheck.Verify runs at the start of runDev and requires both the
+	// backend server.address and the frontend vite proxy target to match
+	// the supplied backend port; without these the test would fail in
+	// portcheck before reaching the EnsurePortsAvailable check it intends
+	// to validate.
+	backendAddress := fmt.Sprintf("server:\n  address: \":%d\"\n", defaultBackendPort)
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.yaml"), backendAddress)
+	viteConfig := fmt.Sprintf("proxy: { '/api': { target: 'http://localhost:%d' } }\n", defaultBackendPort)
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "apps", "web-antd", "vite.config.mts"), viteConfig)
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "metadata: true\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "sql", "001.sql"), "select 1;\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"), "{}\n")
+	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"), 0o755); err != nil {
+		t.Fatalf("mkdir frontend workdir: %v", err)
+	}
+	writeFrontendDependencySentinel(t, root)
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, _ string, _ ...string) *exec.Cmd {
+		return exec.Command("true")
+	}
+	// Backend port pretends to be occupied by an external process.
+	// 模拟后端端口被外部进程占用。
+	application.portInUse = func(port int) bool {
+		return port == defaultBackendPort
+	}
+
+	err := runDev(context.Background(), application, commandInput{Params: map[string]string{"skip_wasm": "true"}})
+	if err == nil {
+		t.Fatalf("runDev should fail when backend port is occupied")
+	}
+	if !strings.Contains(err.Error(), "backend port") || !strings.Contains(err.Error(), "already in use") {
+		t.Fatalf("expected port-in-use error, got: %v", err)
 	}
 }
 
@@ -812,6 +907,10 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 		}
 		return nil
 	}
+	// Treat development ports as free regardless of the host machine state so
+	// the test does not flap when port 8080/5666 are bound by other processes.
+	// 测试中将开发端口视为空闲，避免本机其他进程占用导致用例不稳定。
+	application.portInUse = func(int) bool { return false }
 
 	start := time.Now()
 	if err := runDev(context.Background(), application, commandInput{
@@ -898,6 +997,10 @@ func TestRunDevPassesRepositoryWasmOutputWhenPluginsEnabled(t *testing.T) {
 		}
 		return nil
 	}
+	// Treat development ports as free regardless of the host machine state so
+	// the test does not flap when port 8080/5666 are bound by other processes.
+	// 测试中将开发端口视为空闲，避免本机其他进程占用导致用例不稳定。
+	application.portInUse = func(int) bool { return false }
 
 	if err := runDev(context.Background(), application, commandInput{Params: map[string]string{"plugins": "1"}}); err != nil {
 		t.Fatalf("runDev returned error: %v", err)
