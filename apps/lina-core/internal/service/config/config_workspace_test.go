@@ -8,7 +8,7 @@ import (
 )
 
 // TestGetWorkspaceBasePathUsesDefault verifies the workspace defaults to the
-// built-in non-root admin entry when the config section is absent.
+// built-in admin entry when the config section is absent.
 func TestGetWorkspaceBasePathUsesDefault(t *testing.T) {
 	setTestServerConfigAdapter(t, `
 server:
@@ -35,6 +35,20 @@ workspace:
 	}
 }
 
+// TestGetWorkspaceBasePathAllowsRoot verifies dedicated admin-domain
+// deployments can mount the workspace at the public root.
+func TestGetWorkspaceBasePathAllowsRoot(t *testing.T) {
+	setTestServerConfigAdapter(t, `
+workspace:
+  basePath: "/"
+`)
+
+	basePath := New().GetWorkspaceBasePath(context.Background())
+	if basePath != "/" {
+		t.Fatalf("expected root workspace base path, got %q", basePath)
+	}
+}
+
 // TestGetWorkspaceBasePathRejectsInvalidValues verifies reserved and ambiguous
 // workspace entry paths fail before route binding continues.
 func TestGetWorkspaceBasePathRejectsInvalidValues(t *testing.T) {
@@ -42,7 +56,6 @@ func TestGetWorkspaceBasePathRejectsInvalidValues(t *testing.T) {
 		name    string
 		content string
 	}{
-		{name: "root", content: "workspace:\n  basePath: \"/\"\n"},
 		{name: "relative", content: "workspace:\n  basePath: \"admin\"\n"},
 		{name: "wildcard", content: "workspace:\n  basePath: \"/admin/*\"\n"},
 		{name: "host api", content: "workspace:\n  basePath: \"/api\"\n"},

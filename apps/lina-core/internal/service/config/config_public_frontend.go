@@ -204,7 +204,7 @@ type PublicFrontendCronTimezoneConfig struct {
 
 // PublicFrontendWorkspaceConfig stores public-safe admin workspace routing settings.
 type PublicFrontendWorkspaceConfig struct {
-	BasePath string `json:"basePath"` // BasePath is the non-root admin workspace entry path.
+	BasePath string `json:"basePath"` // BasePath is the admin workspace entry path.
 }
 
 // PublicFrontendSettingSpecs returns all built-in public frontend setting specs.

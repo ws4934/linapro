@@ -35,7 +35,7 @@ Teams can skip the infrastructure-from-scratch phase and put AI to work driving 
 
 # Default Entrypoints
 
-The built-in management workspace is served from `/admin` by default. The root path `/` is left available for source plugins or other public routes owned by the host deployment.
+The built-in management workspace is served from `/admin` by default, so `/` stays available for source plugins or other public routes owned by the host deployment. Deployments with a dedicated admin domain may set `workspace.basePath` to `/` so the workspace owns that domain root.
 
 Host control-plane APIs continue to use `/api/v1`. Source plugins and dynamic plugins expose plugin APIs under `/x/{plugin-id}/api/v1`, and plugin-declared public assets are served from `/x-assets/{plugin-id}/{version}/...` when listed in `plugin.yaml` `public_assets`.
 

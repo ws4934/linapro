@@ -1,6 +1,6 @@
 ## 1. 配置与契约准备
 
-- [x] 1.1 将默认管理工作台入口路径确定为 `/admin`，并在配置设计中明确工作台入口不得配置为根路径 `/`。
+- [x] 1.1 将默认管理工作台入口路径确定为 `/admin`，并在配置设计中明确工作台入口可按部署边界配置为 `/` 或其他非保留路径。
 - [x] 1.2 在后端配置结构、默认配置、配置模板和配置元数据中新增工作台入口路径配置及校验规则。
 - [x] 1.3 更新 public frontend 配置投影或等价前端启动配置，使前端可以读取管理工作台入口路径；同时明确工作台 `basePath` 以启动期配置为权威，不作为运行期热修改配置。
 - [x] 1.4 明确本变更不新增插件 HTTP 路由 manifest 声明，不新增 `public_routes`、`portal_routes` 或工作台 API 路由分组字段；同时在 `plugin.yaml` 增加可选 `public_assets` 严格 schema 声明边界，用于源码插件和动态插件通过 `/x-assets/{plugin-id}/{version}/...` 托管可公开静态资源，且不保留 `/plugin-assets` 兼容入口。
@@ -22,7 +22,7 @@
 ## 3. 前端工作台入口
 
 - [x] 3.1 调整管理工作台 Vue Router base、登录跳转、刷新路径和默认首页解析，使其使用配置后的工作台入口路径。
-- [x] 3.2 调整 public frontend 配置同步逻辑，确保在非根路径工作台入口下仍能正确请求 `/api/v1/config/public/frontend`。
+- [x] 3.2 调整 public frontend 配置同步逻辑，确保在根路径或非根路径工作台入口下仍能正确请求 `/api/v1/config/public/frontend`。
 - [x] 3.3 增加或调整插件前端 API base helper，区分宿主 `/api/v1` 和统一插件 API `/x/{plugin-id}/api/v1`。
 - [x] 3.4 调整开发代理和构建配置，使本地开发以后端公开地址作为统一入口，并由后端在工作台入口路径下代理或转发到 Vite；同时不吞掉后端源码插件根路由或 `/x/*` 统一插件 API 请求。
 - [x] 3.5 更新前端单元测试，覆盖工作台入口路径规范化、登录重定向、插件 API base helper 和刷新行为。
@@ -71,6 +71,7 @@
 - [x] **FB-13**: 需求澄清为 `public_assets` 完全信任插件作者对插件内资源的显式发布声明；宿主只做路径安全、声明存在性、声明目录读取和插件资源边界校验，不再维护治理目录黑名单或前端目录白名单。
 - [x] **FB-14**: 参考 `linapro-content-notice` 源码插件的路由注册编码风格，统一其他官方源码插件的路由注册代码结构。
 - [x] **FB-15**: 修复已有根通配路由 `/*` 存在时工作台 `/admin` 静态资源 fallback 被抢占并返回 404 的单元测试失败。
+- [x] **FB-16**: 允许独立管理后台域名部署将 `workspace.basePath` 配置为根路径 `/`，同时保留宿主 API、插件 API 与插件资产保留命名空间不被工作台 fallback 吞掉。
 
 ## Verification Notes
 
@@ -82,3 +83,4 @@
 - FB-14 为源码插件路由注册代码风格治理，未新增用户可见文案、接口字段、数据操作接口、业务缓存、开发工具或脚本；i18n、数据权限和缓存资源无需变更。已验证：使用临时 `go.work` 包含 `apps/lina-core` 与相关源码插件后运行 `GOWORK="$tmpdir/go.work" go test lina-plugin-linapro-content-notice/backend lina-plugin-linapro-demo-source/backend lina-plugin-linapro-monitor-loginlog/backend lina-plugin-linapro-monitor-online/backend lina-plugin-linapro-monitor-operlog/backend lina-plugin-linapro-monitor-server/backend lina-plugin-linapro-org-core/backend lina-plugin-linapro-tenant-core/backend -run '^$' -count=1`、`cd apps/lina-plugins && GOWORK=off go test ./... -run '^$' -count=1`、`cd apps/lina-core && go test ./pkg/pluginhost -count=1`、`cd apps/lina-core && go test ./internal/cmd -count=1`、`openspec validate decouple-workspace-plugin-routes --strict`。
 - FB-14 `/lina-review`：审查范围限定为官方源码插件 `backend/plugin.go` 路由注册结构与本任务记录；未发现阻塞问题。
 - FB-15 为后端工作台与插件公开资产静态路由绑定修复，不新增用户可见文案、接口字段、数据操作接口、业务缓存、开发工具或脚本；i18n、数据权限和缓存资源无需变更。已验证：`cd apps/lina-core && go test ./internal/cmd -run '^(TestFrontendAssetFallbackIsScopedToWorkspaceBasePath|TestFrontendAssetFallbackClaimsHostedPluginAssetNamespace)$' -count=1 -v`、`cd apps/lina-core && go test ./internal/cmd -count=1`、`openspec validate decouple-workspace-plugin-routes --strict`、`git diff --check -- apps/lina-core/internal/cmd/cmd_http_frontend.go apps/lina-core/internal/cmd/cmd_http_test.go openspec/changes/decouple-workspace-plugin-routes/tasks.md`。
+- FB-16 为工作台入口路径配置与 fallback 行为修复；新增/更新了后端配置校验、后端静态资源 fallback、前端运行时 basePath 规范化、E2E workspace path helper、README 与 OpenSpec 文档，并补充根路径工作台不覆盖 `/api/**`、`/x/**`、`/x-assets/**`、后置绑定 `/api.json` 仍可访问，以及已有 `/` 路由会与根路径工作台显式冲突的回归测试。用户可见接口文档文本涉及 `FrontendWorkspaceRes.basePath`，已同步源资源 `manifest/i18n/zh-CN/apidoc/core-api-publicconfig.json`；`internal/packed/manifest/**` 为忽略的生成镜像，不纳入本次提交范围。不新增数据操作接口、业务缓存、开发工具或脚本，数据权限与缓存资源无需变更。工作台 fallback 单测使用自包含内存前端资源，不依赖未跟踪的 `internal/packed/public/index.html` 生成产物；插件资产路由注册由 `/x-assets//*any` 规范化为 `/x-assets/*any`；SPA fallback 改为直接读取 `index.html`，避免 `http.FileServer` 在根路径工作台刷新场景触发 `index.html` 重定向。已验证：`cd apps/lina-core && go test ./internal/service/config -count=1`、`cd apps/lina-core && go test ./internal/cmd -count=1`、`pnpm -C apps/lina-vben exec vitest run apps/web-antd/src/runtime/public-frontend.test.ts --dom`、`openspec validate decouple-workspace-plugin-routes --strict`、`git diff --check`、残留文本扫描确认非根/拒绝根路径表述已清理。

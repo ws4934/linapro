@@ -143,10 +143,13 @@ function normalizeAuthPanelLayout(value: unknown): AuthPageLayoutType {
 }
 
 function normalizeWorkspaceBasePath(value: unknown): string {
-  const normalized = normalizeString(value)
+  const cleaned = normalizeString(value)
     .replaceAll('\\', '/')
-    .replace(/\/+/g, '/')
-    .replace(/\/+$/, '');
+    .replace(/\/+/g, '/');
+  if (cleaned === '/') {
+    return '/';
+  }
+  const normalized = cleaned.replace(/\/+$/, '');
   if (
     !normalized ||
     normalized === '/' ||
@@ -157,6 +160,9 @@ function normalizeWorkspaceBasePath(value: unknown): string {
     !normalized.startsWith('/')
   ) {
     return '/admin';
+  }
+  if (normalized === '/') {
+    return '/';
   }
 
   const reservedPrefixes = ['/api', '/api/v1', '/x', '/x-assets', '/plugin-assets'];
@@ -171,7 +177,8 @@ function normalizeWorkspaceBasePath(value: unknown): string {
 }
 
 function resolveWorkspaceRouterBase() {
-  return `${normalizeWorkspaceBasePath(publicFrontendState.workspace.basePath)}/`;
+  const basePath = normalizeWorkspaceBasePath(publicFrontendState.workspace.basePath);
+  return basePath === '/' ? '/' : `${basePath}/`;
 }
 
 function resolvePublicFrontendEndpoint(): string {

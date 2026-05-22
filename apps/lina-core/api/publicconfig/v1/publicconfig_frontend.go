@@ -131,5 +131,5 @@ type FrontendCronTimezoneRes struct {
 
 // FrontendWorkspaceRes stores public-safe admin workspace routing settings.
 type FrontendWorkspaceRes struct {
-	BasePath string `json:"basePath" dc:"Non-root admin workspace entry path loaded from startup configuration" eg:"/admin"`
+	BasePath string `json:"basePath" dc:"Admin workspace entry path loaded from startup configuration; may be / for a dedicated admin domain" eg:"/admin"`
 }

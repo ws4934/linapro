@@ -58,6 +58,9 @@ export function workspacePath(path = '/') {
   if (normalizedPath === '/') {
     return workspaceBasePath;
   }
+  if (workspaceBasePath === '/') {
+    return normalizedPath;
+  }
   return `${workspaceBasePath}${normalizedPath}`;
 }
 
@@ -81,8 +84,12 @@ export function isWorkspaceManagedPath(path: string) {
 }
 
 function normalizeWorkspaceBasePath(value: string) {
-  const normalized = value.trim().replaceAll('\\', '/').replace(/\/+/g, '/').replace(/\/+$/, '');
-  if (!normalized || normalized === '/' || !normalized.startsWith('/')) {
+  const cleaned = value.trim().replaceAll('\\', '/').replace(/\/+/g, '/');
+  if (cleaned === '/') {
+    return '/';
+  }
+  const normalized = cleaned.replace(/\/+$/, '');
+  if (!normalized || !normalized.startsWith('/')) {
     return '/admin';
   }
   return normalized;

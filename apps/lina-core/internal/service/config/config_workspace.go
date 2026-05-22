@@ -1,5 +1,5 @@
 // This file loads the default admin workspace entry path and validates that it
-// cannot overlap host APIs, plugin APIs, plugin assets, or the root route.
+// cannot overlap host APIs, plugin APIs, or plugin assets.
 
 package config
 
@@ -17,7 +17,7 @@ const defaultWorkspaceBasePath = "/admin"
 
 // WorkspaceConfig holds static admin workspace routing settings.
 type WorkspaceConfig struct {
-	BasePath string `json:"basePath"` // BasePath is the non-root admin workspace entry path.
+	BasePath string `json:"basePath"` // BasePath is the admin workspace entry path.
 }
 
 // getStaticWorkspaceConfig lazily loads and validates workspace routing
@@ -61,7 +61,7 @@ func mustNormalizeWorkspaceBasePath(raw string) string {
 		panic(workspaceStartupDiagnosticError(
 			"workspace.basePath",
 			"wildcards are not allowed",
-			"use a concrete non-root path such as /admin",
+			"use a concrete path such as /admin or /",
 		))
 	}
 	if strings.Contains(trimmed, "?") || strings.Contains(trimmed, "#") {
@@ -79,11 +79,11 @@ func mustNormalizeWorkspaceBasePath(raw string) string {
 		))
 	}
 	normalized := path.Clean(trimmed)
-	if normalized == "." || normalized == "/" {
+	if normalized == "." {
 		panic(workspaceStartupDiagnosticError(
 			"workspace.basePath",
-			"root path is reserved",
-			"use /admin or another non-root path",
+			"must be an absolute URL path",
+			"set /admin or /",
 		))
 	}
 	if strings.Contains(normalized, "//") {

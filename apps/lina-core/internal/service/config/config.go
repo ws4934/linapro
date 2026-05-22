@@ -28,7 +28,7 @@ type Service interface {
 type WorkspaceConfigReader interface {
 	// GetWorkspace reads the admin workspace routing config from configuration file.
 	GetWorkspace(ctx context.Context) *WorkspaceConfig
-	// GetWorkspaceBasePath returns the normalized non-root admin workspace entry path.
+	// GetWorkspaceBasePath returns the normalized admin workspace entry path.
 	GetWorkspaceBasePath(ctx context.Context) string
 }
 

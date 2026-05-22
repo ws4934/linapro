@@ -233,8 +233,33 @@ describe('public frontend runtime settings', () => {
     expect(settings?.workspace.basePath).toBe('/console');
     expect(publicFrontendSettings.workspace.basePath).toBe('/console');
     expect(resolveWorkspaceRouterBase()).toBe('/console/');
-    expect(normalizeWorkspaceBasePath('/')).toBe('/admin');
+    expect(normalizeWorkspaceBasePath('/')).toBe('/');
     expect(normalizeWorkspaceBasePath('/x')).toBe('/admin');
     expect(normalizeWorkspaceBasePath('/x-assets/plugin')).toBe('/admin');
+  });
+
+  it('allows a root workspace base path for a dedicated admin domain', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      json: async () => ({
+        data: {
+          app: {},
+          auth: {},
+          cron: {},
+          ui: {},
+          workspace: {
+            basePath: '/',
+          },
+        },
+      }),
+      ok: true,
+    } as Response);
+
+    const { publicFrontendSettings, resolveWorkspaceRouterBase, syncPublicFrontendSettings } =
+      await import('./public-frontend');
+    const settings = await syncPublicFrontendSettings();
+
+    expect(settings?.workspace.basePath).toBe('/');
+    expect(publicFrontendSettings.workspace.basePath).toBe('/');
+    expect(resolveWorkspaceRouterBase()).toBe('/');
   });
 });

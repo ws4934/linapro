@@ -37,17 +37,32 @@ func bindFrontendAssetRoutes(
 		logger.Panicf(ctx, "load embedded frontend assets failed: %v", err)
 		return err
 	}
-	fileServer := http.FileServer(http.FS(subFS))
+	return bindFrontendAssetRoutesWithFS(server, pluginSvc, workspaceBasePath, subFS)
+}
+
+// bindFrontendAssetRoutesWithFS registers frontend routes against a caller
+// supplied filesystem so tests can avoid depending on generated build assets.
+func bindFrontendAssetRoutesWithFS(
+	server *ghttp.Server,
+	pluginSvc pluginsvc.Service,
+	workspaceBasePath string,
+	frontendFS fs.FS,
+) error {
 	devProxy, err := newFrontendDevServerProxy()
 	if err != nil {
 		return err
 	}
 	normalizedWorkspaceBasePath := normalizeWorkspaceRequestBasePath(workspaceBasePath)
-	assetHandler := newFrontendAssetHandler(subFS, fileServer, pluginSvc, devProxy, normalizedWorkspaceBasePath)
-	server.BindHandler(pluginhost.HostedAssetURLPrefix, assetHandler)
-	server.BindHandler(pluginhost.HostedAssetURLPrefix+"/*any", assetHandler)
-	server.BindHandler("/"+normalizedWorkspaceBasePath, assetHandler)
-	server.BindHandler("/"+normalizedWorkspaceBasePath+"/*any", assetHandler)
+	assetHandler := newFrontendAssetHandler(frontendFS, pluginSvc, devProxy, normalizedWorkspaceBasePath)
+	hostedAssetURLPrefix := strings.TrimRight(pluginhost.HostedAssetURLPrefix, "/")
+	server.BindHandler(hostedAssetURLPrefix, assetHandler)
+	server.BindHandler(hostedAssetURLPrefix+"/*any", assetHandler)
+	if normalizedWorkspaceBasePath == "/" {
+		server.BindHandler("/", assetHandler)
+	} else {
+		server.BindHandler(normalizedWorkspaceBasePath, assetHandler)
+		server.BindHandler(normalizedWorkspaceBasePath+"/*any", assetHandler)
+	}
 	server.BindHandler("/{entry}", assetHandler)
 	server.BindHandler("/{entry}/*any", assetHandler)
 	return nil
@@ -57,7 +72,6 @@ func bindFrontendAssetRoutes(
 // host and source-plugin routes, so concrete plugin routes get first chance.
 func newFrontendAssetHandler(
 	subFS fs.FS,
-	fileServer http.Handler,
 	pluginSvc pluginsvc.Service,
 	devProxy http.Handler,
 	workspaceBasePath string,
@@ -65,6 +79,11 @@ func newFrontendAssetHandler(
 	return func(r *ghttp.Request) {
 		requestPath := normalizeRequestPath(r.URL.Path)
 		if serveRuntimePluginAsset(r, pluginSvc, requestPath) {
+			return
+		}
+		if isRootWorkspaceBasePath(workspaceBasePath) && isRootWorkspaceReservedRequest(requestPath) {
+			r.Response.WriteStatus(http.StatusNotFound)
+			r.ExitAll()
 			return
 		}
 		workspacePath, ok := trimWorkspaceRequestPath(requestPath, workspaceBasePath)
@@ -78,10 +97,10 @@ func newFrontendAssetHandler(
 			r.ExitAll()
 			return
 		}
-		if serveEmbeddedFrontendAsset(r, subFS, fileServer, workspacePath) {
+		if serveEmbeddedFrontendAsset(r, subFS, workspacePath) {
 			return
 		}
-		serveSPAFallback(r, fileServer)
+		serveSPAFallback(r, subFS)
 	}
 }
 
@@ -97,7 +116,10 @@ func serveFrontendDevProxy(
 	proxyRequest := r.Request
 	if strings.Trim(requestPath, "/") == strings.Trim(workspaceBasePath, "/") {
 		proxyRequest = r.Request.Clone(r.Context())
-		proxyRequest.URL.Path = "/" + strings.Trim(workspaceBasePath, "/") + "/"
+		proxyRequest.URL.Path = workspaceBasePath
+		if !strings.HasSuffix(proxyRequest.URL.Path, "/") {
+			proxyRequest.URL.Path += "/"
+		}
 		proxyRequest.URL.RawPath = ""
 	}
 	devProxy.ServeHTTP(r.Response.RawWriter(), proxyRequest)
@@ -159,7 +181,6 @@ func serveRuntimePluginAsset(
 func serveEmbeddedFrontendAsset(
 	r *ghttp.Request,
 	subFS fs.FS,
-	fileServer http.Handler,
 	assetPath string,
 ) bool {
 	content, err := fs.ReadFile(subFS, assetPath)
@@ -176,11 +197,12 @@ func serveEmbeddedFrontendAsset(
 	return true
 }
 
-// serveSPAFallback serves index.html for unmatched frontend routes so browser
-// refreshes on client-side routes are handled by the Vue application.
-func serveSPAFallback(r *ghttp.Request, fileServer http.Handler) {
-	r.Request.URL.Path = "/index.html"
-	fileServer.ServeHTTP(r.Response.RawWriter(), r.Request)
+// serveSPAFallback serves index.html directly for unmatched frontend routes so
+// browser refreshes avoid net/http FileServer's index.html redirect behavior.
+func serveSPAFallback(r *ghttp.Request, subFS fs.FS) {
+	if !serveEmbeddedFrontendAsset(r, subFS, "index.html") {
+		r.Response.WriteStatus(http.StatusNotFound)
+	}
 	r.ExitAll()
 }
 
@@ -189,33 +211,62 @@ func normalizeRequestPath(rawPath string) string {
 	return strings.TrimPrefix(strings.TrimSpace(rawPath), "/")
 }
 
-// normalizeWorkspaceRequestBasePath returns a slashless workspace base path for
-// prefix checks against request paths.
+// normalizeWorkspaceRequestBasePath returns a rooted workspace base path for
+// route registration and request-prefix checks.
 func normalizeWorkspaceRequestBasePath(basePath string) string {
 	normalized := strings.Trim(strings.TrimSpace(basePath), "/")
 	if normalized == "" {
-		return "admin"
+		return "/"
 	}
-	return normalized
+	return "/" + normalized
 }
 
 // trimWorkspaceRequestPath removes the workspace base path from an incoming
 // request and returns the embedded-asset path that should be served.
 func trimWorkspaceRequestPath(requestPath string, workspaceBasePath string) (string, bool) {
 	normalizedRequestPath := strings.Trim(requestPath, "/")
+	if isRootWorkspaceBasePath(workspaceBasePath) {
+		if normalizedRequestPath == "" {
+			return "index.html", true
+		}
+		return normalizedRequestPath, true
+	}
 	if normalizedRequestPath == "" {
 		return "", false
 	}
-	if normalizedRequestPath != workspaceBasePath &&
-		!strings.HasPrefix(normalizedRequestPath, workspaceBasePath+"/") {
+	normalizedWorkspaceBasePath := strings.Trim(workspaceBasePath, "/")
+	if normalizedRequestPath != normalizedWorkspaceBasePath &&
+		!strings.HasPrefix(normalizedRequestPath, normalizedWorkspaceBasePath+"/") {
 		return "", false
 	}
-	assetPath := strings.TrimPrefix(normalizedRequestPath, workspaceBasePath)
+	assetPath := strings.TrimPrefix(normalizedRequestPath, normalizedWorkspaceBasePath)
 	assetPath = strings.Trim(assetPath, "/")
 	if assetPath == "" {
 		return "index.html", true
 	}
 	return assetPath, true
+}
+
+// isRootWorkspaceBasePath reports whether the admin workspace intentionally
+// owns the public root route for dedicated-domain deployments.
+func isRootWorkspaceBasePath(workspaceBasePath string) bool {
+	return strings.Trim(strings.TrimSpace(workspaceBasePath), "/") == ""
+}
+
+// isRootWorkspaceReservedRequest keeps root-mounted workspace fallback from
+// swallowing host APIs, plugin APIs, hosted plugin assets, or the OpenAPI JSON
+// endpoint. Concrete routes are registered earlier; this guard covers misses.
+func isRootWorkspaceReservedRequest(requestPath string) bool {
+	normalizedPath := strings.Trim(strings.TrimSpace(requestPath), "/")
+	if normalizedPath == "" {
+		return false
+	}
+	for _, reserved := range []string{"api", pluginhost.PluginAPINamespaceSegment, pluginhost.HostedAssetPathSegment} {
+		if normalizedPath == reserved || strings.HasPrefix(normalizedPath, reserved+"/") {
+			return true
+		}
+	}
+	return normalizedPath == "api.json"
 }
 
 // parsePluginAssetRequestPath splits one public `/x-assets/...` request
