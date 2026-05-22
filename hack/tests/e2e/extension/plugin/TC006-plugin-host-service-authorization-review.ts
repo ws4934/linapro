@@ -22,9 +22,9 @@ const networkURLPattern = "https://*.example.com/api";
 const storagePath = "plugin-demo/records";
 const dataTableName = "sys_plugin_node_state";
 const dataTableComment = "Plugin node state table";
-const routeSummaryPath = `/x//api/v1/review-summary`;
-const routeHealthPath = `/x//api/v1/healthz`;
-const routeAuditPath = `/x//api/v1/audit-log`;
+const routeSummaryPath = `/x/${pluginID}/api/v1/review-summary`;
+const routeHealthPath = `/x/${pluginID}/api/v1/healthz`;
+const routeAuditPath = `/x/${pluginID}/api/v1/audit-log`;
 const routePermission = `${pluginID}:review:query`;
 const routeAuditPermission = `${pluginID}:audit:query`;
 

@@ -64,6 +64,13 @@ export function workspacePath(path = '/') {
   return `${workspaceBasePath}${normalizedPath}`;
 }
 
+export function pluginApiPath(pluginId: string, path = '') {
+  const normalizedPluginId = pluginId.trim().replace(/^\/+|\/+$/g, '');
+  const normalizedPath = path.trim().replace(/^\/+/, '');
+  const prefix = `/x/${normalizedPluginId}/api/v1`;
+  return normalizedPath ? `${prefix}/${normalizedPath}` : prefix;
+}
+
 export function isWorkspaceManagedPath(path: string) {
   if (!path.startsWith('/')) {
     return false;

@@ -59,6 +59,11 @@ function uploadedArtifactPath(pluginID: string) {
   return path.join(runtimeStorageDir(), `${pluginID}.wasm`);
 }
 
+function pluginApiPath(pluginID: string, pathName: string) {
+  const normalizedPath = pathName.startsWith("/") ? pathName : `/${pathName}`;
+  return `/x/${pluginID}/api/v1${normalizedPath}`;
+}
+
 function writeTestFile(filePath: string, content: string) {
   mkdirSync(path.dirname(filePath), { recursive: true });
   writeFileSync(filePath, content);
@@ -887,7 +892,7 @@ test.describe("TC-1 Runtime Wasm Low Priority Host Services", () => {
     expect(unreadBefore).toBe(0);
 
     const response = await adminApi!.get(
-      `/x//api/v1/low-priority-host-services`,
+      pluginApiPath(successPluginID, "/low-priority-host-services"),
     );
     const responseText = await response.text();
     expect(
@@ -929,7 +934,7 @@ test.describe("TC-1 Runtime Wasm Low Priority Host Services", () => {
     await setPluginEnabled(adminApi!, deniedPluginID, true);
 
     const cacheLimitResponse = await adminApi!.get(
-      `/x//api/v1/cache-limit`,
+      pluginApiPath(deniedPluginID, "/cache-limit"),
     );
     expect(cacheLimitResponse.status()).toBe(500);
     await expectApiFailure(
@@ -939,7 +944,7 @@ test.describe("TC-1 Runtime Wasm Low Priority Host Services", () => {
     );
 
     const lockDeniedResponse = await adminApi!.get(
-      `/x//api/v1/lock-denied`,
+      pluginApiPath(deniedPluginID, "/lock-denied"),
     );
     expect(lockDeniedResponse.status()).toBe(500);
     await expectApiFailure(
@@ -949,7 +954,7 @@ test.describe("TC-1 Runtime Wasm Low Priority Host Services", () => {
     );
 
     const notifyDeniedResponse = await adminApi!.get(
-      `/x//api/v1/notify-denied`,
+      pluginApiPath(deniedPluginID, "/notify-denied"),
     );
     expect(notifyDeniedResponse.status()).toBe(500);
     await expectApiFailure(

@@ -1,3 +1,5 @@
+当前项目是全新项目，没有任何历史负担，在设计方案和实现时不用考虑任何的兼容性，一切按照最完美的方案来设计和实现。
+
 # 文档编写规范
 
 `README.md`等技术文档编写需遵循规范`.agents/instructions/markdown-format.instructions.md`。

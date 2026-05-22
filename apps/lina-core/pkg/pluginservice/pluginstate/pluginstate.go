@@ -6,10 +6,10 @@ import "lina-core/pkg/pluginservice/contract"
 
 // serviceAdapter bridges host plugin state into the published plugin contract.
 type serviceAdapter struct {
-	service contract.EnablementReader
+	service contract.PluginStateService
 }
 
-// New creates and returns a plugin state service backed by the given reader.
-func New(service contract.EnablementReader) contract.PluginStateService {
+// New creates and returns a plugin state service backed by the given service.
+func New(service contract.PluginStateService) contract.PluginStateService {
 	return &serviceAdapter{service: service}
 }

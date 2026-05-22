@@ -3,8 +3,6 @@
 package pluginhostservices
 
 import (
-	"context"
-
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/apidoc"
@@ -23,16 +21,6 @@ import (
 	pluginservicepluginstate "lina-core/pkg/pluginservice/pluginstate"
 	pluginservicetenantfilter "lina-core/pkg/pluginservice/tenantfilter"
 )
-
-// PluginStateReader defines the plugin-state read operation required by the
-// source-plugin host service directory.
-type PluginStateReader interface {
-	// IsEnabled reports whether pluginID is installed, enabled, and allowed to
-	// expose source-plugin business entries for the current request scope.
-	// Implementations must honor tenant/data-scope plugin visibility and return
-	// false rather than leaking errors through bridge-facing state checks.
-	IsEnabled(ctx context.Context, pluginID string) bool
-}
 
 // PluginLifecycleRunner defines the host lifecycle operations published to
 // source-plugin services.
@@ -81,7 +69,7 @@ func New(
 	bizCtxSvc bizctx.Service,
 	scopeSvc datascope.Service,
 	i18nSvc i18nsvc.Service,
-	pluginStateReader PluginStateReader,
+	pluginStateSvc contract.PluginStateService,
 	pluginLifecycleRunner PluginLifecycleRunner,
 	sessionStore session.Store,
 	tenantSvc tenantcapsvc.Service,
@@ -105,7 +93,7 @@ func New(
 		i18n:         newI18nAdapter(i18nSvc),
 		notify:       newNotifyAdapter(notifySvc),
 		pluginLife:   pluginservicepluginlifecycle.New(pluginLifecycleRunner),
-		pluginState:  pluginservicepluginstate.New(pluginStateReader),
+		pluginState:  pluginservicepluginstate.New(pluginStateSvc),
 		route:        newRouteAdapter(),
 		session:      newSessionAdapter(authSvc, scopeSvc, sessionStore, tenantSvc),
 		tenantFilter: tenantFilterSvc,

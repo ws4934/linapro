@@ -58,6 +58,15 @@ func newGuestControllerContext(request *BridgeRequestEnvelopeV1) context.Context
 	})
 }
 
+// NewGuestControllerContext creates one context for generated guest
+// dispatchers that directly call typed controller methods without runtime
+// reflection. The returned context carries the same response state used by the
+// reflected dispatcher, so handlers can call SetResponseHeader, WriteResponse,
+// and RequestEnvelopeFromContext with identical semantics.
+func NewGuestControllerContext(request *BridgeRequestEnvelopeV1) context.Context {
+	return newGuestControllerContext(request)
+}
+
 // guestControllerStateFromContext returns the typed guest controller state
 // stored on the given context, if present.
 func guestControllerStateFromContext(ctx context.Context) *guestControllerContextState {
@@ -200,6 +209,16 @@ func buildGuestControllerResponse(
 	}
 
 	return nil, gerror.New("typed guest controller returned nil payload without writing a response")
+}
+
+// BuildGuestControllerResponse materializes one generated typed-controller
+// handler result into a bridge response using the same response-state rules as
+// the reflected guest dispatcher.
+func BuildGuestControllerResponse(
+	ctx context.Context,
+	payload interface{},
+) (*BridgeResponseEnvelopeV1, error) {
+	return buildGuestControllerResponse(ctx, payload)
 }
 
 // defaultGuestResponseStatus returns fallback when the stored status code is

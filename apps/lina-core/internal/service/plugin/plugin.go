@@ -419,6 +419,12 @@ type LifecycleManagementService interface {
 	IsInstalled(ctx context.Context, pluginID string) bool
 	// IsEnabled returns whether a plugin is enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
+	// IsEnabledAuthoritative returns whether pluginID is installed, enabled, and
+	// allowed to expose business entries after forcing a persisted governance
+	// read instead of reusing process-local platform snapshots. It preserves the
+	// current tenant/request scope and returns false when authoritative state
+	// cannot be resolved.
+	IsEnabledAuthoritative(ctx context.Context, pluginID string) bool
 	// EnsureTenantPluginDisableAllowed runs plugin lifecycle preconditions
 	// before tenant-scoped plugin disable.
 	EnsureTenantPluginDisableAllowed(ctx context.Context, pluginID string, tenantID int) error

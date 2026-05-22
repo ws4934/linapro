@@ -62,6 +62,11 @@ function uploadedArtifactPath(pluginID: string) {
   return path.join(runtimeStorageDir(), `${pluginID}.wasm`);
 }
 
+function pluginApiPath(pluginID: string, pathName: string) {
+  const normalizedPath = pathName.startsWith("/") ? pathName : `/${pathName}`;
+  return `/x/${pluginID}/api/v1${normalizedPath}`;
+}
+
 function writeTestFile(filePath: string, content: string) {
   mkdirSync(path.dirname(filePath), { recursive: true });
   writeFileSync(filePath, content);
@@ -963,7 +968,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     await installPlugin(adminApi!, successPluginID);
     await setPluginEnabled(adminApi!, successPluginID, true);
 
-    const response = await adminApi!.get(`/x//api/v1/host-services`);
+    const response = await adminApi!.get(pluginApiPath(successPluginID, "/host-services"));
     const responseText = await response.text();
     expect(
       response.status(),
@@ -1012,7 +1017,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     await setPluginEnabled(adminApi!, deniedPluginID, true);
 
     const deniedMethodResponse = await adminApi!.get(
-      `/x//api/v1/denied-method`,
+      pluginApiPath(deniedPluginID, "/denied-method"),
     );
     expect(deniedMethodResponse.status()).toBe(500);
     await expectApiFailure(
@@ -1022,7 +1027,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     );
 
     const deniedResourceResponse = await adminApi!.get(
-      `/x//api/v1/denied-resource`,
+      pluginApiPath(deniedPluginID, "/denied-resource"),
     );
     expect(deniedResourceResponse.status()).toBe(500);
     await expectApiFailure(
@@ -1032,7 +1037,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     );
 
     const deniedServiceResponse = await adminApi!.get(
-      `/x//api/v1/denied-service`,
+      pluginApiPath(deniedPluginID, "/denied-service"),
     );
     expect(deniedServiceResponse.status()).toBe(500);
     await expectApiFailure(

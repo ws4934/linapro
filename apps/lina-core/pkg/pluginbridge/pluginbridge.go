@@ -423,6 +423,8 @@ var (
 	QueryFlag                             = guest.QueryFlag
 	NewErrorCase                          = guest.NewErrorCase
 	NewErrorClassifier                    = guest.NewErrorClassifier
+	NewGuestControllerContext             = guest.NewGuestControllerContext
+	BuildGuestControllerResponse          = guest.BuildGuestControllerResponse
 	RequestEnvelopeFromContext            = guest.RequestEnvelopeFromContext
 	SetResponseHeader                     = guest.SetResponseHeader
 	SetResponseStatusCode                 = guest.SetResponseStatusCode

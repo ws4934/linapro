@@ -8,6 +8,7 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
@@ -588,6 +589,15 @@ func (s *serviceImpl) IsInstalled(ctx context.Context, pluginID string) bool {
 // IsEnabled returns whether a plugin is enabled.
 func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 	s.ensureRuntimeCacheFreshBestEffort(ctx, "is_enabled")
+	return s.integrationSvc.CanExposeBusinessEntries(ctx, pluginID)
+}
+
+// IsEnabledAuthoritative returns whether pluginID is installed, enabled, and
+// allowed to expose business entries after forcing a persisted registry read
+// instead of reusing a process-local platform snapshot.
+func (s *serviceImpl) IsEnabledAuthoritative(ctx context.Context, pluginID string) bool {
+	ctx = integration.WithAuthoritativeEnablement(ctx)
+	s.ensureRuntimeCacheFreshBestEffort(ctx, "is_enabled_authoritative")
 	return s.integrationSvc.CanExposeBusinessEntries(ctx, pluginID)
 }
 

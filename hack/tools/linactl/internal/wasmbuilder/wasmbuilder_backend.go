@@ -472,22 +472,22 @@ func collectResourceSpecs(pluginDir string, pluginID string) ([]*resourceSpec, e
 	return items, nil
 }
 
-func collectRouteContracts(pluginDir string, pluginID string) ([]*pluginbridge.RouteContract, error) {
+func collectRouteContracts(pluginDir string, pluginID string) ([]*routeContractSource, []*pluginbridge.RouteContract, error) {
 	apiDir := filepath.Join(pluginDir, "backend", "api")
 	info, err := os.Stat(apiDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*pluginbridge.RouteContract{}, nil
+			return nil, []*pluginbridge.RouteContract{}, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("runtime backend api path is not a directory: %s", apiDir)
+		return nil, nil, fmt.Errorf("runtime backend api path is not a directory: %s", apiDir)
 	}
 
 	prefixes, err := collectRouteGroupBindings(pluginDir, apiDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	fset := token.NewFileSet()
 	sources := make([]*routeContractSource, 0)
@@ -503,18 +503,23 @@ func collectRouteContracts(pluginDir string, pluginID string) ([]*pluginbridge.R
 			return fmt.Errorf("failed to parse api file %s: %w", path, parseErr)
 		}
 		dir := filepath.Dir(path)
+		apiPackage, relErr := backendAPIPackageForDir(apiDir, dir)
+		if relErr != nil {
+			return relErr
+		}
 		items, extractErr := extractRouteContractsFromFile(fileNode)
 		if extractErr != nil {
 			return fmt.Errorf("failed to extract route contract from %s: %w", path, extractErr)
 		}
 		sources = append(sources, &routeContractSource{
-			dir:       dir,
-			contracts: items,
+			dir:        dir,
+			contracts:  items,
+			apiPackage: apiPackage,
 		})
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	contracts := make([]*pluginbridge.RouteContract, 0)
 	for _, source := range sources {
@@ -525,9 +530,9 @@ func collectRouteContracts(pluginDir string, pluginID string) ([]*pluginbridge.R
 		}
 	}
 	if err = pluginbridge.ValidateRouteContracts(pluginID, contracts); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return contracts, nil
+	return sources, contracts, nil
 }
 
 // routeContractSource records DTO-derived route contracts before their
@@ -537,6 +542,22 @@ type routeContractSource struct {
 	dir string
 	// contracts are DTO-derived route contracts before group-prefix composition.
 	contracts []*pluginbridge.RouteContract
+	// apiPackage is the backend/api-relative package path containing the DTO declarations.
+	apiPackage string
+}
+
+// backendAPIPackageForDir returns one backend/api-relative package path for a
+// DTO source directory.
+func backendAPIPackageForDir(apiDir string, sourceDir string) (string, error) {
+	relativePath, err := filepath.Rel(apiDir, sourceDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve backend api package path for %s: %w", sourceDir, err)
+	}
+	normalizedPath := normalizeAPIPackagePath(filepath.ToSlash(relativePath))
+	if normalizedPath == "" {
+		return ".", nil
+	}
+	return normalizedPath, nil
 }
 
 // collectRouteGroupBindings reads dynamic backend route registration code and

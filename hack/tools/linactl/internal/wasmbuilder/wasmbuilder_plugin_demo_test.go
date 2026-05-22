@@ -36,6 +36,7 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected dynamic demo plugin build to succeed, got error: %v", err)
 	}
+	assertGeneratedWasmDispatcherDidNotLeak(t, pluginDir)
 
 	sections, err := parseWasmCustomSections(out.Content)
 	if err != nil {
@@ -96,6 +97,69 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 	assertPluginDemoDynamicLifecycleContracts(t, lifecycleContracts)
 }
 
+// TestPluginDemoDynamicGeneratedDispatcherIsZeroReflection verifies the
+// generated dispatcher for the official dynamic demo plugin avoids runtime
+// reflection and directly calls typed controllers.
+func TestPluginDemoDynamicGeneratedDispatcherIsZeroReflection(t *testing.T) {
+	repoRoot, ok := findRuntimeBuildRepoRoot(".")
+	if !ok {
+		t.Fatal("expected builder test to resolve repo root")
+	}
+
+	pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "linapro-demo-dynamic")
+	requireOfficialPluginDemoDynamic(t, pluginDir)
+	prepareTemporaryPluginGoWorkForTest(t, repoRoot)
+
+	routeSources, _, err := collectRouteContracts(pluginDir, "linapro-demo-dynamic")
+	if err != nil {
+		t.Fatalf("expected route contracts to collect, got error: %v", err)
+	}
+	lifecycleSpecs, err := collectLifecycleSpecs(pluginDir, "linapro-demo-dynamic")
+	if err != nil {
+		t.Fatalf("expected lifecycle specs to collect, got error: %v", err)
+	}
+	cleanup, err := prepareGeneratedWasmDispatcher(pluginDir, "linapro-demo-dynamic", routeSources, lifecycleSpecs)
+	if err != nil {
+		t.Fatalf("expected generated dispatcher to prepare, got error: %v", err)
+	}
+	t.Cleanup(func() {
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			t.Fatalf("generated dispatcher cleanup failed: %v", cleanupErr)
+		}
+	})
+
+	generatedPath := filepath.Join(pluginDir, "backend", generatedDispatcherFileName)
+	content, err := os.ReadFile(generatedPath)
+	if err != nil {
+		t.Fatalf("expected generated dispatcher to exist, got error: %v", err)
+	}
+	generated := string(content)
+	for _, forbidden := range []string{
+		`"reflect"`,
+		"NewGuestControllerRouteDispatcher",
+		"MustNewGuestControllerRouteDispatcher",
+		"reflect.",
+	} {
+		if strings.Contains(generated, forbidden) {
+			t.Fatalf("generated dispatcher must not contain %q:\n%s", forbidden, generated)
+		}
+	}
+	if !strings.Contains(generated, "func HandleRequest(") {
+		t.Fatalf("generated dispatcher must expose HandleRequest:\n%s", generated)
+	}
+	if !strings.Contains(generated, "generatedController1().BackendSummary") {
+		t.Fatalf("generated dispatcher must directly call typed controllers:\n%s", generated)
+	}
+	if strings.Contains(generated, "var generatedController1 ") ||
+		strings.Contains(generated, "generatedEnvelopeController = controller1.New()") {
+		t.Fatalf("generated dispatcher must not initialize controllers at package init:\n%s", generated)
+	}
+	if !strings.Contains(generated, "sync.Once") ||
+		!strings.Contains(generated, "func generatedController1()") {
+		t.Fatalf("generated dispatcher must lazily initialize controllers once:\n%s", generated)
+	}
+}
+
 // requireOfficialPluginDemoDynamic skips plugin-full fixture checks when the
 // official plugin submodule is not initialized in a host-only checkout.
 func requireOfficialPluginDemoDynamic(t *testing.T, pluginDir string) {
@@ -108,6 +172,21 @@ func requireOfficialPluginDemoDynamic(t *testing.T, pluginDir string) {
 		}
 		t.Fatalf("stat dynamic demo plugin manifest failed: %v", err)
 	}
+}
+
+// assertGeneratedWasmDispatcherDidNotLeak verifies temporary generated source
+// files are removed after the runtime build completes.
+func assertGeneratedWasmDispatcherDidNotLeak(t *testing.T, pluginDir string) {
+	t.Helper()
+
+	generatedPath := filepath.Join(pluginDir, "backend", generatedDispatcherFileName)
+	if _, err := os.Stat(generatedPath); err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		t.Fatalf("stat generated dispatcher failed: %v", err)
+	}
+	t.Fatalf("generated dispatcher leaked into plugin source: %s", generatedPath)
 }
 
 // prepareTemporaryPluginGoWorkForTest mirrors linactl's ignored plugin

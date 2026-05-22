@@ -205,6 +205,68 @@ type hookSpec struct {
 
 type lifecycleSpec = pluginbridge.LifecycleContract
 
+// wasmDispatcherSpec describes one generated guest dispatcher file used only
+// while compiling the dynamic plugin runtime module.
+type wasmDispatcherSpec struct {
+	PluginID        string
+	APIControllers  []*wasmAPIControllerSpec
+	Routes          []*wasmRouteHandlerSpec
+	LifecycleRoutes []*wasmLifecycleHandlerSpec
+	EnvelopeRoutes  []*wasmEnvelopeHandlerSpec
+}
+
+// wasmAPIControllerSpec records one backend API interface/controller pair
+// referenced by generated typed route handlers.
+type wasmAPIControllerSpec struct {
+	ImportAlias       string
+	PackagePath       string
+	InterfaceAlias    string
+	InterfacePath     string
+	Constructor       string
+	ConcreteType      string
+	InterfaceName     string
+	InterfaceTypeExpr string
+}
+
+// wasmRouteHandlerSpec records one DTO route contract and its typed
+// controller method.
+type wasmRouteHandlerSpec struct {
+	RequestType     string
+	Method          string
+	Path            string
+	APIPackage      string
+	ControllerAlias string
+	ControllerType  string
+	MethodName      string
+	DTOImportAlias  string
+	RequestTypeExpr string
+	Fields          []*wasmDTOFieldSpec
+}
+
+// wasmDTOFieldSpec describes one JSON-tagged request DTO field. GoType is set
+// only for fields that generated code can hydrate from path or query values.
+type wasmDTOFieldSpec struct {
+	GoName   string
+	JSONName string
+	GoType   string
+	Required bool
+}
+
+// wasmLifecycleHandlerSpec records one lifecycle callback method discovered
+// from backend controller sources.
+type wasmLifecycleHandlerSpec struct {
+	RequestType string
+	MethodName  string
+}
+
+// wasmEnvelopeHandlerSpec records one envelope-style callback that is not
+// declared through API DTO route contracts.
+type wasmEnvelopeHandlerSpec struct {
+	RequestType  string
+	InternalPath string
+	MethodName   string
+}
+
 type resourceSpec struct {
 	Key            string                 `json:"key" yaml:"key"`
 	Type           string                 `json:"type" yaml:"type"`

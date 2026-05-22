@@ -4,22 +4,26 @@ import type {
   TenantImpersonationResult,
 } from './model';
 
-import { requestClient } from '#/api/request';
+import { pluginApiPath, requestClient } from '#/api/request';
+
+const pluginID = 'linapro-tenant-core';
 
 export async function platformTenantList(params?: PlatformTenantListParams) {
   const res = await requestClient.get<{
     list: PlatformTenant[];
     total: number;
-  }>('/platform/tenants', { params });
+  }>(pluginApiPath(pluginID, 'platform/tenants'), { params });
   return { items: res.list, total: res.total };
 }
 
 export function platformTenantImpersonate(id: number) {
   return requestClient.post<TenantImpersonationResult>(
-    `/platform/tenants/${id}/impersonate`,
+    pluginApiPath(pluginID, `platform/tenants/${id}/impersonate`),
   );
 }
 
 export function platformTenantEndImpersonate(id: number) {
-  return requestClient.post(`/platform/tenants/${id}/end-impersonate`);
+  return requestClient.post(
+    pluginApiPath(pluginID, `platform/tenants/${id}/end-impersonate`),
+  );
 }

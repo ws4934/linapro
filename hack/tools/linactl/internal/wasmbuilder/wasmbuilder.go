@@ -68,11 +68,11 @@ func buildRuntimeWasmArtifactFromSource(pluginDir string, outputDir string) (*Ru
 	if err != nil {
 		return nil, err
 	}
-	routeContracts, err := collectRouteContracts(pluginDir, manifest.ID)
+	routeSources, routeContracts, err := collectRouteContracts(pluginDir, manifest.ID)
 	if err != nil {
 		return nil, err
 	}
-	runtimePath, err := buildGuestRuntimeWasm(pluginDir, manifest.ID, outputDir)
+	runtimePath, err := buildGuestRuntimeWasm(pluginDir, manifest.ID, outputDir, routeSources, lifecycleSpecs)
 	if err != nil {
 		return nil, err
 	}

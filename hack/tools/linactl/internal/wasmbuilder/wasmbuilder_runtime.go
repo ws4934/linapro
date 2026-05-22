@@ -13,7 +13,13 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
-func buildGuestRuntimeWasm(pluginDir string, pluginID string, outputDir string) (runtimePath string, err error) {
+func buildGuestRuntimeWasm(
+	pluginDir string,
+	pluginID string,
+	outputDir string,
+	routeSources []*routeContractSource,
+	lifecycleSpecs []*lifecycleSpec,
+) (runtimePath string, err error) {
 	// The WASM guest runtime entry (main.go) lives at the plugin root
 	// directory.
 	mainGoPath := filepath.Join(pluginDir, "main.go")
@@ -31,6 +37,17 @@ func buildGuestRuntimeWasm(pluginDir string, pluginID string, outputDir string) 
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return "", err
 	}
+	cleanupDispatcher, err := prepareGeneratedWasmDispatcher(pluginDir, pluginID, routeSources, lifecycleSpecs)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if cleanupDispatcher != nil {
+			if cleanupErr := cleanupDispatcher(); cleanupErr != nil && err == nil {
+				err = cleanupErr
+			}
+		}
+	}()
 	buildDir := pluginDir
 	buildTarget := "."
 	buildEnv := append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
