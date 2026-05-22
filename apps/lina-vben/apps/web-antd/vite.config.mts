@@ -3,11 +3,12 @@ import {createRequire} from 'node:module';
 import {dirname, join, relative, sep} from 'node:path';
 
 import {defineConfig} from '@vben/vite-config';
-import type {ViteDevServer} from 'vite';
+import {loadEnv, type ViteDevServer} from 'vite';
 
 // Cache the HTML content to avoid repeated synchronous file reads
 let cachedApidocsHtml: string | undefined;
 
+const stoplightApiDocsPath = '/stoplight/apidocs.html';
 const pluginPageModuleId = 'virtual:lina-plugin-pages';
 const pluginSlotModuleId = 'virtual:lina-plugin-slots';
 const appThirdPartyLocaleModuleId = 'virtual:lina-app-third-party-locales';
@@ -201,6 +202,33 @@ function uniqueItems(items: string[]) {
   return [...new Set(items.map((item) => item.trim()).filter(Boolean))];
 }
 
+function normalizeViteBasePath(value: string) {
+  const cleaned = value.trim().replaceAll('\\', '/').replace(/\/+/g, '/');
+  if (!cleaned || cleaned === '/') {
+    return '/';
+  }
+  return `/${cleaned.replace(/^\/+|\/+$/g, '')}`;
+}
+
+function resolveWorkspaceStoplightApiDocsPath(base: string) {
+  const normalizedBase = normalizeViteBasePath(base);
+  if (normalizedBase === '/') {
+    return stoplightApiDocsPath;
+  }
+  return `${normalizedBase}${stoplightApiDocsPath}`;
+}
+
+function readStoplightApiDocsHtml() {
+  if (!cachedApidocsHtml) {
+    const filePath = join(
+      import.meta.dirname,
+      'public/stoplight/apidocs.html',
+    );
+    cachedApidocsHtml = readFileSync(filePath, 'utf8');
+  }
+  return cachedApidocsHtml;
+}
+
 function splitLocaleCode(locale: string) {
   const segments = locale.trim().split('-').filter(Boolean);
   const language = String(segments[0] || '').toLowerCase();
@@ -332,11 +360,15 @@ function buildVxeLocaleModuleCode(
   );
 }
 
-export default defineConfig(async () => {
+export default defineConfig(async (config) => {
   const vbenRoot = join(import.meta.dirname, '../..');
   const pluginRoot = join(import.meta.dirname, '../../../lina-plugins');
   const appDependencyImporter = join(import.meta.dirname, 'src/main.ts');
   const appNodeModulesRoot = join(import.meta.dirname, 'node_modules');
+  const env = loadEnv(config.mode, import.meta.dirname, 'VITE_');
+  const workspaceStoplightApiDocsPath = resolveWorkspaceStoplightApiDocsPath(
+    env.VITE_BASE || '/',
+  );
   const runtimeLocales = collectRuntimeLocaleNames([
     join(vbenRoot, 'packages/locales/src/langs'),
     join(import.meta.dirname, 'src/locales/langs'),
@@ -486,22 +518,30 @@ export default defineConfig(async () => {
             // production; dev mode proxies them to the backend runtime.
             target: 'http://localhost:9120',
           },
-          '/stoplight/apidocs.html': {
+          [workspaceStoplightApiDocsPath]: {
             target: 'http://localhost:9120',
             bypass(_req, res) {
               if (!res) {
                 return;
               }
-              // Serve the static HTML file directly, bypassing Vite's SPA fallback
-              if (!cachedApidocsHtml) {
-                const filePath = join(
-                  import.meta.dirname,
-                  'public/stoplight/apidocs.html',
-                );
-                cachedApidocsHtml = readFileSync(filePath, 'utf8');
-              }
+              // Serve the static HTML file directly before Vite's base and
+              // SPA fallback middlewares, including iframe document requests.
               res.setHeader('Content-Type', 'text/html; charset=utf-8');
-              res.end(cachedApidocsHtml);
+              res.end(readStoplightApiDocsHtml());
+              // Return false to prevent proxy from connecting to the target
+              return false;
+            },
+          },
+          [stoplightApiDocsPath]: {
+            target: 'http://localhost:9120',
+            bypass(_req, res) {
+              if (!res) {
+                return;
+              }
+              // Serve the static HTML file directly before Vite's base and
+              // SPA fallback middlewares, including iframe document requests.
+              res.setHeader('Content-Type', 'text/html; charset=utf-8');
+              res.end(readStoplightApiDocsHtml());
               // Return false to prevent proxy from connecting to the target
               return false;
             },

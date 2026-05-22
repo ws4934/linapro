@@ -181,6 +181,68 @@ function resolveWorkspaceRouterBase() {
   return basePath === '/' ? '/' : `${basePath}/`;
 }
 
+function splitURLSuffix(value: string): [string, string] {
+  const queryIndex = value.indexOf('?');
+  const hashIndex = value.indexOf('#');
+  const suffixIndex = [queryIndex, hashIndex]
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right)[0];
+  if (suffixIndex === undefined) {
+    return [value, ''];
+  }
+  return [value.slice(0, suffixIndex), value.slice(suffixIndex)];
+}
+
+function isAbsoluteOrSpecialURL(value: string): boolean {
+  return (
+    value.startsWith('//') ||
+    value.startsWith('#') ||
+    value.startsWith('?') ||
+    /^[a-z][a-z\d+.-]*:/i.test(value)
+  );
+}
+
+function resolveWorkspaceAssetURL(value: unknown): string {
+  const cleaned = normalizeString(value);
+  if (!cleaned || isAbsoluteOrSpecialURL(cleaned)) {
+    return cleaned;
+  }
+
+  const [rawPath, suffix] = splitURLSuffix(cleaned);
+  const normalizedPath = rawPath
+    .replaceAll('\\', '/')
+    .replace(/^\.\//, '')
+    .replace(/\/+/g, '/');
+  if (!normalizedPath || normalizedPath === '/') {
+    return cleaned;
+  }
+
+  const rootedPath = normalizedPath.startsWith('/')
+    ? normalizedPath
+    : `/${normalizedPath}`;
+  if (
+    rootedPath === '/api.json' ||
+    ['/api', '/x', '/x-assets', '/plugin-assets'].some(
+      (prefix) => rootedPath === prefix || rootedPath.startsWith(`${prefix}/`),
+    )
+  ) {
+    return `${rootedPath}${suffix}`;
+  }
+
+  const workspaceBasePath = normalizeWorkspaceBasePath(
+    publicFrontendState.workspace.basePath,
+  );
+  if (
+    workspaceBasePath === '/' ||
+    rootedPath === workspaceBasePath ||
+    rootedPath.startsWith(`${workspaceBasePath}/`)
+  ) {
+    return `${rootedPath}${suffix}`;
+  }
+
+  return `${workspaceBasePath}${rootedPath}${suffix}`;
+}
+
 function resolvePublicFrontendEndpoint(): string {
   const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
   return `${apiURL.replace(/\/$/, '')}/config/public/frontend`;
@@ -262,9 +324,12 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
 
 function applyPublicFrontendPreferences(settings: PublicFrontendSettings) {
   const initial = preferencesManager.getInitialPreferences();
-  const logoSource = settings.app.logo || initial.logo.source;
+  const logoSource = resolveWorkspaceAssetURL(
+    settings.app.logo || initial.logo.source,
+  );
   const logoSourceDark =
-    settings.app.logoDark || initial.logo.sourceDark || logoSource;
+    resolveWorkspaceAssetURL(settings.app.logoDark || initial.logo.sourceDark) ||
+    logoSource;
   const themePreference = {
     builtinType: initial.theme.builtinType,
     colorPrimary: initial.theme.colorPrimary,
@@ -277,7 +342,9 @@ function applyPublicFrontendPreferences(settings: PublicFrontendSettings) {
     {
       app: {
         authPageLayout: settings.auth.panelLayout,
-        defaultAvatar: settings.user.defaultAvatar || initial.app.defaultAvatar,
+        defaultAvatar: resolveWorkspaceAssetURL(
+          settings.user.defaultAvatar || initial.app.defaultAvatar,
+        ),
         layout: (settings.ui.layout || initial.app.layout) as any,
         name: settings.app.name || initial.app.name,
         watermark: settings.ui.watermarkEnabled,
@@ -330,6 +397,11 @@ async function syncPublicFrontendSettings(locale?: string) {
   }
 }
 
-export { normalizeWorkspaceBasePath, resolveWorkspaceRouterBase, syncPublicFrontendSettings };
+export {
+  normalizeWorkspaceBasePath,
+  resolveWorkspaceAssetURL,
+  resolveWorkspaceRouterBase,
+  syncPublicFrontendSettings,
+};
 export const publicFrontendSettings = readonly(publicFrontendState);
 export type { PublicFrontendSettings, PublicFrontendWorkspaceSettings };

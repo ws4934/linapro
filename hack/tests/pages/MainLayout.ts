@@ -60,6 +60,13 @@ export class MainLayout {
       .first();
   }
 
+  breadcrumbItem(label: string) {
+    return this.page
+      .locator('nav[aria-label="breadcrumb"]')
+      .getByText(label, { exact: true })
+      .first();
+  }
+
   activeTabTitle() {
     return this.page
       .locator('[data-tab-item="true"].is-active span[title]')

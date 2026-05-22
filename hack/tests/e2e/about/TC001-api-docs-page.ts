@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { workspacePath } from '../../fixtures/config';
 
 test.describe('TC001 系统接口页面', () => {
   test('TC001a: 系统接口页面通过 iframe 加载 Stoplight Elements', async ({
@@ -8,6 +9,10 @@ test.describe('TC001 系统接口页面', () => {
     // Verify the iframe is visible
     const iframe = adminPage.locator('iframe.api-docs-iframe');
     await expect(iframe).toBeVisible({ timeout: 10_000 });
+    await expect(iframe).toHaveAttribute(
+      'src',
+      new RegExp(`${escapeRegExp(workspacePath('/stoplight/apidocs.html'))}\\?`),
+    );
     // Wait for Stoplight Elements to render inside the iframe
     const frame = adminPage.frameLocator('iframe.api-docs-iframe');
     const apiElement = frame.locator('elements-api');
@@ -191,3 +196,7 @@ test.describe('TC001 系统接口页面', () => {
     });
   });
 });
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

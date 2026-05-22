@@ -1,5 +1,5 @@
 import { MainLayout } from "../../pages/MainLayout";
-import { config } from "../../fixtures/config";
+import { config, workspacePath } from "../../fixtures/config";
 import { test, expect } from "../../fixtures/auth";
 import { waitForRouteReady } from "../../support/ui";
 
@@ -21,8 +21,8 @@ test.describe("TC-3 默认品牌 Logo 资源", () => {
 
     await expect(loginPage.brandLogoImage).toBeVisible();
     const logo = await loginPage.getBrandLogoInfo();
-    expect(logo.src).toBe("/logo.webp");
-    expect(logo.currentSrc).toContain("/logo.webp");
+    expect(logo.src).toBe(workspacePath("/logo.webp"));
+    expect(logo.currentSrc).toContain(workspacePath("/logo.webp"));
     expect(logo.naturalWidth).toBe(405);
     expect(logo.naturalHeight).toBe(405);
     expect(logo.width).toBeLessThan(60);
@@ -40,8 +40,8 @@ test.describe("TC-3 默认品牌 Logo 资源", () => {
     const mainLayout = new MainLayout(page);
     await expect(mainLayout.brandLogoImage).toBeVisible();
     const logo = await mainLayout.getBrandLogoInfo();
-    expect(logo.src).toBe("/logo.webp");
-    expect(logo.currentSrc).toContain("/logo.webp");
+    expect(logo.src).toBe(workspacePath("/logo.webp"));
+    expect(logo.currentSrc).toContain(workspacePath("/logo.webp"));
     expect(logo.naturalWidth).toBe(405);
     expect(logo.naturalHeight).toBe(405);
     expect(logo.width).toBeLessThan(60);

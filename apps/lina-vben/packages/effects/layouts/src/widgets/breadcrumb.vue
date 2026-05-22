@@ -6,7 +6,7 @@ import type { IBreadcrumb } from '@vben-core/shadcn-ui';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { $t } from '@vben/locales';
+import { $t, $te, useI18n } from '@vben/locales';
 
 import { VbenBreadcrumbView } from '@vben-core/shadcn-ui';
 
@@ -25,15 +25,17 @@ const props = withDefaults(defineProps<Props>(), {
 
 const route = useRoute();
 const router = useRouter();
+const { locale } = useI18n();
 
 const breadcrumbs = computed((): IBreadcrumb[] => {
+  const currentLocale = locale.value;
   const matched = route.matched;
 
   const resultBreadcrumb: IBreadcrumb[] = [];
 
   for (const match of matched) {
     const { meta, path } = match;
-    const { hideChildrenInMenu, hideInBreadcrumb, icon, name, title } =
+    const { hideChildrenInMenu, hideInBreadcrumb, i18nKey, icon, name, title } =
       meta || {};
     if (hideInBreadcrumb || hideChildrenInMenu || !path) {
       continue;
@@ -42,7 +44,7 @@ const breadcrumbs = computed((): IBreadcrumb[] => {
     resultBreadcrumb.push({
       icon,
       path: path || route.path,
-      title: title ? $t((title || name) as string) : '',
+      title: resolveBreadcrumbTitle(i18nKey, title || name, currentLocale),
     });
   }
   if (props.showHome) {
@@ -58,6 +60,23 @@ const breadcrumbs = computed((): IBreadcrumb[] => {
 
   return resultBreadcrumb;
 });
+
+function resolveBreadcrumbTitle(
+  i18nKey: unknown,
+  value: unknown,
+  currentLocale: string,
+) {
+  const key = String(i18nKey ?? '').trim();
+  if (key && $te(key, currentLocale)) {
+    return $t(key);
+  }
+
+  const title = String(value ?? '').trim();
+  if (!title) {
+    return '';
+  }
+  return $te(title, currentLocale) ? $t(title) : title;
+}
 
 function handleSelect(path: string) {
   router.push(path);

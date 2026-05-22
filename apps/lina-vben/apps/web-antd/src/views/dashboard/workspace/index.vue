@@ -24,6 +24,7 @@ import { openWindow } from '@vben/utils';
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
 import { $t } from '#/locales';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
+import { resolveWorkspaceAssetURL } from '#/runtime/public-frontend';
 
 import AnalyticsVisitsSource from '../analytics/analytics-visits-source.vue';
 
@@ -34,7 +35,7 @@ const projectItems = computed<WorkbenchProjectItem[]>(() => [
     content: $t('pages.dashboard.workspace.projects.linapro.content'),
     date: '2026-05-01',
     group: $t('pages.dashboard.workspace.projects.linapro.group'),
-    logo: '/logo.webp',
+    logo: resolveWorkspaceAssetURL('/logo.webp'),
     title: 'LinaPro',
     url: 'https://linapro.ai',
   },
@@ -42,7 +43,7 @@ const projectItems = computed<WorkbenchProjectItem[]>(() => [
     content: $t('pages.dashboard.workspace.projects.goframe.content'),
     date: '2026-05-01',
     group: $t('pages.dashboard.workspace.projects.goframe.group'),
-    logo: '/goframe-logo.webp',
+    logo: resolveWorkspaceAssetURL('/goframe-logo.webp'),
     title: 'GoFrame',
     url: 'https://goframe.org',
   },
@@ -59,7 +60,7 @@ const projectItems = computed<WorkbenchProjectItem[]>(() => [
     content: $t('pages.dashboard.workspace.projects.vben.content'),
     date: '2026-05-01',
     group: $t('pages.dashboard.workspace.projects.vben.group'),
-    logo: '/vben-logo.webp',
+    logo: resolveWorkspaceAssetURL('/vben-logo.webp'),
     title: 'Vben',
     url: 'https://www.vben.pro',
   },

@@ -4,6 +4,8 @@ import { computed } from 'vue';
 import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
 
+import { resolveWorkspaceAssetURL } from '#/runtime/public-frontend';
+
 defineOptions({ name: 'ApiDocs' });
 
 const accessStore = useAccessStore();
@@ -11,7 +13,7 @@ const iframeSrc = computed(() => {
   const params = new URLSearchParams();
   params.set('lang', preferences.app.locale || 'zh-CN');
   params.set('token', accessStore.accessToken || '');
-  return `/stoplight/apidocs.html?${params.toString()}`;
+  return resolveWorkspaceAssetURL(`/stoplight/apidocs.html?${params.toString()}`);
 });
 </script>
 

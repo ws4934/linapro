@@ -420,6 +420,34 @@ func TestFrontendAssetFallbackIsScopedToWorkspaceBasePath(t *testing.T) {
 	if rootResp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected root path to avoid SPA fallback with 404, got %d", rootResp.StatusCode)
 	}
+
+	for _, assetPath := range []string{"/admin/logo.webp", "/admin/stoplight/apidocs.html"} {
+		t.Run(assetPath, func(t *testing.T) {
+			response, requestErr := http.Get(fmt.Sprintf(
+				"http://127.0.0.1:%d%s",
+				server.GetListenedPort(),
+				assetPath,
+			))
+			if requestErr != nil {
+				t.Fatalf("request workspace asset path %s: %v", assetPath, requestErr)
+			}
+			defer func() {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Fatalf("close workspace asset response body: %v", closeErr)
+				}
+			}()
+			body, readErr := io.ReadAll(response.Body)
+			if readErr != nil {
+				t.Fatalf("read workspace asset response body: %v", readErr)
+			}
+			if response.StatusCode != http.StatusOK {
+				t.Fatalf("expected workspace asset %s status 200, got %d body=%q", assetPath, response.StatusCode, string(body))
+			}
+			if len(body) == 0 {
+				t.Fatalf("expected workspace asset %s to return content", assetPath)
+			}
+		})
+	}
 }
 
 // TestFrontendAssetFallbackClaimsHostedPluginAssetNamespace verifies the final
@@ -707,7 +735,9 @@ func TestFrontendAssetFallbackProxiesWorkspaceBasePathInDevelopment(t *testing.T
 	devServer := http.Server{
 		Addr: "127.0.0.1:0",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/admin/" && r.URL.Path != "/admin/system/user" {
+			switch r.URL.Path {
+			case "/admin/", "/admin/system/user", "/admin/logo.webp", "/admin/stoplight/apidocs.html", "/admin/stoplight/styles.min.css":
+			default:
 				t.Errorf("expected proxied workspace path, got %s", r.URL.Path)
 			}
 			w.Header().Set("Content-Type", "text/plain")
@@ -737,7 +767,7 @@ func TestFrontendAssetFallbackProxiesWorkspaceBasePathInDevelopment(t *testing.T
 	server.SetDumpRouterMap(false)
 
 	runtime := newRouteBindingTestRuntime(ctx)
-	if err = bindFrontendAssetRoutes(ctx, server, runtime.pluginSvc, "/admin"); err != nil {
+	if err = bindFrontendAssetRoutesWithFS(server, runtime.pluginSvc, "/admin", testFrontendFS()); err != nil {
 		t.Fatalf("bind frontend asset routes: %v", err)
 	}
 
@@ -782,6 +812,32 @@ func TestFrontendAssetFallbackProxiesWorkspaceBasePathInDevelopment(t *testing.T
 	}
 	if string(body) != "vite-admin-dev:/admin/system/user" {
 		t.Fatalf("expected dev proxy body, got %q", string(body))
+	}
+
+	for _, assetPath := range []string{"/admin/logo.webp", "/admin/stoplight/apidocs.html", "/admin/stoplight/styles.min.css"} {
+		t.Run(assetPath, func(t *testing.T) {
+			assetResp, requestErr := http.Get(fmt.Sprintf(
+				"http://127.0.0.1:%d%s",
+				server.GetListenedPort(),
+				assetPath,
+			))
+			if requestErr != nil {
+				t.Fatalf("request workspace asset with dev proxy enabled: %v", requestErr)
+			}
+			defer func() {
+				if closeErr := assetResp.Body.Close(); closeErr != nil {
+					t.Fatalf("close workspace asset response body: %v", closeErr)
+				}
+			}()
+			assetBody, readErr := io.ReadAll(assetResp.Body)
+			if readErr != nil {
+				t.Fatalf("read workspace asset response body: %v", readErr)
+			}
+			expectedBody := "vite-admin-dev:" + assetPath
+			if string(assetBody) != expectedBody {
+				t.Fatalf("expected dev proxied workspace asset body %q, got %q", expectedBody, string(assetBody))
+			}
+		})
 	}
 
 	rootResp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/", server.GetListenedPort()))
@@ -835,7 +891,7 @@ func TestFrontendAssetFallbackProxiesRootWorkspaceBasePathInDevelopment(t *testi
 	server.SetDumpRouterMap(false)
 
 	runtime := newRouteBindingTestRuntime(ctx)
-	if err = bindFrontendAssetRoutes(ctx, server, runtime.pluginSvc, "/"); err != nil {
+	if err = bindFrontendAssetRoutesWithFS(server, runtime.pluginSvc, "/", testFrontendFS()); err != nil {
 		t.Fatalf("bind root frontend asset routes: %v", err)
 	}
 
@@ -902,6 +958,14 @@ func testFrontendFS() fs.FS {
 	return fstest.MapFS{
 		"index.html": {
 			Data: []byte("<!doctype html><title>LinaPro Test Workspace</title>"),
+			Mode: 0o644,
+		},
+		"logo.webp": {
+			Data: []byte("test-logo"),
+			Mode: 0o644,
+		},
+		"stoplight/apidocs.html": {
+			Data: []byte("<!doctype html><title>API Documentation</title>"),
 			Mode: 0o644,
 		},
 		"assets/app.js": {
