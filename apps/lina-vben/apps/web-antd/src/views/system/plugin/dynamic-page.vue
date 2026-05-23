@@ -66,7 +66,21 @@ type MountedDynamicEmbeddedModule = {
 
 const route = useRoute();
 const currentRoutePath = computed(() => route.path.replace(/^\//, ''));
-const pageEntry = computed(() => getPluginPageByRoute(currentRoutePath.value));
+const currentPluginPageRouteCandidates = computed(() => {
+  const normalizedPath = currentRoutePath.value.replace(/\/+$/u, '');
+  const routeSegments = normalizedPath.split('/').filter(Boolean);
+  const candidates = [normalizedPath, routeSegments.at(-1) ?? ''];
+  return [...new Set(candidates.filter(Boolean))];
+});
+const pageEntry = computed(() => {
+  for (const routePath of currentPluginPageRouteCandidates.value) {
+    const entry = getPluginPageByRoute(routePath);
+    if (entry) {
+      return entry;
+    }
+  }
+  return null;
+});
 const dynamicEmbeddedHost = ref<HTMLElement>();
 const dynamicEmbeddedLoading = ref(false);
 const dynamicEmbeddedError = ref('');

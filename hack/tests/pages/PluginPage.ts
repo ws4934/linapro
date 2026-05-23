@@ -1,9 +1,10 @@
 import { Page, Locator, expect } from "@playwright/test";
 
 import { workspacePath } from "../fixtures/config";
-import { waitForUploadReady } from "../support/ui";
+import { waitForRouteReady, waitForUploadReady } from "../support/ui";
 
 const pluginManageMenuPattern = /插件管理|Plugin Management/iu;
+const extensionCenterMenuPattern = /扩展中心|Extension Center|Extensions/iu;
 const pluginTableTitlePattern = /插件列表|Plugin List/iu;
 const pluginInstallActionPattern = /安\s*装|Install/iu;
 const pluginUninstallActionPattern = /卸\s*载|Uninstall/iu;
@@ -12,6 +13,8 @@ const pluginUpgradeActionPattern = /升\s*级|重试升级|Upgrade|Retry Upgrade
 const confirmActionPattern = /确\s*认|确\s*定|confirm|ok/iu;
 const cancelActionPattern = /取\s*消|cancel/iu;
 const pluginLifecycleActionTimeout = 120_000;
+
+type SidebarMenuName = RegExp | string;
 
 type PluginColumnHelpName =
   | "mockData"
@@ -65,23 +68,60 @@ export class PluginPage {
       .first();
   }
 
-  sidebarMenuItem(menuName: string): Locator {
+  sidebarMenuItem(menuName: SidebarMenuName): Locator {
+    if (typeof menuName !== "string") {
+      return this.sidebarMenu.getByRole("menuitem", { name: menuName }).first();
+    }
     return this.sidebarMenu
       .getByRole("menuitem", { name: menuName, exact: true })
       .first();
   }
 
-  private sidebarSubmenuForMenuItem(menuName: string): Locator {
+  private sidebarSubmenuForMenuItem(menuName: SidebarMenuName): Locator {
     return this.sidebarMenu
-      .locator(".ant-menu-submenu")
+      .locator(".ant-menu-submenu, .vben-sub-menu")
       .filter({ hasText: menuName })
-      .locator(".ant-menu-submenu-title")
+      .locator(".ant-menu-submenu-title, .vben-sub-menu-content")
       .first();
   }
 
-  async clickSidebarMenuItem(menuName: string) {
-    await this.expectSidebarMenuVisible(menuName);
-    await this.sidebarMenuItem(menuName).click();
+  private sidebarSubmenuForPattern(pattern: RegExp): Locator {
+    return this.sidebarMenu
+      .locator(".ant-menu-submenu-title, .vben-sub-menu-content")
+      .filter({ hasText: pattern })
+      .first();
+  }
+
+  private async expandSidebarSubmenu(submenuTitle: Locator) {
+    const submenu = submenuTitle
+      .locator(
+        "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-menu-submenu ') or contains(concat(' ', normalize-space(@class), ' '), ' vben-sub-menu ')][1]",
+      )
+      .first();
+    const className = (await submenu.getAttribute("class").catch(() => "")) ?? "";
+    if (
+      !className.includes("ant-menu-submenu-open") &&
+      !className.includes("is-opened")
+    ) {
+      await submenuTitle.click();
+    }
+  }
+
+  private async expandExtensionCenterIfVisible() {
+    const submenu = this.sidebarSubmenuForPattern(extensionCenterMenuPattern);
+    const visible = await submenu
+      .isVisible({ timeout: 1500 })
+      .catch(() => false);
+    if (!visible) {
+      return false;
+    }
+    await this.expandSidebarSubmenu(submenu);
+    return true;
+  }
+
+  async clickSidebarMenuItem(menuName: SidebarMenuName) {
+    const menuItem = await this.expectSidebarMenuVisible(menuName);
+    await menuItem.click();
   }
 
   pluginIframeFrame() {
@@ -944,27 +984,63 @@ export class PluginPage {
       .first();
   }
 
-  async expectSidebarMenuVisible(menuName: string) {
-    const menuItem = this.sidebarMenuItem(menuName);
-    const visible = await menuItem.isVisible().catch(() => false);
-    if (!visible) {
+  async expectSidebarMenuVisible(menuName: SidebarMenuName) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const menuItem = this.sidebarMenuItem(menuName);
+      if (await menuItem.isVisible().catch(() => false)) {
+        await expect(menuItem).toBeVisible();
+        return menuItem;
+      }
+
       const parentSubmenu = this.sidebarSubmenuForMenuItem(menuName);
-      const parentVisible = await parentSubmenu
-        .isVisible({ timeout: 1500 })
-        .catch(() => false);
-      if (parentVisible) {
-        await parentSubmenu.click();
-      } else {
-        await this.sidebarMenu
+      if (await parentSubmenu.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await this.expandSidebarSubmenu(parentSubmenu);
+      }
+
+      if (!(await menuItem.isVisible({ timeout: 1000 }).catch(() => false))) {
+        await this.expandExtensionCenterIfVisible();
+      }
+
+      if (!(await menuItem.isVisible({ timeout: 1000 }).catch(() => false))) {
+        const refreshedParentSubmenu = this.sidebarSubmenuForMenuItem(menuName);
+        if (
+          await refreshedParentSubmenu
+            .isVisible({ timeout: 1000 })
+            .catch(() => false)
+        ) {
+          await this.expandSidebarSubmenu(refreshedParentSubmenu);
+        }
+      }
+
+      if (!(await menuItem.isVisible({ timeout: 1000 }).catch(() => false))) {
+        const pluginManageMenu = this.sidebarMenu
           .getByText(pluginManageMenuPattern, { exact: true })
-          .first()
-          .click();
+          .first();
+        if (
+          await pluginManageMenu.isVisible({ timeout: 1000 }).catch(() => false)
+        ) {
+          await pluginManageMenu.click();
+        }
+      }
+
+      if (await menuItem.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await expect(menuItem).toBeVisible();
+        return menuItem;
+      }
+
+      if (attempt < 3) {
+        await this.page.reload({ waitUntil: "domcontentloaded" });
+        await waitForRouteReady(this.page, 15000);
       }
     }
+
+    const menuItem = this.sidebarMenuItem(menuName);
     await expect(menuItem).toBeVisible();
+    return menuItem;
   }
 
-  async expectSidebarMenuHidden(menuName: string) {
+  async expectSidebarMenuHidden(menuName: SidebarMenuName) {
+    await this.expandExtensionCenterIfVisible();
     const visible = await this.sidebarMenuItem(menuName)
       .isVisible({ timeout: 1500 })
       .catch(() => false);

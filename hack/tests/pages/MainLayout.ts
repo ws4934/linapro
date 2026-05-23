@@ -4,6 +4,8 @@ import { expect } from "@playwright/test";
 
 import { waitForRouteReady } from "../support/ui";
 
+type SidebarMenuLabel = RegExp | string;
+
 export class MainLayout {
   constructor(private page: Page) {}
 
@@ -49,8 +51,60 @@ export class MainLayout {
     return this.page.locator(".vben-logo__mark:visible").first();
   }
 
-  sidebarMenuItem(label: string) {
+  sidebarMenuItem(label: SidebarMenuLabel) {
+    if (typeof label !== "string") {
+      return this.sidebar.getByText(label).first();
+    }
     return this.sidebar.getByText(label, { exact: true }).first();
+  }
+
+  private sidebarSubmenuTitle(label: SidebarMenuLabel) {
+    return this.sidebar
+      .locator(".ant-menu-submenu-title, .vben-sub-menu-content")
+      .filter({ hasText: label })
+      .first();
+  }
+
+  async expandSidebarGroup(label: SidebarMenuLabel) {
+    const title = this.sidebarSubmenuTitle(label);
+    await expect(title).toBeVisible();
+    const submenu = title
+      .locator(
+        "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-menu-submenu ') or contains(concat(' ', normalize-space(@class), ' '), ' vben-sub-menu ')][1]",
+      )
+      .first();
+    const className = (await submenu.getAttribute("class").catch(() => "")) ?? "";
+    if (
+      !className.includes("ant-menu-submenu-open") &&
+      !className.includes("is-opened")
+    ) {
+      await title.click();
+    }
+  }
+
+  async expectSidebarMenuVisible(label: SidebarMenuLabel) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const menuItem = this.sidebarMenuItem(label);
+      if (await menuItem.isVisible().catch(() => false)) {
+        await expect(menuItem).toBeVisible();
+        return menuItem;
+      }
+
+      await this.expandSidebarGroup(/Extension Center|Extensions|扩展中心/);
+      if (await menuItem.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await expect(menuItem).toBeVisible();
+        return menuItem;
+      }
+
+      if (attempt < 3) {
+        await this.page.reload({ waitUntil: "domcontentloaded" });
+        await waitForRouteReady(this.page, 15000);
+      }
+    }
+
+    const menuItem = this.sidebarMenuItem(label);
+    await expect(menuItem).toBeVisible();
+    return menuItem;
   }
 
   tabTitle(label: string) {

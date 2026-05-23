@@ -302,9 +302,19 @@ export async function getPlugin(api: APIRequestContext, id: string) {
   return item!;
 }
 
-export async function installPlugin(api: APIRequestContext, id: string) {
+export async function installPlugin(
+  api: APIRequestContext,
+  id: string,
+  options: { installMode?: string } = {},
+) {
   return expectSuccess<{ id: string; installed: number; enabled: number }>(
-    await api.post(`plugins/${id}/install`),
+    await api.post(`plugins/${id}/install`, {
+      data: options.installMode
+        ? {
+            installMode: options.installMode,
+          }
+        : undefined,
+    }),
   );
 }
 

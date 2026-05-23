@@ -15,7 +15,9 @@ const repoRoot = path.resolve(process.cwd(), '../..');
 type PluginListItem = {
   enabled?: number;
   id: string;
+  installMode?: string;
   installed?: number;
+  scopeNature?: string;
   type?: string;
   version?: string;
 };
@@ -23,13 +25,14 @@ type PluginListItem = {
 async function ensurePluginEnabledState(
   adminApi: APIRequestContext,
   pluginId: string,
+  installMode?: string,
 ) {
   let plugin = await findPlugin(adminApi, pluginId);
   if (!plugin) {
     throw new Error(`未找到插件: ${pluginId}`);
   }
   if (plugin.installed !== 1) {
-    await installPlugin(adminApi, pluginId);
+    await installPlugin(adminApi, pluginId, installMode);
     plugin = await findPlugin(adminApi, pluginId);
   }
   if (plugin?.enabled !== 1) {
@@ -100,7 +103,7 @@ export async function prepareSourcePluginsBaseline(pluginIds: readonly string[])
   try {
     await syncPlugins(adminApi);
     for (const pluginId of uniquePluginIds) {
-      await ensurePluginEnabledState(adminApi, pluginId);
+      await ensurePluginEnabledState(adminApi, pluginId, 'global');
     }
   } finally {
     await adminApi.dispose();
@@ -132,8 +135,15 @@ export async function findPlugin(
 export async function installPlugin(
   adminApi: APIRequestContext,
   pluginId: string,
+  installMode?: string,
 ) {
-  const response = await adminApi.post(`plugins/${pluginId}/install`);
+  const response = await adminApi.post(`plugins/${pluginId}/install`, {
+    data: installMode
+      ? {
+          installMode,
+        }
+      : undefined,
+  });
   assertOk(response, `安装插件失败: ${pluginId}`);
 }
 
@@ -181,7 +191,7 @@ export async function ensureSourcePluginInstalled(page: Page, pluginId: string) 
       throw new Error(`未找到插件: ${pluginId}`);
     }
     if (plugin.installed !== 1) {
-      await installPlugin(adminApi, pluginId);
+      await installPlugin(adminApi, pluginId, 'global');
     }
   } finally {
     await adminApi.dispose();
@@ -194,7 +204,7 @@ export async function ensureSourcePluginEnabled(page: Page, pluginId: string) {
   const adminApi = await createAdminApiContext();
   try {
     await syncPlugins(adminApi);
-    await ensurePluginEnabledState(adminApi, pluginId);
+    await ensurePluginEnabledState(adminApi, pluginId, 'global');
   } finally {
     await adminApi.dispose();
   }
@@ -210,7 +220,7 @@ export async function ensureSourcePluginsEnabled(
   try {
     await syncPlugins(adminApi);
     for (const pluginId of pluginIds) {
-      await ensurePluginEnabledState(adminApi, pluginId);
+      await ensurePluginEnabledState(adminApi, pluginId, 'global');
     }
   } finally {
     await adminApi.dispose();
@@ -224,7 +234,7 @@ export async function ensureSourcePluginEnabledViaAPI(
   pluginId: string,
 ) {
   await syncPlugins(adminApi);
-  await ensurePluginEnabledState(adminApi, pluginId);
+  await ensurePluginEnabledState(adminApi, pluginId, 'global');
 }
 
 export async function ensureSourcePluginDisabled(page: Page, pluginId: string) {
