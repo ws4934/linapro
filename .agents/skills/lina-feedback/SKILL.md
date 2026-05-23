@@ -82,6 +82,11 @@ find hack/tests/e2e/<module> -maxdepth 1 -type f -name 'TC*.ts' | sort
 find apps/lina-plugins/<plugin-id>/hack/tests/e2e/<module> -maxdepth 1 -type f -name 'TC*.ts' | sort
 ```
 
+**外部规则文件：**
+- 读取 `AGENTS.md` 作为顶层规范入口。
+- 每个反馈都必须评估并记录 `i18n` 影响。若反馈涉及运行时用户可见文案、前端 UI、API 文档源文本、`manifest/i18n`、插件清单、语言配置、翻译缓存、错误、字典、路由、菜单或其他 `i18n` 面，必须在修复前读取 `.agents/rules/i18n.md` 并按其中的宿主与插件边界、资源维护和验证要求执行。
+- 若确认无 `i18n` 影响，也必须在该反馈的影响分析或审查结论中明确记录。
+
 ---
 
 ### 3. 分析和组织问题
@@ -202,6 +207,12 @@ rg -l "api/user" hack/tests/e2e apps/lina-plugins -g 'TC*.ts'
 - 受影响模块：菜单管理
 - 回归测试：hack/tests/e2e/iam/menu/TC001-menu-crud.ts, hack/tests/e2e/iam/menu/TC002-auth-menu.ts
 ```
+
+同时必须记录：
+- `i18n` 影响：涉及时列出资源归属、目标语言、验证命令；不涉及时写明无运行时行为、前端 UI、API 文档源文本、插件清单或语言包资源影响。
+- 缓存一致性影响：涉及时说明权威数据源、失效机制和分布式策略；不涉及时写明无缓存影响。
+- 数据权限影响：涉及时说明读写边界和验证；不涉及时写明无数据操作影响。
+- 开发工具跨平台影响：涉及时说明验证；不涉及时写明无开发工具或脚本影响。
 
 **f. 验证（标记完成前必须执行）**
 

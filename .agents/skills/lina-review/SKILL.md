@@ -11,7 +11,7 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 `OpenSpec` 开发工作流的结构化代码与规范审查。
 
-**规范来源**：`AGENTS.md` 是所有审查标准的唯一事实来源。
+**规范来源**：`AGENTS.md` 及其显式引用的规则文件是审查标准的唯一事实来源；涉及 `i18n` 时必须读取 `.agents/rules/i18n.md`。
 
 **交互语言**：与用户交互的内容语言（如审查结果展示）以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
 
@@ -64,7 +64,7 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ### 2. 加载关键规范
 
-读取 `AGENTS.md` 加载所有规范。这是唯一事实来源。
+读取 `AGENTS.md` 加载通用规范；若审查范围涉及 `i18n`、API 文档本地化、语言包、翻译资源或相关缓存，则继续读取 `.agents/rules/i18n.md` 并以该规则文件作为 `i18n` 治理细则来源。
 
 ### 3. 后端代码审查
 
@@ -85,16 +85,7 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
    - 新增或修改的时间点字段不得直接使用 `time.Time`、`*time.Time`、`gtime.Time`、`*gtime.Time`，也不得以格式化字符串返回
    - 时间点字段的 `dc` 或接口文档必须包含 `Unix timestamp in milliseconds` 单位说明
    - `birthday`、`businessDate`、`periodDate` 等只表示日历日期的字段可以使用 `YYYY-MM-DD` 字符串，但必须在 `dc` 或接口文档中明确 `date-only` 语义
-4. `API` 文档国际化合规性：
-   - 宿主 API 文档按宿主 `i18n` 配置治理；插件 API 文档必须先读取插件自己的 `plugin.yaml`，只有插件显式配置 `i18n.enabled: true` 时，`g.Meta` 和手写的 `DTO` 文档标签才必须使用可读的英文源文本并进入插件自身 `apidoc` 翻译检查；未配置 `i18n`、缺少 `enabled` 或 `i18n.enabled` 不是 `true` 的插件可以按自身源内容语言编写源文本；所有场景都禁止使用不透明的国际化占位符
-   - 接口文档本地化必须使用专用的 `apidoc i18n JSON` 资源，与运行时前端 `UI` 的 `i18n` 语言包隔离
-   - 必须使用稳定的结构化 `apidoc` 键而非源文本键；宿主 `core.*` `apidoc` 键保留在 `lina-core` 资源中，启用 `i18n.enabled: true` 的插件 `plugins.*` `apidoc` 键保留在各插件自己的 `manifest/i18n/<locale>/apidoc/**/*.json` 中，未启用 i18n 的插件不得被要求补这些插件翻译资源
-   - 宿主与插件的语言判断必须读取各自的 `i18n.enabled`、`i18n.locales` 配置；插件 `plugin.yaml` 缺少 `i18n` 或 `i18n.enabled` 不是 `true` 时表示不支持 `i18n` 治理
-   - 只有对应插件的 `plugin.yaml` 显式配置 `i18n.enabled: true` 时，才按 `i18n.locales` 检查或补齐该插件自身的 `manifest/i18n` 与 `apidoc i18n JSON` 资源
-   - 宿主或显式启用 i18n 的插件参与 `i18n` 资源治理时，`en-US` `apidoc JSON` 文件保留为空占位符（英文文档直接使用源文本）；未启用 i18n 的插件不要求提供空占位文件
-   - 禁止为 `internal.model.entity.*` 等生成的 `Schema` 元数据添加服务层中英文回退映射或 `apidoc JSON` 映射
-   - 生成的元数据按数据源原文展示；`eg/example` 示例值不翻译且不纳入 `apidoc i18n` 资源
-   - 宿主或显式启用 i18n 的插件参与 `i18n` 资源治理时，必须包含测试或审查检查以防止英文源文本变更时遗漏非英文 `apidoc` 翻译；未启用 i18n 的插件跳过该翻译完整性约束
+4. `API` 文档国际化合规性：若变更涉及 API 文档源文本、接口文档本地化资源或 `apidoc` 翻译完整性，读取 `.agents/rules/i18n.md` 并按其中的 API 文档本地化、资源隔离和翻译完整性规则审查。
 
 ### 5. 项目规范审查
 
@@ -203,79 +194,11 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 #### 国际化（i18n）治理审查
 
-**触发条件**：任何涉及 `i18n` 资源、前端文案、`manifest/i18n`、字典枚举或语言配置的变更
+**基础触发条件**：任何功能、反馈、治理或归档前审查都必须确认任务记录或审查结论包含 `i18n` 影响判断；若明确无影响，审查结论必须说明不涉及运行时行为、前端 UI、API 文档源文本、插件清单或语言包资源。
 
-**字典与语言包单一来源**
+**深度触发条件**：任何涉及 `i18n` 资源、前端文案、`manifest/i18n`、API 文档本地化、字典枚举、语言配置、翻译缓存或 `i18n` 服务边界的变更。
 
-对每个引入或修改枚举业务值（状态、类型、作用域、模式、来源等）的前端变更，还需执行**字典与语言包单一来源审查**：
-1. 如果后端 `sys_*` 字典已拥有相同的枚举（通过 `manifest/sql` 或运行时字典注册），前端必须通过 `useDictStore().getDictOptions(...)` / `getDictOptionsAsync(...)` 消费该字典，禁止在 `frontend/pages/data.ts`、`*.vue` 表单 Schema 或同级文件中维护包含 `$t(...)` 标签的并行 `options: [...]` 字面量数组。仅在后端字典不拥有该枚举时，才可接受静态 `options` 数组。
-2. 当同一字段在表格列、搜索表单、创建/编辑表单和任何预览/详情界面中都渲染为 `DictTag` 时，每个界面必须使用同一个字典作为唯一事实来源。标记在同一字典的 `DictTag` 消费方旁边注入了字面量 label/value 对的界面。
-3. 共享的前端 `pages.*` 命名空间（如 `apps/lina-vben/apps/web-antd/src/locales/langs/<locale>/pages.json`）不得携带与 `sys_*` 字典标签重复的翻译。如果宿主 UI 合理地渲染了插件字典拥有的枚举，宿主后端（如 `usermsg`、`notify`）必须在其 API 响应上提供本地化的标签字段，宿主前端必须直接消费该标签；禁止添加镜像字典标签的 `pages.status.<enum>` 键作为跨模块耦合的变通方案。
-4. 当后端拥有的数据字段需要在前端本地化展示时，优先在后端服务/API 输出上添加本地化字段（如 `typeLabel`、`statusLabel`）并直接消费。前端不得维护镜像字典语义的 `type === N ? $t(...) : $t(...)` 映射辅助函数。
-5. 如果变更删除了前端 `options` 字面量，还需确认同一变更中删除了所有孤立的 `pages.*` 键、回退数组和 `getXxxLabel` 辅助函数，避免遗留失效的翻译键。
-
-**国际化影响面**
-
-对每个功能变更，还需执行**国际化影响审查**：
-1. 识别变更是否新增、修改或删除了用户可见的文本、菜单、路由、按钮、表单字段、表格列、状态标签、提示信息、校验/错误信息、`API` 文档、插件清单、种子数据标签或其他本地化内容。
-2. 先区分宿主与插件的治理边界。宿主能力始终按宿主 `i18n.enabled`、`i18n.locales` 配置验证前端运行时语言包、宿主 `manifest/i18n` 资源以及宿主 `apidoc i18n JSON`。
-3. 插件必须先读取自身 `plugin.yaml`。只有插件显式配置 `i18n.enabled: true` 时，才按该插件的 `i18n.locales` 检查或补齐插件自己的 `manifest/i18n` 与 `apidoc i18n JSON` 资源。
-4. 插件 `plugin.yaml` 缺少 `i18n`、缺少 `enabled` 或 `i18n.enabled` 不是 `true` 时，必须视为单语言插件并跳过该插件自身的 `manifest/i18n` 与 `apidoc i18n JSON` 资源约束；审查不得要求这类插件补翻译键、空占位文件或多语言目录。
-5. AI、脚手架或人工生成内容时，启用 `i18n` 多语言特性必须使用英文作为源内容语言；未启用 `i18n` 的插件按用户指定语言或当前需求上下文语言生成单语言内容。
-6. 标记宿主或已启用 i18n 插件中的硬编码用户界面文本、缺失翻译键、功能删除后遗留的失效/孤立翻译条目，以及未明确评估 i18n 影响的变更；未启用 i18n 的插件只审查不透明占位符和明显错误的资源引用，不强制补多语言资源。
-7. 如果变更无 `i18n` 影响，或变更位于未启用 i18n 的插件且无需多语言资源，要求审查结果中明确说明该结论。
-
-**硬编码双语映射**
-
-对每个本地化导出/导入表头、字段标签或元数据投影的后端变更，还需执行**硬编码双语映射审查**：
-1. 业务模块不得维护 `englishLabels`、`chineseLabels` 或等价的 `locale-to-label` 表等 `Go` 映射来处理用户可见文本。
-2. 此类标签必须通过运行时 i18n 键（如 `config.field.<name>`）和对应的宿主/插件 `manifest/i18n/<locale>/*.json` 资源解析，包括宿主嵌入交付资源时的打包清单副本。
-
-**源文本命名空间注册**
-
-对每个涉及源文本支撑的缺失消息行为的变更，还需执行**源文本命名空间注册审查**：
-1. `apps/lina-core/internal/service/i18n/` 在判断键是否由源文本支撑时，不得硬编码 `job.handler.` 或 `job.group.default.` 等业务拥有的前缀。
-2. 拥有源文本支撑运行时键的业务模块必须通过其自身的包初始化或装配路径调用 `i18n.RegisterSourceTextNamespace(prefix, reason)` 注册命名空间。
-3. 缺失消息测试必须覆盖未注册命名空间仍出现在缺失结果中以及注册命名空间从缺失结果中消失两种情况。
-
-**国际化基础层边界**
-
-对每个添加本地化投影逻辑的后端变更，还需执行**国际化基础层边界审查**：
-1. `apps/lina-core/internal/service/i18n/` 是基础翻译服务，不得为菜单、字典、系统配置、任务管理、角色、用户消息、通知或插件运行时等模块拥有业务实体投影规则、业务保护规则或业务翻译键派生逻辑。
-2. 标记任何命名为 `ProjectMenu`、`ProjectDictType`、`ProjectBuiltinJob`、`ProjectMeta` 等接受业务实体来修改显示字段的 i18n 包 API。
-3. 业务模块必须将自身的本地化投影规则保持在其包边界内，仅依赖窄接口的 i18n 能力（如 `ResolveLocale`、`Translate`、`TranslateSourceText`）。
-4. apidoc 和运行时 i18n 共用的资源加载工具必须放在稳定的公共组件中（如 `pkg/i18nresource`）；如果会使无关服务依赖运行时 i18n 服务包，则不要放在 `internal/service/i18n` 中。
-
-**最小化 i18n 接口依赖**
-
-对每个涉及 `i18n` 服务消费者的后端变更，还需执行**最小化 i18n 接口依赖审查**：
-1. 业务服务、控制器、中间件和插件适配器在仅使用方法子集时，不得将字段声明为 `i18n.Service` / `i18nsvc.Service` / `internali18n.Service`。
-2. 当调用方仅使用一两个方法时，优先使用包级别的窄接口；否则依赖导出的小接口 `LocaleResolver`、`Translator`、`BundleProvider`、`ContentProvider` 和 `Maintainer`，或这些接口的显式组合。
-3. 完整的 `i18n.Service` 组合体仅保留给构造函数、服务工厂和确实需要完整接口的罕见集成点；此类使用必须在审查中说明理由。
-
-**运行时 i18n 缓存卫生**
-
-对每个涉及宿主 `i18n` 服务或其调用方的变更，还需执行**运行时 i18n 缓存卫生审查**：
-1. 热路径翻译调用（`Translate`、`TranslateSourceText`、`TranslateOrKey`、`TranslateWithDefaultLocale`）不得克隆运行时消息目录。标记任何在逐键查找路径上引入 `cloneFlatMessageMap` 或等价的全映射复制的代码；缓存返回只读合并视图，直接 `merged[key]` 访问是约定。
-2. `apps/lina-core/internal/service/i18n/` 外的代码不得克隆 i18n 服务返回的运行时消息目录。服务负责在将映射交给外部消费者前进行克隆（`BuildRuntimeMessages`、`ExportMessages`）；业务模块和控制器必须将返回的映射视为只读。
-3. 每次调用 `InvalidateRuntimeBundleCache` 必须传入显式的 `i18n.InvalidateScope`。标记任何省略 scope 或使用零值 scope 且无正当理由的调用 — 清除所有语言和所有扇区仅保留给完整的进程级重载路径，且必须包含注释说明为何无法使用更窄的范围。插件生命周期失效必须设置 `Sectors: []Sector{SectorDynamicPlugin}` 和 `DynamicPluginID`；数据库导入必须设置 `Sectors: []Sector{SectorDatabase}` 和受影响的 `Locales`。
-4. 每次调用 `InvalidateContentCache` 必须传入显式的 `i18n.ContentInvalidateScope`。纯 `ContentInvalidateScope{}`（全量清除）仅允许在测试清理或完整重载路径中使用；生产调用方必须按 `BusinessType` 和/或 `Locale` 限定范围。
-5. 任何贡献运行时缓存的新扇区必须注册在 `apps/lina-core/internal/service/i18n/i18n_cache.go`（`Sector` 枚举和 `mergeLocaleSectors` 中的合并顺序）。禁止在业务模块中引入临时扇区。
-
-**固定 LTR 方向**
-
-对每个涉及语言方向处理的前端变更，还需执行**固定 LTR 方向审查**：
-1. 当前 `framework-i18n-improvements` 范围将 `<html dir>` 和 `Ant Design Vue` `ConfigProvider.direction` 固定为所有运行时语言的 `ltr`。
-2. 默认配置的 `i18n` 部分不得暴露 `direction`，前端不得维护 `RTL_LOCALES` 或等价的方向注册。
-3. 仍需标记语言切换后出现的不一致重叠、不可读文本、导航损坏或控件不可用等问题。
-
-**语言注册单一来源**
-
-对每个涉及内置运行时语言的变更，还需执行**语言注册单一来源审查**：
-1. 内置运行时语言必须从包含直接运行时 `JSON` 文件的 `manifest/i18n/<locale>/` 目录中发现；默认配置的 `i18n` 部分仅可提供默认语言、`enabled`、排序、原生名称元数据和启用语言白名单。
-2. 标记新增的按语言 `Go` `常量、SQL` 种子行、前端 `SUPPORT_LANGUAGES` 添加项、前端 `RTL_LOCALES` 添加项或语言特定的 `switch` 分支为严重问题，除非它们是包级别的通用回退规则而非项目语言注册。
-3. 添加内置语言不得要求修改后端 `Go` 枚举代码、宿主 `SQL` 文件或前端 `TS` 语言列表。
-4. 当 `i18n.enabled=false` 时，前端语言切换器必须隐藏，运行时语言解析必须使用 `i18n.default`。
+深度触发时读取 `.agents/rules/i18n.md`，并按其中的治理范围、宿主与插件边界、语言注册、API 文档本地化、运行时 UI 与字典文案、错误本地化、运行时依赖、缓存一致性和审查验证要求执行审查。`lina-review` 只维护审查流程，不重复维护 `i18n` 治理细则。
 
 ---
 
@@ -353,7 +276,7 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ### RESTful API 审查
 ✓ 所有端点合规 / ⚠ 发现 N 个违规
-✓ API 文档国际化合规 / ⚠ 发现 N 个 apidoc i18n 问题
+✓ API 文档符合 `.agents/rules/i18n.md` / ⚠ 发现 N 个 i18n 问题
 
 ### 后端代码规范审查
 ✓ 文件命名规范合规 / ⚠ 发现 N 个违规
@@ -364,9 +287,7 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 ✓ 数据权限接入已审查 / ⚠ 发现 N 个数据权限问题
 
 ### 国际化（i18n）治理审查
-✓ 字典与语言包单一来源合规 / ⚠ 发现 N 个问题
-✓ 国际化影响面已评估 / ⚠ 发现 N 个 i18n 遗漏
-✓ i18n 基础层边界、接口依赖、缓存卫生、语言注册合规 / ⚠ 发现 N 个问题
+✓ 已按 `.agents/rules/i18n.md` 审查 / ⚠ 发现 N 个 i18n 治理问题
 
 ### 分布式缓存一致性审查
 ✓ 已审查分布式缓存一致性 / ⚠ 发现 N 个缓存一致性问题
@@ -416,7 +337,7 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ## 硬性规则
 
-- **`AGENTS.md` 是唯一事实来源** — 所有规范引用均指向它
+- **`AGENTS.md` 及其显式引用的规则文件是唯一事实来源** — `i18n` 细则统一引用 `.agents/rules/i18n.md`
 - 仅检查与变更文件相关的类别
 - 范围识别必须包含未跟踪文件和展开的未跟踪目录；永远不要仅依赖 `git diff`
 - 警告不阻塞 — 仅严重问题阻塞归档
