@@ -9,15 +9,14 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
 	"lina-core/pkg/logger"
-	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
 )
 
 type (
-	// SourceUpgradeStatus aliases the stable source-plugin upgrade status contract.
-	SourceUpgradeStatus = sourceupgradecontract.SourcePluginStatus
+	// SourceUpgradeStatus aliases the internal source-plugin upgrade status contract.
+	SourceUpgradeStatus = sourceupgradeinternal.SourceUpgradeStatus
 
-	// SourceUpgradeResult aliases the stable explicit source-plugin upgrade result contract.
-	SourceUpgradeResult = sourceupgradecontract.SourcePluginUpgradeResult
+	// SourceUpgradeResult aliases the internal explicit source-plugin upgrade result contract.
+	SourceUpgradeResult = sourceupgradeinternal.SourceUpgradeResult
 )
 
 // ListSourceUpgradeStatuses scans source manifests and returns one
@@ -35,7 +34,7 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 	result, err := s.sourceUpgradeSvc.UpgradeSourcePlugin(ctx, pluginID)
 	if err != nil {
 		s.invalidateRuntimeUpgradeCaches(ctx, pluginID, catalog.TypeSource.String(), "source_plugin_upgrade_failed")
-		if markErr := s.markRuntimeCacheChanged(ctx, "source_plugin_upgrade_failed"); markErr != nil {
+		if _, markErr := s.markRuntimeCacheChanged(ctx, "source_plugin_upgrade_failed"); markErr != nil {
 			logger.Warningf(
 				ctx,
 				"mark runtime cache changed after source upgrade failure failed plugin=%s err=%v",
@@ -47,7 +46,11 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 	}
 	if result != nil && result.Executed {
 		s.invalidateRuntimeUpgradeCaches(ctx, pluginID, catalog.TypeSource.String(), "source_plugin_upgraded")
-		if err = s.markRuntimeCacheChanged(ctx, "source_plugin_upgraded"); err != nil {
+		if err = s.syncEnabledSnapshotAndPublishRuntimeChange(
+			ctx,
+			pluginID,
+			"source_plugin_upgraded",
+		); err != nil {
 			return nil, err
 		}
 	}

@@ -12,7 +12,6 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // TestBatchUpdateReplacesStatusAndRoles verifies selected users receive the
@@ -103,19 +102,18 @@ func TestBatchUpdateReplacesTenantMemberships(t *testing.T) {
 	}
 	roleID := insertUserDataScopeTestRole(t, ctx, "batch-update-tenant-operator-role", userDataScopeAll, 1)
 	t.Cleanup(func() {
-		pkgtenantcap.RegisterProvider(nil)
 		cleanupUserTenantMembershipRows(t, ctx, append([]int{operatorID}, userIDs...))
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
 		cleanupUserDeleteTestRows(t, ctx, append([]int{operatorID}, userIDs...))
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	pkgtenantcap.RegisterProvider(&userTenantMembershipTestProvider{})
+	tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	for _, userID := range userIDs {
 		insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 	}
 
-	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	svc := newUserTestService(tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	if err := svc.BatchUpdate(ctx, BatchUpdateInput{
 		Ids:          userIDs,

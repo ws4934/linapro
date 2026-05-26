@@ -6,17 +6,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/net/ghttp"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/service/orgcap"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/orgcap"
 )
 
 // TestDeleteRollsBackWhenOrgCleanupFails verifies user soft deletion is
@@ -267,6 +269,22 @@ func (s userDeleteStaticBizCtx) Get(context.Context) *model.Context {
 	return s.ctx
 }
 
+// Current returns the plugin-visible business context projection.
+func (s userDeleteStaticBizCtx) Current(context.Context) contract.CurrentContext {
+	if s.ctx == nil {
+		return contract.CurrentContext{}
+	}
+	return contract.CurrentContext{
+		UserID:          s.ctx.UserId,
+		Username:        s.ctx.Username,
+		TenantID:        s.ctx.TenantId,
+		ActingUserID:    s.ctx.ActingUserId,
+		ActingAsTenant:  s.ctx.ActingAsTenant,
+		IsImpersonation: s.ctx.IsImpersonation,
+		PlatformBypass:  s.ctx.TenantId == 0,
+	}
+}
+
 // SetLocale is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetLocale(context.Context, string) {}
 
@@ -287,22 +305,17 @@ type userDeleteFailingOrgCap struct {
 	cleanupErr error
 }
 
-// Enabled reports the optional organization capability as disabled.
-func (f userDeleteFailingOrgCap) Enabled(context.Context) bool { return false }
+// Available reports the optional organization capability provider as unavailable.
+func (f userDeleteFailingOrgCap) Available(context.Context) bool { return false }
+
+// Status returns an unavailable organization capability status.
+func (f userDeleteFailingOrgCap) Status(context.Context) contract.CapabilityStatus {
+	return contract.CapabilityStatus{}
+}
 
 // ListUserDeptAssignments returns no organization assignments.
 func (f userDeleteFailingOrgCap) ListUserDeptAssignments(context.Context, []int) (map[int]*orgcap.UserDeptAssignment, error) {
 	return map[int]*orgcap.UserDeptAssignment{}, nil
-}
-
-// GetUserIDsByDept returns no users for a department.
-func (f userDeleteFailingOrgCap) GetUserIDsByDept(context.Context, int) ([]int, error) {
-	return []int{}, nil
-}
-
-// GetAllAssignedUserIDs returns no assigned users.
-func (f userDeleteFailingOrgCap) GetAllAssignedUserIDs(context.Context) ([]int, error) {
-	return []int{}, nil
 }
 
 // GetUserDeptInfo returns an empty department projection.
@@ -330,6 +343,16 @@ func (f userDeleteFailingOrgCap) BuildUserDeptScopeExists(context.Context, strin
 	return nil, true, nil
 }
 
+// ApplyUserDeptFilter reports an empty department filter for delete tests.
+func (f userDeleteFailingOrgCap) ApplyUserDeptFilter(_ context.Context, model *gdb.Model, _ string, _ int) (*gdb.Model, bool, error) {
+	return model, true, nil
+}
+
+// ApplyUserDeptUnassignedFilter leaves delete-test models unchanged.
+func (f userDeleteFailingOrgCap) ApplyUserDeptUnassignedFilter(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
 // GetUserPostIDs returns no post IDs.
 func (f userDeleteFailingOrgCap) GetUserPostIDs(context.Context, int) ([]int, error) {
 	return []int{}, nil
@@ -343,14 +366,4 @@ func (f userDeleteFailingOrgCap) ReplaceUserAssignments(context.Context, int, *i
 // CleanupUserAssignments returns the configured cleanup error.
 func (f userDeleteFailingOrgCap) CleanupUserAssignments(context.Context, int) error {
 	return f.cleanupErr
-}
-
-// UserDeptTree returns no department tree nodes.
-func (f userDeleteFailingOrgCap) UserDeptTree(context.Context) ([]*orgcap.DeptTreeNode, error) {
-	return []*orgcap.DeptTreeNode{}, nil
-}
-
-// ListPostOptions returns no post options.
-func (f userDeleteFailingOrgCap) ListPostOptions(context.Context, *int) ([]*orgcap.PostOption, error) {
-	return []*orgcap.PostOption{}, nil
 }

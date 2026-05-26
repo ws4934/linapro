@@ -17,7 +17,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestExecuteRuntimeUpgradeRequiresConfirmation verifies the side-effecting
@@ -72,7 +72,7 @@ func TestExecuteRuntimeUpgradeRejectsNormalPlugin(t *testing.T) {
 }
 
 // TestInstallKeepsDynamicHigherVersionPendingUntilExplicitUpgrade verifies the
-// legacy install path no longer switches releases when a higher artifact is staged.
+// install path keeps a staged higher version pending until an explicit upgrade.
 func TestInstallKeepsDynamicHigherVersionPendingUntilExplicitUpgrade(t *testing.T) {
 	var (
 		service    = newTestService()
@@ -169,8 +169,8 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
 		},
 		nil,
 		nil,
@@ -200,8 +200,8 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:   pluginbridge.RuntimeKindWasm,
-			ABIVersion:    pluginbridge.SupportedABIVersion,
+			RuntimeKind:   protocol.RuntimeKindWasm,
+			ABIVersion:    protocol.SupportedABIVersion,
 			SQLAssetCount: 1,
 		},
 		nil,
@@ -421,11 +421,11 @@ func TestExecuteRuntimeUpgradeBeforeLifecycleBlocksBeforeRunningState(t *testing
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			LifecycleContracts: []*pluginbridge.LifecycleContract{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			LifecycleContracts: []*protocol.LifecycleContract{
 				{
-					Operation:    pluginbridge.LifecycleOperationBeforeUpgrade,
+					Operation:    protocol.LifecycleOperationBeforeUpgrade,
 					RequestType:  "DynamicBeforeUpgradeReq",
 					InternalPath: "/__lifecycle/before-upgrade",
 					TimeoutMs:    1000,
@@ -437,12 +437,12 @@ func TestExecuteRuntimeUpgradeBeforeLifecycleBlocksBeforeRunningState(t *testing
 		nil,
 		nil,
 		nil,
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
@@ -525,12 +525,12 @@ func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:   pluginbridge.RuntimeKindWasm,
-			ABIVersion:    pluginbridge.SupportedABIVersion,
+			RuntimeKind:   protocol.RuntimeKindWasm,
+			ABIVersion:    protocol.SupportedABIVersion,
 			SQLAssetCount: 1,
-			LifecycleContracts: []*pluginbridge.LifecycleContract{
+			LifecycleContracts: []*protocol.LifecycleContract{
 				{
-					Operation:    pluginbridge.LifecycleOperationUpgrade,
+					Operation:    protocol.LifecycleOperationUpgrade,
 					RequestType:  "DynamicUpgradeReq",
 					InternalPath: "/__lifecycle/upgrade",
 					TimeoutMs:    1000,
@@ -547,12 +547,12 @@ func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing
 		nil,
 		nil,
 		nil,
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)

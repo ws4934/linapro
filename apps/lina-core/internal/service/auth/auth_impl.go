@@ -20,8 +20,8 @@ import (
 	"lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginhost"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -105,7 +105,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	if err != nil {
 		return nil, err
 	}
-	if s.tenantSvc != nil && s.tenantSvc.Enabled(ctx) && user.TenantId != int(pkgtenantcap.PLATFORM) && len(tenants) == 0 {
+	if s.tenantSvc != nil && s.tenantSvc.Available(ctx) && user.TenantId != int(tenantcap.PLATFORM) && len(tenants) == 0 {
 		dispatchLoginFailed(in.Username, "Tenant is not available", "tenant_unavailable")
 		return nil, bizerr.NewCode(CodeAuthTenantUnavailable)
 	}
@@ -121,7 +121,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		return &LoginOutput{PreToken: preToken, Tenants: tenants}, nil
 	}
 
-	tenantID := int(pkgtenantcap.PLATFORM)
+	tenantID := int(tenantcap.PLATFORM)
 	if len(tenants) == 1 {
 		tenantID = tenants[0].Id
 	}
@@ -327,7 +327,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 	// positive tenant ID. A refresh token claiming a negative/sentinel tenant
 	// ID never originates from the host, so treat it as forged or corrupt:
 	// tear down the session and reject the refresh.
-	if claims.TenantId < int(pkgtenantcap.PLATFORM) {
+	if claims.TenantId < int(tenantcap.PLATFORM) {
 		if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
 			logger.Warningf(ctx, "revoke invalid-tenant refresh session failed tokenId=%s userId=%d tenantId=%d err=%v", claims.TokenId, user.Id, claims.TenantId, revokeErr)
 		}
@@ -349,7 +349,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 	//     active tenant user offline. Access tokens are short-lived; if the
 	//     eviction is real, the next refresh after infra recovery will see a
 	//     definitive bizerr and revoke at that point.
-	if claims.TenantId > int(pkgtenantcap.PLATFORM) {
+	if claims.TenantId > int(tenantcap.PLATFORM) {
 		if err = s.validateUserTenant(ctx, user.Id, claims.TenantId); err != nil {
 			if _, definitive := bizerr.As(err); definitive {
 				if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
@@ -593,14 +593,10 @@ func (s *serviceImpl) getUserDeptName(ctx context.Context, userId int) string {
 
 // loginTenants returns active tenant candidates for a login user.
 func (s *serviceImpl) loginTenants(ctx context.Context, userID int) ([]TenantInfo, error) {
-	if s == nil || s.tenantSvc == nil || !s.tenantSvc.Enabled(ctx) {
+	if s == nil || s.tenantSvc == nil || !s.tenantSvc.Available(ctx) {
 		return nil, nil
 	}
-	provider := pkgtenantcap.CurrentProvider()
-	if provider == nil {
-		return nil, nil
-	}
-	providerTenants, err := provider.ListUserTenants(ctx, userID)
+	providerTenants, err := s.tenantSvc.ListUserTenants(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -618,26 +614,18 @@ func (s *serviceImpl) loginTenants(ctx context.Context, userID int) ([]TenantInf
 
 // validateUserTenant verifies that a user can sign into tenantID.
 func (s *serviceImpl) validateUserTenant(ctx context.Context, userID int, tenantID int) error {
-	if s == nil || s.tenantSvc == nil || !s.tenantSvc.Enabled(ctx) {
+	if s == nil || s.tenantSvc == nil || !s.tenantSvc.Available(ctx) {
 		return nil
 	}
-	provider := pkgtenantcap.CurrentProvider()
-	if provider == nil {
-		return nil
-	}
-	return provider.ValidateUserInTenant(ctx, userID, pkgtenantcap.TenantID(tenantID))
+	return s.tenantSvc.ValidateUserInTenant(ctx, userID, tenantcap.TenantID(tenantID))
 }
 
 // validateSwitchTenant verifies that a user can switch into tenantID.
 func (s *serviceImpl) validateSwitchTenant(ctx context.Context, userID int, tenantID int) error {
-	if s == nil || s.tenantSvc == nil || !s.tenantSvc.Enabled(ctx) {
+	if s == nil || s.tenantSvc == nil || !s.tenantSvc.Available(ctx) {
 		return nil
 	}
-	provider := pkgtenantcap.CurrentProvider()
-	if provider == nil {
-		return nil
-	}
-	return provider.SwitchTenant(ctx, userID, pkgtenantcap.TenantID(tenantID))
+	return s.tenantSvc.SwitchTenant(ctx, userID, tenantcap.TenantID(tenantID))
 }
 
 // createSession persists a tenant-bound online-session row.

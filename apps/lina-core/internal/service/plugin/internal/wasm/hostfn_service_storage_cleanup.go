@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	bridgehostservice "lina-core/pkg/pluginbridge"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // PurgeAuthorizedStoragePaths removes all files under the given plugin's

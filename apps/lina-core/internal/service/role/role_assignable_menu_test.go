@@ -11,10 +11,8 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/menutype"
-	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // TestTenantRoleRejectsPlatformOnlyMenuAssignment verifies role creation fails
@@ -262,11 +260,7 @@ func cleanupRoleAssignablePlugin(t *testing.T, ctx context.Context, pluginID str
 // of the single-tenant compatibility branch.
 func enableRoleAssignableTenantCapability(t *testing.T, svc *serviceImpl) {
 	t.Helper()
-	svc.tenantSvc = tenantcapsvc.New(roleTenantBoundaryEnablementReader{}, svc.bizCtxSvc)
-	pkgtenantcap.RegisterProvider(roleTenantBoundaryProvider{})
-	t.Cleanup(func() {
-		pkgtenantcap.RegisterProvider(nil)
-	})
+	svc.tenantSvc = activateRoleTenantBoundaryProvider(t)
 }
 
 // uniqueRoleAssignablePluginMenuKey builds a unique plugin-owned menu key while

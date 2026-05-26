@@ -148,6 +148,9 @@ func loadRuntimeBuildManifest(pluginDir string, embeddedResources *embeddedStati
 		if !ok {
 			return nil, fmt.Errorf("dynamic plugin embedded resources missing plugin.yaml")
 		}
+		if err := validateManifestDependencySchema(content, "embedded plugin.yaml"); err != nil {
+			return nil, err
+		}
 		if err := yaml.Unmarshal(content, manifest); err != nil {
 			return nil, fmt.Errorf("failed to load dynamic plugin manifest from embedded resources: %w", err)
 		}
@@ -155,6 +158,13 @@ func loadRuntimeBuildManifest(pluginDir string, embeddedResources *embeddedStati
 	}
 
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	content, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateManifestDependencySchema(content, manifestPath); err != nil {
+		return nil, err
+	}
 	if err := loadYAMLFile(manifestPath, manifest); err != nil {
 		return nil, fmt.Errorf("failed to load dynamic plugin manifest: %w", err)
 	}

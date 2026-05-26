@@ -13,7 +13,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
@@ -222,7 +222,7 @@ func (s *DBStore) ListPageScoped(
 	filter *ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.Service,
+	tenantSvc tenantcapsvc.ScopeService,
 ) (*ListResult, error) {
 	m := dao.SysOnlineSession.Ctx(ctx)
 	if filter != nil {

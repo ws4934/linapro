@@ -167,7 +167,7 @@ func TestRuntimeCacheChangeInvalidatesManagementList(t *testing.T) {
 	if _, err := service.List(ctx, ListInput{}); err != nil {
 		t.Fatalf("read cached management list: %v", err)
 	}
-	if err := service.markRuntimeCacheChanged(ctx, "test_runtime_cache_changed"); err != nil {
+	if _, err := service.markRuntimeCacheChanged(ctx, "test_runtime_cache_changed"); err != nil {
 		t.Fatalf("mark runtime cache changed: %v", err)
 	}
 	if _, err := service.List(ctx, ListInput{}); err != nil {

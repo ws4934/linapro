@@ -6,10 +6,10 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/statusflag"
 )
 
@@ -168,7 +168,7 @@ func collectPluginDataAuthorizationTables(items []*pluginsvc.PluginItem) []strin
 func collectHostServiceTables(
 	tableSet map[string]struct{},
 	tables *[]string,
-	specs []*pluginbridge.HostServiceSpec,
+	specs []*protocol.HostServiceSpec,
 ) {
 	for _, spec := range specs {
 		if spec == nil {
@@ -186,12 +186,12 @@ func collectHostServiceTables(
 
 // pluginUsesCronHostService reports whether the supplied host-service set
 // contains the dedicated cron registration service.
-func pluginUsesCronHostService(specs []*pluginbridge.HostServiceSpec) bool {
+func pluginUsesCronHostService(specs []*protocol.HostServiceSpec) bool {
 	for _, spec := range specs {
 		if spec == nil {
 			continue
 		}
-		if strings.TrimSpace(spec.Service) == pluginbridge.HostServiceCron {
+		if strings.TrimSpace(spec.Service) == protocol.HostServiceCron {
 			return true
 		}
 	}

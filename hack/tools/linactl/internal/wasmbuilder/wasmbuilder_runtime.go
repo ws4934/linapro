@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func buildGuestRuntimeWasm(
@@ -18,7 +18,7 @@ func buildGuestRuntimeWasm(
 	pluginID string,
 	outputDir string,
 	routeSources []*routeContractSource,
-	lifecycleSpecs []*lifecycleSpec,
+	lifecycleSpecs []*protocol.LifecycleContract,
 ) (runtimePath string, err error) {
 	// The WASM guest runtime entry (main.go) lives at the plugin root
 	// directory.
@@ -117,18 +117,18 @@ func selectGuestRuntimeGoWork(pluginDir string) string {
 	return "off"
 }
 
-func buildBridgeSpec(runtimePath string) *pluginbridge.BridgeSpec {
-	spec := &pluginbridge.BridgeSpec{
-		ABIVersion:  pluginbridge.ABIVersionV1,
-		RuntimeKind: pluginbridge.RuntimeKindWasm,
+func buildBridgeSpec(runtimePath string) *protocol.BridgeSpec {
+	spec := &protocol.BridgeSpec{
+		ABIVersion:  protocol.ABIVersionV1,
+		RuntimeKind: protocol.RuntimeKindWasm,
 	}
 	if strings.TrimSpace(runtimePath) != "" {
 		spec.RouteExecution = true
-		spec.RequestCodec = pluginbridge.CodecProtobuf
-		spec.ResponseCodec = pluginbridge.CodecProtobuf
-		spec.AllocExport = pluginbridge.DefaultGuestAllocExport
-		spec.ExecuteExport = pluginbridge.DefaultGuestExecuteExport
+		spec.RequestCodec = protocol.CodecProtobuf
+		spec.ResponseCodec = protocol.CodecProtobuf
+		spec.AllocExport = protocol.DefaultGuestAllocExport
+		spec.ExecuteExport = protocol.DefaultGuestExecuteExport
 	}
-	pluginbridge.NormalizeBridgeSpec(spec)
+	protocol.NormalizeBridgeSpec(spec)
 	return spec
 }

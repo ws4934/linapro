@@ -10,7 +10,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	bridgehostcall "lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // registerHostCallModule registers the lina_env host module with the host_call

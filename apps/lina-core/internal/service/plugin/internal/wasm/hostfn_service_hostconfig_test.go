@@ -9,7 +9,7 @@ import (
 
 	"github.com/gogf/gf/v2/container/gvar"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // trackingHostConfigService records public host config reads.
@@ -96,7 +96,7 @@ func TestHandleHostServiceInvokeHostConfigRejectsUnauthorizedKey(t *testing.T) {
 	}})
 
 	response := invokeHostConfigService(t, hostConfigHostCallContext([]string{"workspace.basePath"}), "database.default.link")
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected unauthorized hostConfig key to be denied, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -113,29 +113,29 @@ func hostConfigHostCallContext(keys []string) *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-plugin-runtime",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityHostConfig: {},
+			protocol.CapabilityHostConfig: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceHostConfig,
-			Methods: []string{pluginbridge.HostServiceMethodHostConfigGet},
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceHostConfig,
+			Methods: []string{protocol.HostServiceMethodHostConfigGet},
 			Keys:    append([]string(nil), keys...),
 		}},
 	}
 }
 
 // invokeHostConfigService dispatches one hostConfig.get request.
-func invokeHostConfigService(t *testing.T, hcc *hostCallContext, key string) *pluginbridge.HostCallResponseEnvelope {
+func invokeHostConfigService(t *testing.T, hcc *hostCallContext, key string) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceHostConfig,
-		Method:      pluginbridge.HostServiceMethodHostConfigGet,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceHostConfig,
+		Method:      protocol.HostServiceMethodHostConfigGet,
 		ResourceRef: key,
-		Payload: pluginbridge.MarshalHostServiceConfigKeyRequest(&pluginbridge.HostServiceConfigKeyRequest{
+		Payload: protocol.MarshalHostServiceConfigKeyRequest(&protocol.HostServiceConfigKeyRequest{
 			Key: key,
 		}),
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // configureTrackingHostConfigService swaps the process hostConfig adapter for one test case.

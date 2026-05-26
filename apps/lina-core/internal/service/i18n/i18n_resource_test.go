@@ -16,7 +16,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/config"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 var testSourcePluginSequence atomic.Uint64

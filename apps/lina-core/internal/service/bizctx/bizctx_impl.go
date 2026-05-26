@@ -7,7 +7,9 @@ package bizctx
 
 import (
 	"context"
+
 	"lina-core/internal/model"
+	"lina-core/pkg/plugin/capability/contract"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 )
@@ -27,6 +29,27 @@ func (s *serviceImpl) Get(ctx context.Context) *model.Context {
 		return localCtx
 	}
 	return nil
+}
+
+// Current returns the plugin-visible read-only projection of the current
+// business context.
+func (s *serviceImpl) Current(ctx context.Context) contract.CurrentContext {
+	if c := s.Get(ctx); c != nil {
+		return contract.CurrentContext{
+			UserID:          c.UserId,
+			Username:        c.Username,
+			TenantID:        c.TenantId,
+			ActingUserID:    c.ActingUserId,
+			ActingAsTenant:  c.ActingAsTenant,
+			IsImpersonation: c.IsImpersonation,
+			PlatformBypass: c.TenantId == 0 &&
+				c.DataScope == 1 &&
+				!c.DataScopeUnsupported &&
+				!c.ActingAsTenant &&
+				!c.IsImpersonation,
+		}
+	}
+	return contract.CurrentFromContext(ctx)
 }
 
 // SetLocale sets locale info into business context.

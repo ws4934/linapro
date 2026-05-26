@@ -11,7 +11,7 @@
 ## 1. 实施前的 spike 验证（高优先，必须最先做）
 
 - [x] 1.1 写最小 main.go 验证 GoFrame `gogf/gf/contrib/drivers/pgsql/v2` 驱动可连通：使用 link `pgsql:postgres:postgres@tcp(127.0.0.1:5432)/postgres?sslmode=disable` 连接 PG 14+ 实例，执行 `SELECT version()` 成功返回。结果记录到 design.md Q1/Q2，确认最终 link 格式；本机 Docker 阻塞时以 Postgres.app PG18 完成实测，PG14 覆盖由 GitHub Actions `postgres:14-alpine` service 与同一受控集成测试入口保证
-- [x] 1.2 在 PG 上建测试表 `CREATE TABLE test_kv ("key" VARCHAR(64) NOT NULL, "value" TEXT, PRIMARY KEY("key"))`，用 `gf gen dao` 生成 entity，再用 GoFrame ORM 写入并查询保留字列。验证 GoFrame 是否自动加双引号；记录结果到 design.md D5/R3
+- [x] 1.2 在 PG 上建测试表 `CREATE TABLE test_kv ("key" VARCHAR(64) NOT NULL, "value" TEXT, PRIMARY KEY("key"))`，用 `make dao` 生成 entity，再用 GoFrame ORM 写入并查询保留字列。验证 GoFrame 是否自动加双引号；记录结果到 design.md D5/R3
 - [x] 1.3 在 PG 上建带 IDENTITY 列的测试表 `CREATE TABLE test_id (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, name VARCHAR(64))`，用 GoFrame `InsertAndGetId(...)` 写入并验证返回的新 ID 正确。如失败，记录回退方案（手动 `RETURNING id` 查询）
 - [x] 1.4 验证 GoFrame PG 驱动对 `parseTime`/`loc` 等时间相关参数的需求；如不需要，确认 link 字符串简化为 `pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable`
 - [x] 1.5 检查 `hack/scripts/prepare-packed-assets.sh` 当前是否对 SQL 文件做 SQLite 语法预检查；如有，调整为只做文件复制和列表生成，不做语法预检查

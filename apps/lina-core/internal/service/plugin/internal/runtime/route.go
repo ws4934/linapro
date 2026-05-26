@@ -25,9 +25,9 @@ import (
 	"lina-core/pkg/authtoken"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	bridgecodec "lina-core/pkg/pluginbridge"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
-	"lina-core/pkg/pluginhost"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgecodec "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Request-context keys and sentinel values used by the dynamic route pipeline.

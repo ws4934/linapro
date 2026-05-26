@@ -12,8 +12,8 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Install executes the install lifecycle and returns the dependency plan/result
@@ -69,18 +69,16 @@ func (s *serviceImpl) install(
 			if !isMockDataLoadError(err) {
 				return result, err
 			}
-			if snapshotErr := s.syncEnabledSnapshotFromRegistry(ctx, pluginID); snapshotErr != nil {
-				return result, snapshotErr
-			}
-			if markErr := s.markRuntimeCacheChanged(ctx, "source_plugin_installed"); markErr != nil {
-				return result, markErr
+			if syncErr := s.syncEnabledSnapshotAndPublishRuntimeChange(
+				ctx,
+				pluginID,
+				"source_plugin_installed",
+			); syncErr != nil {
+				return result, syncErr
 			}
 			return result, err
 		}
-		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-			return result, err
-		}
-		if err = s.markRuntimeCacheChanged(ctx, "source_plugin_installed"); err != nil {
+		if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_installed"); err != nil {
 			return result, err
 		}
 		if err = notifyPluginInstalled(ctx, pluginID); err != nil {
@@ -104,10 +102,7 @@ func (s *serviceImpl) install(
 	if _, err = s.catalogSvc.SyncManifest(ctx, manifest); err != nil {
 		return result, err
 	}
-	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-		return result, err
-	}
-	if err = s.markRuntimeCacheChanged(ctx, "dynamic_plugin_installed"); err != nil {
+	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_installed"); err != nil {
 		return result, err
 	}
 	if err = notifyPluginInstalled(ctx, pluginID); err != nil {
@@ -154,7 +149,7 @@ func cloneManifestWithAuthorizedHostServices(
 	}
 	clone := *manifest
 	clone.HostServices = hostServices
-	clone.HostCapabilities = pluginbridge.CapabilityMapFromHostServices(hostServices)
+	clone.HostCapabilities = protocol.CapabilityMapFromHostServices(hostServices)
 	return &clone, nil
 }
 
@@ -162,24 +157,24 @@ func cloneManifestWithAuthorizedHostServices(
 // operation-confirmed host services. When no confirmation is provided, only
 // capability-only services are exposed.
 func buildLifecycleAuthorizedHostServices(
-	hostServices []*pluginbridge.HostServiceSpec,
+	hostServices []*protocol.HostServiceSpec,
 	authorization *HostServiceAuthorizationInput,
-) ([]*pluginbridge.HostServiceSpec, error) {
+) ([]*protocol.HostServiceSpec, error) {
 	if authorization != nil {
 		return catalog.BuildAuthorizedHostServiceSpecs(hostServices, authorization)
 	}
-	requested, err := pluginbridge.NormalizeHostServiceSpecs(hostServices)
+	requested, err := protocol.NormalizeHostServiceSpecs(hostServices)
 	if err != nil {
 		return nil, err
 	}
-	authorized := make([]*pluginbridge.HostServiceSpec, 0, len(requested))
+	authorized := make([]*protocol.HostServiceSpec, 0, len(requested))
 	for _, spec := range requested {
 		if spec == nil || len(spec.Paths) > 0 || len(spec.Resources) > 0 || len(spec.Tables) > 0 {
 			continue
 		}
 		authorized = append(authorized, spec)
 	}
-	return pluginbridge.NormalizeHostServiceSpecs(authorized)
+	return protocol.NormalizeHostServiceSpecs(authorized)
 }
 
 // applyInstallModeSelection validates the explicit install-mode request and
@@ -242,10 +237,7 @@ func (s *serviceImpl) Uninstall(
 		if err = s.uninstallSourcePlugin(ctx, manifest, options); err != nil {
 			return wrapUninstallExecutionError(err, pluginID)
 		}
-		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-			return err
-		}
-		if err = s.markRuntimeCacheChanged(ctx, "source_plugin_uninstalled"); err != nil {
+		if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_uninstalled"); err != nil {
 			return err
 		}
 		if err = notifyPluginUninstalled(ctx, pluginID); err != nil {
@@ -272,10 +264,7 @@ func (s *serviceImpl) Uninstall(
 	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
 		return wrapUninstallExecutionError(err, pluginID)
 	}
-	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-		return err
-	}
-	if err = s.markRuntimeCacheChanged(ctx, "dynamic_plugin_uninstalled"); err != nil {
+	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_uninstalled"); err != nil {
 		return err
 	}
 	if err = notifyPluginUninstalled(ctx, pluginID); err != nil {
@@ -320,10 +309,7 @@ func (s *serviceImpl) uninstallWithoutDesiredManifest(
 	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
 		return wrapUninstallExecutionError(err, pluginID)
 	}
-	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-		return err
-	}
-	if err = s.markRuntimeCacheChanged(ctx, "dynamic_plugin_uninstalled"); err != nil {
+	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_uninstalled"); err != nil {
 		return err
 	}
 	if err = notifyPluginUninstalled(ctx, pluginID); err != nil {
@@ -474,6 +460,15 @@ func (s *serviceImpl) updateStatus(
 	if !installed {
 		return bizerr.NewCode(CodePluginNotInstalled)
 	}
+	if status == catalog.StatusEnabled {
+		check, err := s.resolveInstallDependencies(ctx, pluginID)
+		if err != nil {
+			return err
+		}
+		if hasDependencyBlockers(check.Blockers) {
+			return s.buildDependencyBlockedError(pluginID, check.Blockers)
+		}
+	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeDynamic {
 		if status == catalog.StatusEnabled {
 			if err = s.persistDynamicPluginAuthorization(ctx, manifest, authorization); err != nil {
@@ -500,10 +495,7 @@ func (s *serviceImpl) updateStatus(
 		if err = s.reconcileDynamicPluginStatus(ctx, pluginID, status); err != nil {
 			return err
 		}
-		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-			return err
-		}
-		if err = s.markRuntimeCacheChanged(ctx, "dynamic_plugin_status_changed"); err != nil {
+		if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_status_changed"); err != nil {
 			return err
 		}
 		if status == catalog.StatusEnabled {
@@ -531,10 +523,7 @@ func (s *serviceImpl) updateStatus(
 	if err = s.catalogSvc.SetPluginStatus(ctx, pluginID, status); err != nil {
 		return err
 	}
-	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-		return err
-	}
-	if err = s.markRuntimeCacheChanged(ctx, "source_plugin_status_changed"); err != nil {
+	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_status_changed"); err != nil {
 		return err
 	}
 	if status == catalog.StatusEnabled {
@@ -602,6 +591,13 @@ func (s *serviceImpl) IsInstalled(ctx context.Context, pluginID string) bool {
 func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 	s.ensureRuntimeCacheFreshBestEffort(ctx, "is_enabled")
 	return s.integrationSvc.CanExposeBusinessEntries(ctx, pluginID)
+}
+
+// IsProviderEnabled returns whether pluginID is platform-enabled for framework
+// capability provider use.
+func (s *serviceImpl) IsProviderEnabled(ctx context.Context, pluginID string) bool {
+	s.ensureRuntimeCacheFreshBestEffort(ctx, "provider_enabled")
+	return s.integrationSvc.IsProviderEnabled(ctx, pluginID)
 }
 
 // IsEnabledAuthoritative returns whether pluginID is installed, enabled, and
@@ -1131,13 +1127,13 @@ func (s *serviceImpl) applyTargetReleaseAuthorizedHostServices(
 	if snapshot == nil || !snapshot.HostServiceAuthRequired || !snapshot.HostServiceAuthConfirmed {
 		return cloneManifestWithAuthorizedHostServices(manifest, nil)
 	}
-	hostServices, err := pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	hostServices, err := protocol.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
 	if err != nil {
 		return nil, err
 	}
 	clone := *manifest
 	clone.HostServices = hostServices
-	clone.HostCapabilities = pluginbridge.CapabilityMapFromHostServices(hostServices)
+	clone.HostCapabilities = protocol.CapabilityMapFromHostServices(hostServices)
 	return &clone, nil
 }
 

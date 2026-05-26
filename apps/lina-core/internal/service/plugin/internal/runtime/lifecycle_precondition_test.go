@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
-	"lina-core/pkg/pluginhost"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestApplyDynamicLifecycleResponseRecordsVeto verifies explicit guest veto

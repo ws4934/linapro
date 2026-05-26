@@ -71,7 +71,7 @@ func (s *serviceImpl) ApplyUserScopeWithBypass(
 	switch scopeCtx.Scope {
 	case ScopeDept:
 		if s.orgCapabilityEnabled(ctx) {
-			subQuery, empty, buildErr := s.orgCapSvc.BuildUserDeptScopeExists(ctx, userIDColumn, scopeCtx.UserID)
+			subQuery, empty, buildErr := s.orgScope.BuildUserDeptScopeExists(ctx, userIDColumn, scopeCtx.UserID)
 			if buildErr != nil {
 				return nil, false, buildErr
 			}
@@ -133,7 +133,7 @@ func (s *serviceImpl) applyResolvedScope(ctx context.Context, scopeCtx *Context,
 		return model, false, nil
 	case ScopeDept:
 		if s.orgCapabilityEnabled(ctx) {
-			return s.orgCapSvc.ApplyUserDeptScope(ctx, model, userIDColumn, scopeCtx.UserID)
+			return s.orgScope.ApplyUserDeptScope(ctx, model, userIDColumn, scopeCtx.UserID)
 		}
 		return model.Where(userIDColumn, scopeCtx.UserID), false, nil
 	case ScopeSelf:
@@ -146,7 +146,7 @@ func (s *serviceImpl) applyResolvedScope(ctx context.Context, scopeCtx *Context,
 // orgCapabilityEnabled reports whether organization capability can participate
 // in department-scope filtering.
 func (s *serviceImpl) orgCapabilityEnabled(ctx context.Context) bool {
-	return s != nil && s.orgCapSvc != nil && s.orgCapSvc.Enabled(ctx)
+	return s != nil && s.orgScope != nil && s.orgScope.Available(ctx)
 }
 
 // normalizeUserIDs removes duplicate target IDs for deterministic visibility checks.

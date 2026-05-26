@@ -8,7 +8,7 @@ package middleware
 import (
 	"lina-core/internal/model"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 	"net/http"
 	"strings"
 

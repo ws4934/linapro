@@ -5,15 +5,16 @@ package menu
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/bizctx"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestEnsurePlatformMenuGovernanceAllowsSingleTenantMode verifies disabled
@@ -29,7 +30,7 @@ func TestEnsurePlatformMenuGovernanceAllowsSingleTenantMode(t *testing.T) {
 // multi-tenancy requires a platform all-data context for sys_menu writes.
 func TestEnsurePlatformMenuGovernanceRejectsTenantContext(t *testing.T) {
 	err := ensurePlatformMenuGovernanceContext(context.Background(), menuTenantGuardHolder{tenantSvc: menuTenantGuard{enabled: true, platformBypass: false}})
-	if !bizerr.Is(err, pkgtenantcap.CodePlatformPermissionRequired) {
+	if !bizerr.Is(err, tenantcap.CodePlatformPermissionRequired) {
 		t.Fatalf("expected platform permission error, got %v", err)
 	}
 }
@@ -69,7 +70,7 @@ func TestMenuMutationMethodsRejectTenantContext(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.run(); !bizerr.Is(err, pkgtenantcap.CodePlatformPermissionRequired) {
+			if err := tc.run(); !bizerr.Is(err, tenantcap.CodePlatformPermissionRequired) {
 				t.Fatalf("expected platform permission error, got %v", err)
 			}
 		})
@@ -81,8 +82,8 @@ type menuTenantGuardHolder struct {
 	tenantSvc menuTenantGuard
 }
 
-// platformMenuTenantCapability returns the narrow test tenant capability.
-func (h menuTenantGuardHolder) platformMenuTenantCapability() platformMenuTenantCapability {
+// platformMenuTenantService returns the narrow test tenant capability.
+func (h menuTenantGuardHolder) platformMenuTenantService() platformMenuTenantService {
 	return h.tenantSvc
 }
 
@@ -93,7 +94,7 @@ type menuTenantGuard struct {
 }
 
 // Enabled returns whether multi-tenancy is active in this test.
-func (g menuTenantGuard) Enabled(context.Context) bool {
+func (g menuTenantGuard) Available(context.Context) bool {
 	return g.enabled
 }
 
@@ -102,24 +103,32 @@ func (g menuTenantGuard) PlatformBypass(context.Context) bool {
 	return g.platformBypass
 }
 
-// newMenuPlatformGuardTenantService creates a real tenantcap service in active
-// linapro-tenant-core mode so menu mutation tests cover service entry points.
-func newMenuPlatformGuardTenantService(t *testing.T) tenantcapsvc.Service {
+// newMenuPlatformGuardTenantService creates a real tenantcap service with one
+// enabled test provider so menu mutation tests cover service entry points.
+func newMenuPlatformGuardTenantService(t *testing.T) tenantcap.Service {
 	t.Helper()
-	previousProvider := pkgtenantcap.CurrentProvider()
-	pkgtenantcap.RegisterProvider(menuPlatformGuardProvider{})
-	t.Cleanup(func() {
-		pkgtenantcap.RegisterProvider(previousProvider)
-	})
-	return tenantcapsvc.New(menuPlatformGuardPluginState{}, bizctx.New())
+	providerPluginID := fmt.Sprintf("plugin-test-menu-tenant-provider-%d", time.Now().UnixNano())
+	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+		return menuPlatformGuardProvider{}, nil
+	}); err != nil {
+		t.Fatalf("register menu tenant provider: %v", err)
+	}
+	return tenantcap.New(menuPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
 }
 
-// menuPlatformGuardPluginState marks the linapro-tenant-core provider plugin enabled.
-type menuPlatformGuardPluginState struct{}
+// menuPlatformGuardProviderRuntime marks exactly one test provider plugin enabled.
+type menuPlatformGuardProviderRuntime struct {
+	pluginID string
+}
 
-// IsEnabled reports the linapro-tenant-core provider plugin as enabled.
-func (menuPlatformGuardPluginState) IsEnabled(_ context.Context, pluginID string) bool {
-	return pluginID == pkgtenantcap.ProviderPluginID
+// IsProviderEnabled reports whether the given test provider plugin is enabled.
+func (r menuPlatformGuardProviderRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return pluginID == r.pluginID
+}
+
+// TenantProviderEnv returns an empty typed provider environment in menu tests.
+func (menuPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
+	return tenantcap.ProviderEnv{}
 }
 
 // menuPlatformGuardProvider satisfies the tenantcap provider contract for
@@ -130,21 +139,21 @@ type menuPlatformGuardProvider struct{}
 func (menuPlatformGuardProvider) ResolveTenant(
 	context.Context,
 	*ghttp.Request,
-) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
 }
 
 // ValidateUserInTenant is unused by menu platform-guard tests.
-func (menuPlatformGuardProvider) ValidateUserInTenant(context.Context, int, pkgtenantcap.TenantID) error {
+func (menuPlatformGuardProvider) ValidateUserInTenant(context.Context, int, tenantcap.TenantID) error {
 	return nil
 }
 
 // ListUserTenants is unused by menu platform-guard tests.
-func (menuPlatformGuardProvider) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
+func (menuPlatformGuardProvider) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
 	return nil, nil
 }
 
 // SwitchTenant is unused by menu platform-guard tests.
-func (menuPlatformGuardProvider) SwitchTenant(context.Context, int, pkgtenantcap.TenantID) error {
+func (menuPlatformGuardProvider) SwitchTenant(context.Context, int, tenantcap.TenantID) error {
 	return nil
 }

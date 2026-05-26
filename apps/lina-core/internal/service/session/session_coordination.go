@@ -14,9 +14,9 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 var _ SessionConfigurableStore = (*CoordinationStore)(nil)
@@ -209,7 +209,7 @@ func (s *CoordinationStore) ListPageScoped(
 	filter *ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.Service,
+	tenantSvc tenantcapsvc.ScopeService,
 ) (*ListResult, error) {
 	return s.projection.ListPageScoped(ctx, filter, pageNum, pageSize, scopeSvc, tenantSvc)
 }

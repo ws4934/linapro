@@ -33,9 +33,9 @@ func TestCheckInstallBlocksUnsatisfiedFrameworkVersion(t *testing.T) {
 	}
 }
 
-// TestCheckInstallBuildsDependencyFirstAutoPlan verifies missing automatic
-// hard dependencies are planned in deterministic topology order.
-func TestCheckInstallBuildsDependencyFirstAutoPlan(t *testing.T) {
+// TestCheckInstallBlocksUninstalledDependencies verifies declared plugin
+// dependencies are hard blockers and are not installed automatically.
+func TestCheckInstallBlocksUninstalledDependencies(t *testing.T) {
 	resolver := plugindep.New()
 
 	result := resolver.CheckInstall(plugindep.InstallCheckInput{
@@ -43,30 +43,26 @@ func TestCheckInstallBuildsDependencyFirstAutoPlan(t *testing.T) {
 		FrameworkVersion: "v0.1.0",
 		Plugins: []*plugindep.PluginSnapshot{
 			pluginSnapshot("target", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("dep-b", ">=0.1.0", true, catalog.DependencyInstallModeAuto.String()),
-				pluginDependency("dep-a", ">=0.1.0", true, catalog.DependencyInstallModeAuto.String()),
+				pluginDependency("dep-a", ">=0.1.0"),
 			)),
 			pluginSnapshot("dep-a", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("dep-c", ">=0.1.0", true, catalog.DependencyInstallModeAuto.String()),
+				pluginDependency("dep-c", ">=0.1.0"),
 			)),
-			pluginSnapshot("dep-b", "v0.1.0", false, nil),
 			pluginSnapshot("dep-c", "v0.1.0", false, nil),
 		},
 	})
 
-	if len(result.Blockers) != 0 {
-		t.Fatalf("expected no blockers, got %#v", result.Blockers)
+	if len(result.Blockers) != 1 || !hasBlocker(result.Blockers, plugindep.BlockerDependencyMissing, "dep-a") {
+		t.Fatalf("expected uninstalled dependency blocker, got %#v", result.Blockers)
 	}
-	planIDs := collectPlanIDs(result.AutoInstallPlan)
-	want := []string{"dep-c", "dep-a", "dep-b"}
-	if !stringSlicesEqual(planIDs, want) {
-		t.Fatalf("expected auto plan %v, got %v", want, planIDs)
+	if hasDependency(result.Dependencies, "dep-c") {
+		t.Fatalf("expected transitive dependencies to be skipped until dep-a is installed, got %#v", result.Dependencies)
 	}
 }
 
-// TestCheckInstallBlocksManualDependency verifies missing manual hard
-// dependencies require operator action.
-func TestCheckInstallBlocksManualDependency(t *testing.T) {
+// TestCheckInstallChecksTransitiveDependenciesWhenParentIsInstalled verifies
+// installed dependencies are traversed so their own hard dependencies block.
+func TestCheckInstallChecksTransitiveDependenciesWhenParentIsInstalled(t *testing.T) {
 	resolver := plugindep.New()
 
 	result := resolver.CheckInstall(plugindep.InstallCheckInput{
@@ -74,17 +70,17 @@ func TestCheckInstallBlocksManualDependency(t *testing.T) {
 		FrameworkVersion: "v0.1.0",
 		Plugins: []*plugindep.PluginSnapshot{
 			pluginSnapshot("target", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("dep-manual", ">=0.1.0", true, catalog.DependencyInstallModeManual.String()),
+				pluginDependency("dep-a", ">=0.1.0"),
 			)),
-			pluginSnapshot("dep-manual", "v0.1.0", false, nil),
+			pluginSnapshot("dep-a", "v0.1.0", true, dependenciesWithPlugins(
+				pluginDependency("dep-c", ">=0.1.0"),
+			)),
+			pluginSnapshot("dep-c", "v0.1.0", false, nil),
 		},
 	})
 
-	if len(result.ManualInstallRequired) != 1 {
-		t.Fatalf("expected manual dependency, got %#v", result.ManualInstallRequired)
-	}
-	if len(result.Blockers) != 1 || result.Blockers[0].Code != plugindep.BlockerDependencyManualInstallRequired {
-		t.Fatalf("expected manual dependency blocker, got %#v", result.Blockers)
+	if !hasBlocker(result.Blockers, plugindep.BlockerDependencyMissing, "dep-c") {
+		t.Fatalf("expected transitive dependency blocker, got %#v", result.Blockers)
 	}
 }
 
@@ -98,8 +94,8 @@ func TestCheckInstallReportsMissingAndVersionUnsatisfied(t *testing.T) {
 		FrameworkVersion: "v0.1.0",
 		Plugins: []*plugindep.PluginSnapshot{
 			pluginSnapshot("target", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("dep-missing", ">=0.1.0", true, catalog.DependencyInstallModeAuto.String()),
-				pluginDependency("dep-old", ">=0.2.0", true, catalog.DependencyInstallModeAuto.String()),
+				pluginDependency("dep-missing", ">=0.1.0"),
+				pluginDependency("dep-old", ">=0.2.0"),
 			)),
 			pluginSnapshot("dep-old", "v0.1.0", true, nil),
 		},
@@ -116,9 +112,9 @@ func TestCheckInstallReportsMissingAndVersionUnsatisfied(t *testing.T) {
 	}
 }
 
-// TestCheckInstallKeepsSoftDependenciesNonBlocking verifies optional
-// dependencies are reported but do not block install.
-func TestCheckInstallKeepsSoftDependenciesNonBlocking(t *testing.T) {
+// TestCheckInstallTreatsDeclaredDependenciesAsHard verifies every declared
+// plugin dependency blocks lifecycle when unsatisfied.
+func TestCheckInstallTreatsDeclaredDependenciesAsHard(t *testing.T) {
 	resolver := plugindep.New()
 
 	result := resolver.CheckInstall(plugindep.InstallCheckInput{
@@ -126,16 +122,13 @@ func TestCheckInstallKeepsSoftDependenciesNonBlocking(t *testing.T) {
 		FrameworkVersion: "v0.1.0",
 		Plugins: []*plugindep.PluginSnapshot{
 			pluginSnapshot("target", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("optional-analytics", ">=0.1.0", false, catalog.DependencyInstallModeAuto.String()),
+				pluginDependency("analytics", ">=0.1.0"),
 			)),
 		},
 	})
 
-	if len(result.Blockers) != 0 {
-		t.Fatalf("expected no blockers for soft dependency, got %#v", result.Blockers)
-	}
-	if len(result.SoftUnsatisfied) != 1 || result.SoftUnsatisfied[0].DependencyID != "optional-analytics" {
-		t.Fatalf("expected soft dependency notice, got %#v", result.SoftUnsatisfied)
+	if len(result.Blockers) != 1 || !hasBlocker(result.Blockers, plugindep.BlockerDependencyMissing, "analytics") {
+		t.Fatalf("expected hard dependency blocker, got %#v", result.Blockers)
 	}
 }
 
@@ -149,13 +142,13 @@ func TestCheckInstallBlocksDependencyCycle(t *testing.T) {
 		FrameworkVersion: "v0.1.0",
 		Plugins: []*plugindep.PluginSnapshot{
 			pluginSnapshot("a", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("b", "", true, catalog.DependencyInstallModeAuto.String()),
+				pluginDependency("b", ""),
 			)),
-			pluginSnapshot("b", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("c", "", true, catalog.DependencyInstallModeAuto.String()),
+			pluginSnapshot("b", "v0.1.0", true, dependenciesWithPlugins(
+				pluginDependency("c", ""),
 			)),
-			pluginSnapshot("c", "v0.1.0", false, dependenciesWithPlugins(
-				pluginDependency("a", "", true, catalog.DependencyInstallModeAuto.String()),
+			pluginSnapshot("c", "v0.1.0", true, dependenciesWithPlugins(
+				pluginDependency("a", ""),
 			)),
 		},
 	})
@@ -178,7 +171,7 @@ func TestCheckReverseBlocksInstalledDependents(t *testing.T) {
 		Plugins: []*plugindep.PluginSnapshot{
 			pluginSnapshot("base", "v0.1.0", true, nil),
 			pluginSnapshot("consumer", "v0.1.0", true, dependenciesWithPlugins(
-				pluginDependency("base", ">=0.1.0", true, catalog.DependencyInstallModeManual.String()),
+				pluginDependency("base", ">=0.1.0"),
 			)),
 		},
 	})
@@ -202,7 +195,7 @@ func TestCheckReverseBlocksCandidateVersionBreakage(t *testing.T) {
 		Plugins: []*plugindep.PluginSnapshot{
 			pluginSnapshot("base", "v0.3.0", true, nil),
 			pluginSnapshot("consumer", "v0.1.0", true, dependenciesWithPlugins(
-				pluginDependency("base", "<0.3.0", true, catalog.DependencyInstallModeManual.String()),
+				pluginDependency("base", "<0.3.0"),
 			)),
 		},
 	})
@@ -279,7 +272,7 @@ func TestCheckReverseBlocksUnknownSnapshotWithDiscoveredTargetDependency(t *test
 				Version:                   "v0.1.0",
 				Installed:                 true,
 				Manifest:                  &catalog.Manifest{ID: "consumer"},
-				Dependencies:              dependenciesWithPlugins(pluginDependency("base", ">=0.1.0", true, catalog.DependencyInstallModeManual.String())),
+				Dependencies:              dependenciesWithPlugins(pluginDependency("base", ">=0.1.0")),
 				DependencySnapshotUnknown: true,
 			},
 		},
@@ -310,23 +303,11 @@ func dependenciesWithPlugins(plugins ...*catalog.PluginDependencySpec) *catalog.
 	return &catalog.DependencySpec{Plugins: plugins}
 }
 
-func pluginDependency(id string, version string, required bool, install string) *catalog.PluginDependencySpec {
+func pluginDependency(id string, version string) *catalog.PluginDependencySpec {
 	return &catalog.PluginDependencySpec{
-		ID:       id,
-		Version:  version,
-		Required: &required,
-		Install:  install,
+		ID:      id,
+		Version: version,
 	}
-}
-
-func collectPlanIDs(items []*plugindep.AutoInstallPlanItem) []string {
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		if item != nil {
-			out = append(out, item.PluginID)
-		}
-	}
-	return out
 }
 
 func hasBlocker(blockers []*plugindep.Blocker, code plugindep.BlockerCode, dependencyID string) bool {
@@ -338,14 +319,11 @@ func hasBlocker(blockers []*plugindep.Blocker, code plugindep.BlockerCode, depen
 	return false
 }
 
-func stringSlicesEqual(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
+func hasDependency(dependencies []*plugindep.PluginDependencyCheck, dependencyID string) bool {
+	for _, dependency := range dependencies {
+		if dependency != nil && dependency.DependencyID == dependencyID {
+			return true
 		}
 	}
-	return true
+	return false
 }

@@ -6,8 +6,8 @@ import (
 	"context"
 
 	"lina-core/internal/service/plugin/internal/datahost"
-	bridgehostcall "lina-core/pkg/pluginbridge"
-	bridgehostservice "lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // dispatchDataHostService routes governed data service methods to the structured data host layer.
@@ -39,6 +39,7 @@ func dispatchDataHostService(
 	var (
 		responsePayload []byte
 		execErr         error
+		orgSvc          = orgServiceForPlugin(hcc.pluginID)
 	)
 	switch method {
 	case bridgehostservice.HostServiceMethodDataList:
@@ -52,6 +53,7 @@ func dispatchDataHostService(
 			table,
 			hcc.executionSource,
 			hcc.identity,
+			orgSvc,
 			resource,
 			request,
 		)
@@ -71,6 +73,7 @@ func dispatchDataHostService(
 			table,
 			hcc.executionSource,
 			hcc.identity,
+			orgSvc,
 			resource,
 			request,
 		)
@@ -90,6 +93,7 @@ func dispatchDataHostService(
 			table,
 			hcc.executionSource,
 			hcc.identity,
+			orgSvc,
 			resource,
 			request,
 		)
@@ -109,6 +113,7 @@ func dispatchDataHostService(
 			table,
 			hcc.executionSource,
 			hcc.identity,
+			orgSvc,
 			resource,
 			request,
 		)
@@ -128,6 +133,7 @@ func dispatchDataHostService(
 			table,
 			hcc.executionSource,
 			hcc.identity,
+			orgSvc,
 			resource,
 			request,
 		)
@@ -147,6 +153,7 @@ func dispatchDataHostService(
 			table,
 			hcc.executionSource,
 			hcc.identity,
+			orgSvc,
 			resource,
 			request,
 		)

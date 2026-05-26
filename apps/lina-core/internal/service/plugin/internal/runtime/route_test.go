@@ -21,8 +21,8 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/authtoken"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
-	"lina-core/pkg/pluginhost"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange verifies

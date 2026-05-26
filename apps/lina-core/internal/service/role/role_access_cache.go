@@ -14,7 +14,7 @@ import (
 
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/logger"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // Permission access-cache keys and synchronization intervals.
@@ -486,8 +486,8 @@ func (s *serviceImpl) resolveAccessCacheTTL(ctx context.Context) (time.Duration,
 
 // accessCacheKey builds the token-scoped cache key used by gcache.
 func accessCacheKey(ctx context.Context, tokenID string) string {
-	return pkgtenantcap.CacheKey(
-		pkgtenantcap.TenantID(datascope.CurrentTenantID(ctx)),
+	return tenantcap.CacheKey(
+		tenantcap.TenantID(datascope.CurrentTenantID(ctx)),
 		"role:user-access",
 		tokenID,
 	)
@@ -495,8 +495,8 @@ func accessCacheKey(ctx context.Context, tokenID string) string {
 
 // accessUserIndexKey builds the tenant-aware reverse-index key for a user.
 func accessUserIndexKey(ctx context.Context, userID int) string {
-	return pkgtenantcap.CacheKey(
-		pkgtenantcap.TenantID(datascope.CurrentTenantID(ctx)),
+	return tenantcap.CacheKey(
+		tenantcap.TenantID(datascope.CurrentTenantID(ctx)),
 		"role:user-access-user",
 		strconv.Itoa(userID),
 	)

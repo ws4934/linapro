@@ -10,9 +10,9 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // userDataScope represents the role data range used by host user management tests.
@@ -53,11 +53,11 @@ func (s *serviceImpl) ensureUsersVisible(ctx context.Context, userIDs []int) err
 // ensureUsersVisibleByTenantMembership rejects tenant-scoped detail and write
 // operations unless every target has active membership in the current tenant.
 func (s *serviceImpl) ensureUsersVisibleByTenantMembership(ctx context.Context, userIDs []int) error {
-	if len(userIDs) == 0 || currentTenantID(ctx) == datascope.PlatformTenantID {
+	if len(userIDs) == 0 || currentTenantID(ctx) == datascope.PlatformTenantID || s == nil || s.tenantMembers == nil {
 		return nil
 	}
 	return mapTenantMembershipVisibilityError(
-		s.tenantSvc.EnsureUsersInTenant(
+		s.tenantMembers.EnsureUsersInTenant(
 			ctx,
 			uniqueTenantMembershipUserIDs(userIDs),
 			tenantcapsvc.TenantID(currentTenantID(ctx)),
@@ -131,7 +131,7 @@ func mapTenantMembershipVisibilityError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if bizerr.Is(err, pkgtenantcap.CodeTenantForbidden) {
+	if bizerr.Is(err, tenantcap.CodeTenantForbidden) {
 		return bizerr.NewCode(CodeUserDataScopeDenied)
 	}
 	return err

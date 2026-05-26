@@ -10,15 +10,13 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/net/ghttp"
 	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 const (
@@ -66,7 +64,7 @@ func TestSendWritesCurrentTenantToMessageAndDelivery(t *testing.T) {
 	recipientID := insertNotifyTenantTestUser(t, ctx, "notify-send-recipient", tenantID, 1)
 	t.Cleanup(func() { cleanupNotifyTenantTestUsers(t, ctx, []int{recipientID}) })
 
-	out, err := New(tenantcapsvc.New(nil, nil)).Send(tenantCtx, SendInput{
+	out, err := New(tenantcap.New(nil, nil)).Send(tenantCtx, SendInput{
 		ChannelKey:       ChannelKeyInbox,
 		SourceType:       SourceTypeSystem,
 		SourceID:         uniqueNotifyTenantTestName("send-source"),
@@ -101,8 +99,7 @@ func TestSendNoticePublicationUsesActiveMembershipBoundary(t *testing.T) {
 	otherTenantID := tenantID + 1
 	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
 	ensureNotifyTenantTestInboxChannel(t, ctx)
-	pkgtenantcap.RegisterProvider(notifyTenantTestProvider{})
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
+	tenantSvc := activateNotifyTenantProvider(t)
 
 	senderID := insertNotifyTenantTestUser(t, ctx, "notify-notice-sender", tenantID, 1)
 	memberID := insertNotifyTenantTestUser(t, ctx, "notify-notice-member", otherTenantID, 1)
@@ -119,7 +116,7 @@ func TestSendNoticePublicationUsesActiveMembershipBoundary(t *testing.T) {
 	insertNotifyTenantTestMembership(t, ctx, inactiveMemberID, tenantID, 0)
 	insertNotifyTenantTestMembership(t, ctx, otherTenantMemberID, otherTenantID, notifyTenantMembershipStatusActive)
 
-	out, err := New(tenantcapsvc.New(notifyTenantEnablementReader{}, nil)).SendNoticePublication(tenantCtx, NoticePublishInput{
+	out, err := New(tenantSvc).SendNoticePublication(tenantCtx, NoticePublishInput{
 		NoticeID:     int64(time.Now().UnixNano()),
 		Title:        "Tenant notice",
 		Content:      "Tenant notice content",
@@ -151,8 +148,7 @@ func TestSendNoticePublicationPlatformUsesPlatformUserBoundary(t *testing.T) {
 	tenantID := uniqueNotifyTenantTestID()
 	platformCtx := datascope.WithTenantForTest(ctx, datascope.PlatformTenantID)
 	ensureNotifyTenantTestInboxChannel(t, ctx)
-	pkgtenantcap.RegisterProvider(notifyTenantTestProvider{})
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
+	tenantSvc := activateNotifyTenantProvider(t)
 
 	senderID := insertNotifyTenantTestUser(t, ctx, "notify-platform-sender", datascope.PlatformTenantID, 1)
 	platformRecipientID := insertNotifyTenantTestUser(t, ctx, "notify-platform-recipient", datascope.PlatformTenantID, 1)
@@ -164,7 +160,7 @@ func TestSendNoticePublicationPlatformUsesPlatformUserBoundary(t *testing.T) {
 	})
 	insertNotifyTenantTestMembership(t, ctx, tenantUserID, tenantID, notifyTenantMembershipStatusActive)
 
-	out, err := New(tenantcapsvc.New(notifyTenantEnablementReader{}, nil)).SendNoticePublication(platformCtx, NoticePublishInput{
+	out, err := New(tenantSvc).SendNoticePublication(platformCtx, NoticePublishInput{
 		NoticeID:     int64(time.Now().UnixNano()),
 		Title:        "Platform notice",
 		Content:      "Platform notice content",
@@ -198,39 +194,22 @@ func TestSendNoticePublicationPlatformUsesPlatformUserBoundary(t *testing.T) {
 	}
 }
 
-// notifyTenantEnablementReader marks multi-tenancy enabled in notify tests.
-type notifyTenantEnablementReader struct{}
-
-// IsEnabled reports linapro-tenant-core as enabled.
-func (notifyTenantEnablementReader) IsEnabled(_ context.Context, pluginID string) bool {
-	return pluginID == pkgtenantcap.ProviderPluginID
+// activateNotifyTenantProvider returns the narrow tenant scope fake used by notify tests.
+func activateNotifyTenantProvider(t *testing.T) tenantcap.ScopeService {
+	t.Helper()
+	return notifyTenantTestScope{}
 }
 
-// notifyTenantTestProvider simulates the plugin-owned membership provider.
-type notifyTenantTestProvider struct{}
+// notifyTenantTestScope simulates the plugin-owned membership scope provider.
+type notifyTenantTestScope struct{}
 
-// ResolveTenant returns platform for provider interface completeness.
-func (notifyTenantTestProvider) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
-}
-
-// ValidateUserInTenant accepts all users for provider interface completeness.
-func (notifyTenantTestProvider) ValidateUserInTenant(context.Context, int, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ListUserTenants returns no tenant rows for provider interface completeness.
-func (notifyTenantTestProvider) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return nil, nil
-}
-
-// SwitchTenant accepts all switches for provider interface completeness.
-func (notifyTenantTestProvider) SwitchTenant(context.Context, int, pkgtenantcap.TenantID) error {
-	return nil
+// Available reports active tenant scope filtering for notify fan-out tests.
+func (notifyTenantTestScope) Available(context.Context) bool {
+	return true
 }
 
 // ApplyUserTenantScope constrains notify fan-out by active membership.
-func (notifyTenantTestProvider) ApplyUserTenantScope(
+func (notifyTenantTestScope) ApplyUserTenantScope(
 	ctx context.Context,
 	model *gdb.Model,
 	userIDColumn string,
@@ -242,50 +221,23 @@ func (notifyTenantTestProvider) ApplyUserTenantScope(
 	return model.WhereIn(userIDColumn, notifyTenantActiveMembershipUserModel(ctx, tenantID)), false, nil
 }
 
-// ApplyUserTenantFilter is unused by notify tests.
-func (notifyTenantTestProvider) ApplyUserTenantFilter(
+// Apply returns the input model unchanged because notify tests only need user-membership scope.
+func (notifyTenantTestScope) Apply(
 	_ context.Context,
 	model *gdb.Model,
 	_ string,
-	_ pkgtenantcap.TenantID,
+) (*gdb.Model, error) {
+	return model, nil
+}
+
+// ApplyUserTenantFilter returns the input model unchanged because these tests do not exercise platform tenant filtering.
+func (notifyTenantTestScope) ApplyUserTenantFilter(
+	_ context.Context,
+	model *gdb.Model,
+	_ string,
+	_ tenantcap.TenantID,
 ) (*gdb.Model, bool, error) {
 	return model, false, nil
-}
-
-// ListUserTenantProjections is unused by notify tests.
-func (notifyTenantTestProvider) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment is unused by notify tests.
-func (notifyTenantTestProvider) ResolveUserTenantAssignment(
-	context.Context,
-	[]pkgtenantcap.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is unused by notify tests.
-func (notifyTenantTestProvider) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
-}
-
-// EnsureUsersInTenant is unused by notify tests.
-func (notifyTenantTestProvider) EnsureUsersInTenant(context.Context, []int, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ValidateStartupConsistency is unused by notify tests.
-func (notifyTenantTestProvider) ValidateStartupConsistency(context.Context) ([]string, error) {
-	return nil, nil
 }
 
 // notifyTenantActiveMembershipUserModel returns active membership users.

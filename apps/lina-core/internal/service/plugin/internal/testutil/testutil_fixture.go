@@ -13,8 +13,8 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // CreateTestPluginDir creates a source plugin directory with the default file layout.
@@ -55,11 +55,11 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 		pluginhost.ExtensionPointCronRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		func(ctx context.Context, registrar pluginhost.CronRegistrar) error {
-			hostServices := registrar.HostServices()
-			if hostServices == nil || hostServices.Config() == nil {
+			services := registrar.Services()
+			if services == nil || services.Config() == nil {
 				return gerror.New("test source plugin cron requires host config service")
 			}
-			if _, err := hostServices.Config().Exists(ctx, "monitor.interval"); err != nil {
+			if _, err := services.Config().Exists(ctx, "monitor.interval"); err != nil {
 				return err
 			}
 			return registrar.AddWithMetadata(
@@ -155,8 +155,8 @@ func CreateTestRuntimePluginDirWithFrontendAssets(
 			},
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(frontendAssets),
 			SQLAssetCount:      len(installSQLAssets) + len(uninstallSQLAssets),
 		},

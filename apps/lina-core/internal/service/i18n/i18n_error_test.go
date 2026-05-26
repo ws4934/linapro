@@ -15,7 +15,7 @@ import (
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/config"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestLocalizeErrorSupportsStructuredRuntimeMessages verifies structured

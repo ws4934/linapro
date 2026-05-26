@@ -10,8 +10,8 @@ import (
 
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/bizerr"
-	plugincontract "lina-core/pkg/pluginservice/contract"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	plugincontract "lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 const (
@@ -119,7 +119,7 @@ func (s *cacheAdapter) buildCacheKey(ctx context.Context, namespace string, key 
 	tenantID := s.currentTenantID(ctx)
 	if tenantID > 0 {
 		return kvcache.BuildTenantCacheKey(
-			pkgtenantcap.TenantID(tenantID),
+			tenantcap.TenantID(tenantID),
 			sourcePluginCacheTenantScope,
 			s.pluginID,
 			namespace,

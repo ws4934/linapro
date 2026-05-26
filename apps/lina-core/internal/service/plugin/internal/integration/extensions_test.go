@@ -10,7 +10,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestRunPluginDeclaredHookHonorsTimeoutAndErrorActions verifies that declared

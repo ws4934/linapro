@@ -113,7 +113,7 @@ func (f *fakePluginRuntimeCacheCoordService) Snapshot(_ context.Context) ([]cach
 func TestControllerSingleNodeNoops(t *testing.T) {
 	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 3, markRevision: 4}
 	var refreshCalls int32
-	controller := NewControllerWithCoordinator(false, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
+	controller := NewControllerWithCoordinator(false, fakeCoord, NewObservedRevision(), func(_ context.Context, _ int64) error {
 		atomic.AddInt32(&refreshCalls, 1)
 		return nil
 	})
@@ -141,8 +141,10 @@ func TestControllerSingleNodeNoops(t *testing.T) {
 func TestControllerEnsureFreshRefreshesOnRevisionChange(t *testing.T) {
 	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 5}
 	var refreshCalls int32
-	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
+	var observedRevision int64
+	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context, revision int64) error {
 		atomic.AddInt32(&refreshCalls, 1)
+		atomic.StoreInt64(&observedRevision, revision)
 		return nil
 	})
 
@@ -155,6 +157,9 @@ func TestControllerEnsureFreshRefreshesOnRevisionChange(t *testing.T) {
 	if atomic.LoadInt32(&refreshCalls) != 1 {
 		t.Fatalf("expected one refresh for revision 5, got %d", refreshCalls)
 	}
+	if got := atomic.LoadInt64(&observedRevision); got != 5 {
+		t.Fatalf("expected refresher to receive revision 5, got %d", got)
+	}
 
 	fakeCoord.currentRevision = 6
 	if err := controller.EnsureFresh(context.Background()); err != nil {
@@ -163,6 +168,9 @@ func TestControllerEnsureFreshRefreshesOnRevisionChange(t *testing.T) {
 	if atomic.LoadInt32(&refreshCalls) != 2 {
 		t.Fatalf("expected second refresh for revision 6, got %d", refreshCalls)
 	}
+	if got := atomic.LoadInt64(&observedRevision); got != 6 {
+		t.Fatalf("expected refresher to receive revision 6, got %d", got)
+	}
 }
 
 // TestControllerMarkChangedStoresReturnedRevision verifies the mutating node
@@ -170,7 +178,7 @@ func TestControllerEnsureFreshRefreshesOnRevisionChange(t *testing.T) {
 func TestControllerMarkChangedStoresReturnedRevision(t *testing.T) {
 	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 9, markRevision: 9}
 	var refreshCalls int32
-	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
+	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context, _ int64) error {
 		atomic.AddInt32(&refreshCalls, 1)
 		return nil
 	})
@@ -195,7 +203,7 @@ func TestControllerMarkChangedStoresReturnedRevision(t *testing.T) {
 func TestControllerPublishChangedLeavesRevisionUnobserved(t *testing.T) {
 	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 10, markRevision: 10}
 	var refreshCalls int32
-	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
+	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context, _ int64) error {
 		atomic.AddInt32(&refreshCalls, 1)
 		return nil
 	})
@@ -329,7 +337,7 @@ func TestControllerConsumesCrossInstancePluginRuntimeRevision(t *testing.T) {
 		true,
 		cachecoord.NewWithCoordination(cachecoord.NewStaticTopology(true), coordSvc),
 		NewObservedRevision(),
-		func(_ context.Context) error {
+		func(_ context.Context, _ int64) error {
 			atomic.AddInt32(&refreshCalls, 1)
 			return nil
 		},

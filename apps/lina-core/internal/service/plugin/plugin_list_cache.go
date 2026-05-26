@@ -11,7 +11,7 @@ import (
 
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // pluginManagementListCache stores one complete unfiltered plugin management
@@ -212,16 +212,16 @@ func clonePluginItem(in *PluginItem) *PluginItem {
 
 // cloneHostServiceSpecs deep-copies host-service declarations because list
 // consumers may reuse rows while action modals are open.
-func cloneHostServiceSpecs(in []*pluginbridge.HostServiceSpec) []*pluginbridge.HostServiceSpec {
+func cloneHostServiceSpecs(in []*protocol.HostServiceSpec) []*protocol.HostServiceSpec {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]*pluginbridge.HostServiceSpec, 0, len(in))
+	out := make([]*protocol.HostServiceSpec, 0, len(in))
 	for _, item := range in {
 		if item == nil {
 			continue
 		}
-		out = append(out, &pluginbridge.HostServiceSpec{
+		out = append(out, &protocol.HostServiceSpec{
 			Service:   item.Service,
 			Methods:   append([]string(nil), item.Methods...),
 			Paths:     append([]string(nil), item.Paths...),
@@ -237,16 +237,16 @@ func cloneHostServiceSpecs(in []*pluginbridge.HostServiceSpec) []*pluginbridge.H
 }
 
 // cloneHostServiceResources deep-copies governed host-service resource specs.
-func cloneHostServiceResources(in []*pluginbridge.HostServiceResourceSpec) []*pluginbridge.HostServiceResourceSpec {
+func cloneHostServiceResources(in []*protocol.HostServiceResourceSpec) []*protocol.HostServiceResourceSpec {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]*pluginbridge.HostServiceResourceSpec, 0, len(in))
+	out := make([]*protocol.HostServiceResourceSpec, 0, len(in))
 	for _, item := range in {
 		if item == nil {
 			continue
 		}
-		out = append(out, &pluginbridge.HostServiceResourceSpec{
+		out = append(out, &protocol.HostServiceResourceSpec{
 			Ref:             item.Ref,
 			AllowMethods:    append([]string(nil), item.AllowMethods...),
 			HeaderAllowList: append([]string(nil), item.HeaderAllowList...),
@@ -262,16 +262,16 @@ func cloneHostServiceResources(in []*pluginbridge.HostServiceResourceSpec) []*pl
 }
 
 // cloneRouteContractsForList deep-copies route review declarations.
-func cloneRouteContractsForList(in []*pluginbridge.RouteContract) []*pluginbridge.RouteContract {
+func cloneRouteContractsForList(in []*protocol.RouteContract) []*protocol.RouteContract {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]*pluginbridge.RouteContract, 0, len(in))
+	out := make([]*protocol.RouteContract, 0, len(in))
 	for _, item := range in {
 		if item == nil {
 			continue
 		}
-		out = append(out, &pluginbridge.RouteContract{
+		out = append(out, &protocol.RouteContract{
 			Path:        item.Path,
 			Method:      item.Method,
 			Tags:        append([]string(nil), item.Tags...),
@@ -296,10 +296,6 @@ func cloneDependencyCheckResult(in *DependencyCheckResult) *DependencyCheckResul
 	}
 	out := *in
 	out.Dependencies = cloneDependencyPluginChecks(in.Dependencies)
-	out.AutoInstallPlan = cloneDependencyAutoInstallItems(in.AutoInstallPlan)
-	out.AutoInstalled = cloneDependencyAutoInstallItems(in.AutoInstalled)
-	out.ManualInstallRequired = cloneDependencyPluginChecks(in.ManualInstallRequired)
-	out.SoftUnsatisfied = cloneDependencyPluginChecks(in.SoftUnsatisfied)
 	out.Blockers = cloneDependencyBlockers(in.Blockers)
 	out.Cycle = append([]string(nil), in.Cycle...)
 	out.ReverseDependents = cloneDependencyReverseDependents(in.ReverseDependents)
@@ -313,26 +309,6 @@ func cloneDependencyPluginChecks(in []*DependencyPluginCheck) []*DependencyPlugi
 		return nil
 	}
 	out := make([]*DependencyPluginCheck, 0, len(in))
-	for _, item := range in {
-		if item == nil {
-			continue
-		}
-		clone := *item
-		clone.Chain = append([]string(nil), item.Chain...)
-		out = append(out, &clone)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-// cloneDependencyAutoInstallItems deep-copies dependency install plan entries.
-func cloneDependencyAutoInstallItems(in []*DependencyAutoInstallItem) []*DependencyAutoInstallItem {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*DependencyAutoInstallItem, 0, len(in))
 	for _, item := range in {
 		if item == nil {
 			continue

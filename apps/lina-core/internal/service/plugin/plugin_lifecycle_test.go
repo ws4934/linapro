@@ -23,8 +23,8 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets verifies
@@ -270,17 +270,17 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 // lifecycle handlers do not receive resource-scoped host services unless the
 // operation carries an explicit host authorization decision.
 func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testing.T) {
-	hostServices := []*pluginbridge.HostServiceSpec{
+	hostServices := []*protocol.HostServiceSpec{
 		{
-			Service: pluginbridge.HostServiceRuntime,
+			Service: protocol.HostServiceRuntime,
 			Methods: []string{
-				pluginbridge.HostServiceMethodRuntimeLogWrite,
+				protocol.HostServiceMethodRuntimeLogWrite,
 			},
 		},
 		{
-			Service: pluginbridge.HostServiceStorage,
+			Service: protocol.HostServiceStorage,
 			Methods: []string{
-				pluginbridge.HostServiceMethodStorageGet,
+				protocol.HostServiceMethodStorageGet,
 			},
 			Paths: []string{"private-files/"},
 		},
@@ -290,7 +290,7 @@ func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testin
 	if err != nil {
 		t.Fatalf("expected lifecycle host services to normalize, got error: %v", err)
 	}
-	if len(withoutAuthorization) != 1 || withoutAuthorization[0].Service != pluginbridge.HostServiceRuntime {
+	if len(withoutAuthorization) != 1 || withoutAuthorization[0].Service != protocol.HostServiceRuntime {
 		t.Fatalf("expected only capability host service without authorization, got %#v", withoutAuthorization)
 	}
 
@@ -299,7 +299,7 @@ func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testin
 		&HostServiceAuthorizationInput{
 			Services: []*HostServiceAuthorizationDecision{
 				{
-					Service: pluginbridge.HostServiceStorage,
+					Service: protocol.HostServiceStorage,
 					Paths:   []string{"private-files/"},
 				},
 			},
@@ -331,17 +331,17 @@ func TestApplyTargetReleaseAuthorizedHostServicesFiltersMissingRelease(t *testin
 	manifest := &catalog.Manifest{
 		ID:      pluginID,
 		Version: "v0.9.1",
-		HostServices: []*pluginbridge.HostServiceSpec{
+		HostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
+				Service: protocol.HostServiceRuntime,
 				Methods: []string{
-					pluginbridge.HostServiceMethodRuntimeLogWrite,
+					protocol.HostServiceMethodRuntimeLogWrite,
 				},
 			},
 			{
-				Service: pluginbridge.HostServiceStorage,
+				Service: protocol.HostServiceStorage,
 				Methods: []string{
-					pluginbridge.HostServiceMethodStorageGet,
+					protocol.HostServiceMethodStorageGet,
 				},
 				Paths: []string{"private-files/"},
 			},
@@ -355,10 +355,10 @@ func TestApplyTargetReleaseAuthorizedHostServicesFiltersMissingRelease(t *testin
 	if filtered == nil {
 		t.Fatal("expected filtered manifest")
 	}
-	if len(filtered.HostServices) != 1 || filtered.HostServices[0].Service != pluginbridge.HostServiceRuntime {
+	if len(filtered.HostServices) != 1 || filtered.HostServices[0].Service != protocol.HostServiceRuntime {
 		t.Fatalf("expected missing release to keep only capability host services, got %#v", filtered.HostServices)
 	}
-	if _, ok := filtered.HostCapabilities[pluginbridge.CapabilityStorage]; ok {
+	if _, ok := filtered.HostCapabilities[protocol.CapabilityStorage]; ok {
 		t.Fatalf("expected missing release to remove storage capability, got %#v", filtered.HostCapabilities)
 	}
 }
@@ -377,7 +377,7 @@ func TestDynamicLifecycleBeforeInstallFailsClosedBeforeInstall(t *testing.T) {
 		pluginID,
 		"Dynamic Before Install Fail Closed Plugin",
 		"v0.4.5",
-		pluginbridge.LifecycleOperationBeforeInstall,
+		protocol.LifecycleOperationBeforeInstall,
 	)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -505,7 +505,7 @@ func TestDynamicLifecycleBeforeDisableFailsClosedBeforeStatusChange(t *testing.T
 		pluginID,
 		"Dynamic Before Disable Fail Closed Plugin",
 		"v0.4.6",
-		pluginbridge.LifecycleOperationBeforeDisable,
+		protocol.LifecycleOperationBeforeDisable,
 	)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -563,7 +563,7 @@ func TestDynamicLifecycleBeforeUninstallUsesActiveReleaseWhenStagingMissing(t *t
 		pluginID,
 		"Dynamic Before Uninstall Active Release Plugin",
 		version,
-		pluginbridge.LifecycleOperationBeforeUninstall,
+		protocol.LifecycleOperationBeforeUninstall,
 	)
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
@@ -611,7 +611,7 @@ func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
 		blockingID,
 		"Dynamic Uninstall Cleanup Fail Closed Plugin",
 		version,
-		pluginbridge.LifecycleOperationUninstall,
+		protocol.LifecycleOperationUninstall,
 	)
 	if _, err := service.Install(ctx, blockingID, InstallOptions{}); err != nil {
 		t.Fatalf("expected blocking dynamic plugin install to succeed, got error: %v", err)
@@ -636,7 +636,7 @@ func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
 		skipID,
 		"Dynamic Uninstall Cleanup Skipped Plugin",
 		version,
-		pluginbridge.LifecycleOperationUninstall,
+		protocol.LifecycleOperationUninstall,
 	)
 	if _, err = service.Install(ctx, skipID, InstallOptions{}); err != nil {
 		t.Fatalf("expected skip dynamic plugin install to succeed, got error: %v", err)
@@ -886,7 +886,7 @@ func TestDynamicLifecycleBeforeTenantDisableFailsClosed(t *testing.T) {
 		pluginID,
 		"Dynamic Before Tenant Disable Plugin",
 		"v0.4.9",
-		pluginbridge.LifecycleOperationBeforeTenantDisable,
+		protocol.LifecycleOperationBeforeTenantDisable,
 	)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -922,7 +922,7 @@ func TestDynamicLifecycleBeforeTenantDeleteFailsClosed(t *testing.T) {
 		pluginID,
 		"Dynamic Before Tenant Delete Plugin",
 		"v0.4.10",
-		pluginbridge.LifecycleOperationBeforeTenantDelete,
+		protocol.LifecycleOperationBeforeTenantDelete,
 	)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -1594,7 +1594,7 @@ func createDynamicLifecyclePreconditionArtifact(
 	pluginID string,
 	pluginName string,
 	version string,
-	operation pluginbridge.LifecycleOperation,
+	operation protocol.LifecycleOperation,
 ) string {
 	t.Helper()
 
@@ -1609,9 +1609,9 @@ func createDynamicLifecyclePreconditionArtifact(
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			LifecycleContracts: []*pluginbridge.LifecycleContract{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			LifecycleContracts: []*protocol.LifecycleContract{
 				{
 					Operation:    operation,
 					RequestType:  "DynamicLifecycleReq",
@@ -1625,12 +1625,12 @@ func createDynamicLifecyclePreconditionArtifact(
 		nil,
 		nil,
 		nil,
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 	return artifactPath
@@ -1659,17 +1659,17 @@ func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceRuntime,
-					Methods: []string{pluginbridge.HostServiceMethodRuntimeInfoNow},
+					Service: protocol.HostServiceRuntime,
+					Methods: []string{protocol.HostServiceMethodRuntimeInfoNow},
 				},
 				{
-					Service: pluginbridge.HostServiceNetwork,
-					Methods: []string{pluginbridge.HostServiceMethodNetworkRequest},
-					Resources: []*pluginbridge.HostServiceResourceSpec{
+					Service: protocol.HostServiceNetwork,
+					Methods: []string{protocol.HostServiceMethodNetworkRequest},
+					Resources: []*protocol.HostServiceResourceSpec{
 						{
 							Ref: "https://example.com/api",
 						},
@@ -1745,25 +1745,25 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceRuntime,
-					Methods: []string{pluginbridge.HostServiceMethodRuntimeInfoNow},
+					Service: protocol.HostServiceRuntime,
+					Methods: []string{protocol.HostServiceMethodRuntimeInfoNow},
 				},
 				{
-					Service: pluginbridge.HostServiceNetwork,
-					Methods: []string{pluginbridge.HostServiceMethodNetworkRequest},
-					Resources: []*pluginbridge.HostServiceResourceSpec{
+					Service: protocol.HostServiceNetwork,
+					Methods: []string{protocol.HostServiceMethodNetworkRequest},
+					Resources: []*protocol.HostServiceResourceSpec{
 						{
 							Ref: "https://example.com/api",
 						},
 					},
 				},
 				{
-					Service: pluginbridge.HostServiceStorage,
-					Methods: []string{pluginbridge.HostServiceMethodStorageGet},
+					Service: protocol.HostServiceStorage,
+					Methods: []string{protocol.HostServiceMethodStorageGet},
 					Paths:   []string{"private-files/"},
 				},
 			},
@@ -1787,7 +1787,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	authorization := &HostServiceAuthorizationInput{
 		Services: []*HostServiceAuthorizationDecision{
 			{
-				Service: pluginbridge.HostServiceStorage,
+				Service: protocol.HostServiceStorage,
 				Paths:   []string{"private-files/"},
 			},
 		},
@@ -1826,19 +1826,19 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	if len(activeManifest.HostServices) != 2 {
 		t.Fatalf("expected active manifest to use narrowed host services, got %#v", activeManifest.HostServices)
 	}
-	if activeManifest.HostServices[0].Service != pluginbridge.HostServiceRuntime &&
-		activeManifest.HostServices[1].Service != pluginbridge.HostServiceRuntime {
+	if activeManifest.HostServices[0].Service != protocol.HostServiceRuntime &&
+		activeManifest.HostServices[1].Service != protocol.HostServiceRuntime {
 		t.Fatalf("expected runtime host service to remain authorized, got %#v", activeManifest.HostServices)
 	}
 	for _, spec := range activeManifest.HostServices {
 		if spec == nil {
 			continue
 		}
-		if spec.Service == pluginbridge.HostServiceNetwork {
+		if spec.Service == protocol.HostServiceNetwork {
 			t.Fatalf("expected network host service to be removed from authorized snapshot, got %#v", activeManifest.HostServices)
 		}
 	}
-	if _, ok := activeManifest.HostCapabilities[pluginbridge.CapabilityHTTPRequest]; ok {
+	if _, ok := activeManifest.HostCapabilities[protocol.CapabilityHTTPRequest]; ok {
 		t.Fatalf("expected network capability to be removed with rejected authorization")
 	}
 }

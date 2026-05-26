@@ -8,14 +8,14 @@ import (
 	"context"
 
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
-// platformMenuTenantCapability is the tenant-capability slice required by
+// platformMenuTenantService is the tenant-capability slice required by
 // global menu governance guards.
-type platformMenuTenantCapability interface {
-	// Enabled reports whether multi-tenancy governance is active.
-	Enabled(ctx context.Context) bool
+type platformMenuTenantService interface {
+	// Available reports whether multi-tenancy governance is active.
+	Available(ctx context.Context) bool
 	// PlatformBypass reports whether the request is a platform all-data context.
 	PlatformBypass(ctx context.Context) bool
 }
@@ -29,21 +29,21 @@ func (s *serviceImpl) ensurePlatformMenuGovernance(ctx context.Context) error {
 // ensurePlatformMenuGovernanceContext applies platform-menu checks without
 // coupling tests to the full tenantcap service interface.
 func ensurePlatformMenuGovernanceContext(ctx context.Context, holder interface {
-	platformMenuTenantCapability() platformMenuTenantCapability
+	platformMenuTenantService() platformMenuTenantService
 }) error {
 	if holder == nil {
 		return nil
 	}
-	tenantSvc := holder.platformMenuTenantCapability()
-	if tenantSvc == nil || !tenantSvc.Enabled(ctx) || tenantSvc.PlatformBypass(ctx) {
+	tenantSvc := holder.platformMenuTenantService()
+	if tenantSvc == nil || !tenantSvc.Available(ctx) || tenantSvc.PlatformBypass(ctx) {
 		return nil
 	}
-	return bizerr.NewCode(pkgtenantcap.CodePlatformPermissionRequired)
+	return bizerr.NewCode(tenantcap.CodePlatformPermissionRequired)
 }
 
-// platformMenuTenantCapability returns the tenant capability used by the menu
+// platformMenuTenantService returns the tenant capability used by the menu
 // governance guard.
-func (s *serviceImpl) platformMenuTenantCapability() platformMenuTenantCapability {
+func (s *serviceImpl) platformMenuTenantService() platformMenuTenantService {
 	if s == nil {
 		return nil
 	}

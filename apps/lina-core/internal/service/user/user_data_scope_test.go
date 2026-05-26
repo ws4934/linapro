@@ -7,18 +7,20 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/xuri/excelize/v2"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/orgcap"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/orgcap"
 )
 
 // TestUserDataScopeListSelfShowsOnlyCurrentUser verifies self-scope list
@@ -439,22 +441,17 @@ type userDataScopeStaticOrgCap struct {
 	deptUserIDs map[int][]int
 }
 
-// Enabled reports whether the fake organization capability is enabled.
-func (f userDataScopeStaticOrgCap) Enabled(context.Context) bool { return f.enabled }
+// Available reports whether the fake organization capability is available.
+func (f userDataScopeStaticOrgCap) Available(context.Context) bool { return f.enabled }
+
+// Status returns the fake organization capability status.
+func (f userDataScopeStaticOrgCap) Status(context.Context) contract.CapabilityStatus {
+	return contract.CapabilityStatus{Available: f.enabled}
+}
 
 // ListUserDeptAssignments returns no department projections for list rendering.
 func (f userDataScopeStaticOrgCap) ListUserDeptAssignments(context.Context, []int) (map[int]*orgcap.UserDeptAssignment, error) {
 	return map[int]*orgcap.UserDeptAssignment{}, nil
-}
-
-// GetUserIDsByDept returns the configured user IDs for one department.
-func (f userDataScopeStaticOrgCap) GetUserIDsByDept(_ context.Context, deptID int) ([]int, error) {
-	return append([]int(nil), f.deptUserIDs[deptID]...), nil
-}
-
-// GetAllAssignedUserIDs returns an empty assignment collection.
-func (f userDataScopeStaticOrgCap) GetAllAssignedUserIDs(context.Context) ([]int, error) {
-	return []int{}, nil
 }
 
 // GetUserDeptInfo returns an empty department projection.
@@ -502,6 +499,21 @@ func (f userDataScopeStaticOrgCap) BuildUserDeptScopeExists(context.Context, str
 	return nil, true, nil
 }
 
+// ApplyUserDeptFilter injects a deterministic department-list filter without
+// exposing a high-cardinality ID-list contract to production code.
+func (f userDataScopeStaticOrgCap) ApplyUserDeptFilter(_ context.Context, model *gdb.Model, userIDColumn string, deptID int) (*gdb.Model, bool, error) {
+	userIDs := f.deptUserIDs[deptID]
+	if len(userIDs) == 0 {
+		return model, true, nil
+	}
+	return model.WhereIn(userIDColumn, userIDs), false, nil
+}
+
+// ApplyUserDeptUnassignedFilter leaves test models unchanged.
+func (f userDataScopeStaticOrgCap) ApplyUserDeptUnassignedFilter(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
 // GetUserPostIDs returns no post IDs.
 func (f userDataScopeStaticOrgCap) GetUserPostIDs(context.Context, int) ([]int, error) {
 	return []int{}, nil
@@ -515,14 +527,4 @@ func (f userDataScopeStaticOrgCap) ReplaceUserAssignments(context.Context, int, 
 // CleanupUserAssignments accepts assignment cleanup without doing work.
 func (f userDataScopeStaticOrgCap) CleanupUserAssignments(context.Context, int) error {
 	return nil
-}
-
-// UserDeptTree returns no department tree nodes.
-func (f userDataScopeStaticOrgCap) UserDeptTree(context.Context) ([]*orgcap.DeptTreeNode, error) {
-	return []*orgcap.DeptTreeNode{}, nil
-}
-
-// ListPostOptions returns no post options.
-func (f userDataScopeStaticOrgCap) ListPostOptions(context.Context, *int) ([]*orgcap.PostOption, error) {
-	return []*orgcap.PostOption{}, nil
 }

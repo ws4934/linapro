@@ -6,11 +6,11 @@ import (
 	"context"
 
 	"lina-core/internal/service/cachecoord"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // WithTenantScope returns the controller after applying tenant invalidation scope.
-func (c *Controller) WithTenantScope(tenantID pkgtenantcap.TenantID, cascadeToTenants bool) *Controller {
+func (c *Controller) WithTenantScope(tenantID tenantcap.TenantID, cascadeToTenants bool) *Controller {
 	if c == nil {
 		return nil
 	}

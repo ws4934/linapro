@@ -62,15 +62,6 @@ const (
 	InstallModeTenantScoped InstallMode = "tenant_scoped"
 )
 
-// DependencyInstallMode defines how a missing dependency may be installed.
-type DependencyInstallMode string
-
-// Supported dependency install modes.
-const (
-	DependencyInstallModeManual DependencyInstallMode = "manual"
-	DependencyInstallModeAuto   DependencyInstallMode = "auto"
-)
-
 // AuthorizationStatus identifies host-service authorization review state.
 type AuthorizationStatus string
 
@@ -86,12 +77,9 @@ type DependencyStatus string
 
 // Supported dependency edge states.
 const (
-	DependencyStatusSatisfied             DependencyStatus = "satisfied"
-	DependencyStatusAutoInstallPlanned    DependencyStatus = "auto_install_planned"
-	DependencyStatusManualInstallRequired DependencyStatus = "manual_install_required"
-	DependencyStatusMissing               DependencyStatus = "missing"
-	DependencyStatusVersionUnsatisfied    DependencyStatus = "version_unsatisfied"
-	DependencyStatusSoftUnsatisfied       DependencyStatus = "soft_unsatisfied"
+	DependencyStatusSatisfied          DependencyStatus = "satisfied"
+	DependencyStatusMissing            DependencyStatus = "missing"
+	DependencyStatusVersionUnsatisfied DependencyStatus = "version_unsatisfied"
 )
 
 // FrameworkStatus identifies framework-version compatibility.
@@ -112,7 +100,6 @@ const (
 	BlockerCodeFrameworkVersionUnsatisfied  BlockerCode = "framework_version_unsatisfied"
 	BlockerCodeDependencyMissing            BlockerCode = "dependency_missing"
 	BlockerCodeDependencyVersionUnsatisfied BlockerCode = "dependency_version_unsatisfied"
-	BlockerCodeDependencyManualRequired     BlockerCode = "dependency_manual_install_required"
 	BlockerCodeDependencyCycle              BlockerCode = "dependency_cycle"
 	BlockerCodeDependencySnapshotUnknown    BlockerCode = "dependency_snapshot_unknown"
 	BlockerCodeReverseDependency            BlockerCode = "reverse_dependency"

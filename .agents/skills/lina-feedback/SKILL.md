@@ -200,7 +200,7 @@ THEN 父级选择器应禁用当前菜单及所有子菜单
 
 ```bash
 # 示例：查找用户 API 变更的相关测试，包含宿主和源码插件自有 E2E
-rg -l "api/user" hack/tests/e2e apps/lina-plugins -g 'TC*.ts'
+git grep -l "api/user" -- 'hack/tests/e2e/**/TC*.ts' 'apps/lina-plugins/**/TC*.ts'
 ```
 
 告知：

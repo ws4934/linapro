@@ -17,9 +17,9 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/resourcefs"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginfs"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // PrewarmRuntimeFrontendBundles rebuilds in-memory frontend bundles for all enabled
@@ -237,12 +237,12 @@ func (s *serviceImpl) resolveSourcePublicAsset(
 	}
 	var content []byte
 	if embeddedFiles := catalog.GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		if err = pluginfs.ValidateNoSymlinkPathFromFS(embeddedFiles, resolvedAssetPath); err == nil {
+		if err = resourcefs.ValidateNoSymlinkPathFromFS(embeddedFiles, resolvedAssetPath); err == nil {
 			content, err = fs.ReadFile(embeddedFiles, resolvedAssetPath)
 		}
 	} else {
 		var fullPath string
-		fullPath, err = pluginfs.ResolveResourcePath(manifest.RootDir, resolvedAssetPath)
+		fullPath, err = resourcefs.ResolveResourcePath(manifest.RootDir, resolvedAssetPath)
 		if err == nil {
 			content, err = os.ReadFile(fullPath)
 		}

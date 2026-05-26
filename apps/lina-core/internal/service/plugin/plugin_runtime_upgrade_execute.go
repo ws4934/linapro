@@ -97,18 +97,15 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 			)
 		}
 		s.invalidateRuntimeUpgradeCaches(ctx, normalizedPluginID, targetManifest.Type, "runtime_upgrade_failed")
-		if syncErr := s.syncEnabledSnapshotFromRegistry(ctx, normalizedPluginID); syncErr != nil {
+		if syncErr := s.syncEnabledSnapshotAndPublishRuntimeChange(
+			ctx,
+			normalizedPluginID,
+			"runtime_upgrade_failed",
+		); syncErr != nil {
 			logger.Warningf(
 				ctx,
 				"sync plugin snapshot after runtime upgrade failure failed plugin=%s err=%v",
 				normalizedPluginID, syncErr,
-			)
-		}
-		if markErr := s.markRuntimeCacheChanged(ctx, "runtime_upgrade_failed"); markErr != nil {
-			logger.Warningf(
-				ctx,
-				"mark runtime cache changed after upgrade failure failed plugin=%s err=%v",
-				normalizedPluginID, markErr,
 			)
 		}
 		return nil, bizerr.WrapCode(
@@ -128,10 +125,14 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 		)
 	}
 
-	if err = s.syncEnabledSnapshotFromRegistry(ctx, normalizedPluginID); err != nil {
+	s.invalidateRuntimeUpgradeCaches(ctx, normalizedPluginID, targetManifest.Type, "runtime_upgrade_succeeded")
+	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(
+		ctx,
+		normalizedPluginID,
+		"runtime_upgrade_succeeded",
+	); err != nil {
 		return nil, err
 	}
-	s.invalidateRuntimeUpgradeCaches(ctx, normalizedPluginID, targetManifest.Type, "runtime_upgrade_succeeded")
 	refreshedManifest, refreshedRegistry, refreshedProjection, err := s.loadRuntimeUpgradeExecutionState(
 		ctx,
 		normalizedPluginID,

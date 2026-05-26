@@ -83,7 +83,7 @@ The system SHALL require official source plugins to maintain independent GoFrame
 #### Scenario: Maintain independent codegen configuration for plugin backend
 - **WHEN** team creates or maintains official source plugin backends
 - **THEN** The plugin `backend/` directory contains `hack/config.yaml`
-- **AND** Developers can directly execute `gf gen dao` in the `backend/` directory of the plugin
+- **AND** Developers can directly execute `make dao` in the `backend/` directory of the plugin
 - **AND** The generated results fall into `internal/dao`, `internal/model/do` and `internal/model/entity` local to the plugin
 
 #### Scenario: The plugin service accesses the plugin's own table or shared reading table
@@ -96,7 +96,7 @@ The system SHALL require official source plugins to maintain independent GoFrame
 #### Scenario: The current version does not directly access the source plugin of the database.
 - **WHEN** The current version of an official source plugin only completes business processing through the host's stable capabilities.
 - **THEN** The plugin still retains the local `backend/hack/config.yaml`
-- **AND** If new database access is added in the future, the plugin's local `gf gen dao` and `dao/do/entity` structures will continue to be used.
+- **AND** If new database access is added in the future, the plugin's local `make dao` and `dao/do/entity` structures will continue to be used.
 
 ### Requirement: Source plugins have independent storage lifecycles and namespaces
 

@@ -4,6 +4,7 @@
 package catalog
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"sort"
@@ -13,8 +14,8 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 	"gopkg.in/yaml.v3"
 
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginfs"
+	"lina-core/internal/service/plugin/internal/resourcefs"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // ScanManifests merges source-plugin discovery and runtime-wasm discovery
@@ -129,7 +130,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		return nil, gerror.Newf("dynamic plugin is missing embedded manifest: %s", artifactPath)
 	}
 
-	hostServices, err := pluginbridge.NormalizeHostServiceSpecs(artifact.HostServices)
+	hostServices, err := protocol.NormalizeHostServiceSpecs(artifact.HostServices)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "dynamic plugin host service declaration is invalid: %s", artifactPath)
 	}
@@ -150,7 +151,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		LifecycleHandlers:   CloneLifecycleContracts(artifact.LifecycleContracts),
 		Routes:              artifact.RouteContracts,
 		BridgeSpec:          artifact.BridgeSpec,
-		HostCapabilities:    pluginbridge.CapabilityMapFromHostServices(artifact.HostServices),
+		HostCapabilities:    protocol.CapabilityMapFromHostServices(artifact.HostServices),
 		HostServices:        hostServices,
 		RuntimeArtifact:     artifact,
 	}
@@ -175,7 +176,73 @@ func (s *serviceImpl) LoadManifestFromYAML(filePath string, manifest *Manifest) 
 	if len(content) == 0 {
 		return gerror.Newf("plugin manifest file is empty: %s", filePath)
 	}
+	if err := validateManifestDependencySchema(content, filePath); err != nil {
+		return err
+	}
 	return yaml.Unmarshal(content, manifest)
+}
+
+// validateManifestDependencySchema validates current dependency entry fields
+// before lenient manifest decoding can ignore unsupported plugin policies.
+func validateManifestDependencySchema(content []byte, fileLabel string) error {
+	var root yaml.Node
+	decoder := yaml.NewDecoder(bytes.NewReader(content))
+	if err := decoder.Decode(&root); err != nil {
+		return err
+	}
+	document := &root
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		document = root.Content[0]
+	}
+	if document == nil || document.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(document.Content); i += 2 {
+		key := strings.TrimSpace(document.Content[i].Value)
+		if key == "dependencies" {
+			if err := rejectUnsupportedDependencyFields(document.Content[i+1], fileLabel); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// rejectUnsupportedDependencyFields rejects removed dependency policy fields.
+func rejectUnsupportedDependencyFields(node *yaml.Node, fileLabel string) error {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := strings.TrimSpace(node.Content[i].Value)
+		if key == "plugins" {
+			if err := rejectUnsupportedPluginDependencyFields(node.Content[i+1], fileLabel); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// rejectUnsupportedPluginDependencyFields rejects required/install policy fields
+// from dependencies.plugins entries. Declaring a plugin dependency is always a
+// hard dependency; automatic install policy is outside plugin manifests.
+func rejectUnsupportedPluginDependencyFields(node *yaml.Node, fileLabel string) error {
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return nil
+	}
+	for index, item := range node.Content {
+		if item == nil || item.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(item.Content); i += 2 {
+			key := strings.TrimSpace(item.Content[i].Value)
+			if key != "id" && key != "version" {
+				return gerror.Newf("plugin manifest field dependencies.plugins[%d].%s is not supported; plugin dependencies only support id and version: %s", index, key, fileLabel)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveRuntimeStorageDir resolves the configured runtime WASM storage
@@ -211,20 +278,20 @@ func (s *serviceImpl) LoadManifestFromArtifactPath(artifactPath string) (*Manife
 
 // DiscoverSQLPaths discovers plugin SQL files by directory convention.
 func (s *serviceImpl) DiscoverSQLPaths(rootDir string, uninstall bool) []string {
-	return pluginfs.DiscoverSQLPaths(rootDir, uninstall)
+	return resourcefs.DiscoverSQLPaths(rootDir, uninstall)
 }
 
 // DiscoverMockSQLPaths discovers plugin mock-data SQL files by directory convention.
 func (s *serviceImpl) DiscoverMockSQLPaths(rootDir string) []string {
-	return pluginfs.DiscoverMockSQLPaths(rootDir)
+	return resourcefs.DiscoverMockSQLPaths(rootDir)
 }
 
 // DiscoverPagePaths discovers plugin page source files by directory convention.
 func (s *serviceImpl) DiscoverPagePaths(rootDir string) []string {
-	return pluginfs.DiscoverVuePaths(rootDir, filepath.Join("frontend", "pages"))
+	return resourcefs.DiscoverVuePaths(rootDir, filepath.Join("frontend", "pages"))
 }
 
 // DiscoverSlotPaths discovers plugin slot source files by directory convention.
 func (s *serviceImpl) DiscoverSlotPaths(rootDir string) []string {
-	return pluginfs.DiscoverVuePaths(rootDir, filepath.Join("frontend", "slots"))
+	return resourcefs.DiscoverVuePaths(rootDir, filepath.Join("frontend", "slots"))
 }

@@ -13,14 +13,15 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
+
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestMatchDynamicRoutePathSupportsParams verifies parameter placeholders are
@@ -42,7 +43,7 @@ func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
 		Match: &runtime.DynamicRouteMatch{
 			PluginID:   "linapro-demo-dynamic",
 			PublicPath: "/x/linapro-demo-dynamic/api/v1/review",
-			Route: &pluginbridge.RouteContract{
+			Route: &protocol.RouteContract{
 				Method:  http.MethodGet,
 				Tags:    []string{"plugin-review", "dynamic"},
 				Summary: "Review summary",
@@ -93,19 +94,20 @@ func TestDispatchDynamicRouteReturnsNotFoundWhenTenantPluginDisabled(t *testing.
 		testutil.DefaultTestRuntimeFrontendAssets(),
 		nil,
 		nil,
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
-				Path:   "/api/v1/summary",
-				Method: http.MethodGet,
-				Access: pluginbridge.AccessPublic,
+				Path:        "/api/v1/summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessPublic,
+				RequestType: "SummaryReq",
 			},
 		},
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.SupportedABIVersion,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.SupportedABIVersion,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 			AllocExport:    "allocate",
 			ExecuteExport:  "execute",
 		},
@@ -191,19 +193,20 @@ func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing
 		testutil.DefaultTestRuntimeFrontendAssets(),
 		nil,
 		nil,
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
-				Path:   "/api/v1/summary",
-				Method: http.MethodGet,
-				Access: pluginbridge.AccessPublic,
+				Path:        "/api/v1/summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessPublic,
+				RequestType: "SummaryReq",
 			},
 		},
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.SupportedABIVersion,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.SupportedABIVersion,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 
@@ -236,19 +239,20 @@ func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing
 		testutil.DefaultTestRuntimeFrontendAssets(),
 		nil,
 		nil,
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
-				Path:   "/api/v1/summary",
-				Method: http.MethodGet,
-				Access: pluginbridge.AccessPublic,
+				Path:        "/api/v1/summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessPublic,
+				RequestType: "SummaryReq",
 			},
 		},
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.SupportedABIVersion,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.SupportedABIVersion,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 	newManifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
@@ -291,31 +295,35 @@ func TestDispatchDynamicRouteAllowsPluginOwnedPathShapes(t *testing.T) {
 		testutil.DefaultTestRuntimeFrontendAssets(),
 		nil,
 		nil,
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
-				Path:   "/api/v2/summary",
-				Method: http.MethodGet,
-				Access: pluginbridge.AccessPublic,
+				Path:        "/api/v2/summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessPublic,
+				RequestType: "SummaryV2Req",
 			},
 			{
-				Path:   "/interface/m1/summary",
-				Method: http.MethodGet,
-				Access: pluginbridge.AccessPublic,
+				Path:        "/interface/m1/summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessPublic,
+				RequestType: "InterfaceSummaryReq",
 			},
 			{
-				Path:   "/graphql",
-				Method: http.MethodPost,
-				Access: pluginbridge.AccessPublic,
+				Path:        "/graphql",
+				Method:      http.MethodPost,
+				Access:      protocol.AccessPublic,
+				RequestType: "GraphQLReq",
 			},
 			{
-				Path:   "/",
-				Method: http.MethodGet,
-				Access: pluginbridge.AccessPublic,
+				Path:        "/",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessPublic,
+				RequestType: "RootReq",
 			},
 		},
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.SupportedABIVersion,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.SupportedABIVersion,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: false,
 		},
 	)
@@ -396,22 +404,22 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
 	}
 
-	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &pluginbridge.BridgeRequestEnvelopeV1{
+	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &protocol.BridgeRequestEnvelopeV1{
 		PluginID: "linapro-demo-dynamic",
-		Route: &pluginbridge.RouteMatchSnapshotV1{
+		Route: &protocol.RouteMatchSnapshotV1{
 			InternalPath: "/api/v1/backend-summary",
 			PublicPath:   "/x/linapro-demo-dynamic/api/v1/backend-summary",
-			Access:       pluginbridge.AccessLogin,
+			Access:       protocol.AccessLogin,
 			Permission:   "linapro-demo-dynamic:backend:view",
 			RequestType:  "BackendSummaryReq",
 		},
-		Identity: &pluginbridge.IdentitySnapshotV1{
+		Identity: &protocol.IdentitySnapshotV1{
 			UserID:       1,
 			Username:     "admin",
 			DataScope:    1,
 			IsSuperAdmin: true,
 		},
-		Request: &pluginbridge.HTTPRequestSnapshotV1{
+		Request: &protocol.HTTPRequestSnapshotV1{
 			Method: http.MethodGet,
 		},
 	})
@@ -454,26 +462,26 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
 	}
 
-	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &pluginbridge.BridgeRequestEnvelopeV1{
+	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &protocol.BridgeRequestEnvelopeV1{
 		PluginID:  "linapro-demo-dynamic",
 		RequestID: "req-host-call-demo",
-		Route: &pluginbridge.RouteMatchSnapshotV1{
+		Route: &protocol.RouteMatchSnapshotV1{
 			InternalPath: "/api/v1/host-call-demo",
 			PublicPath:   "/x/linapro-demo-dynamic/api/v1/host-call-demo",
-			Access:       pluginbridge.AccessLogin,
+			Access:       protocol.AccessLogin,
 			Permission:   "linapro-demo-dynamic:backend:view",
 			RequestType:  "HostCallDemoReq",
 			QueryValues: map[string][]string{
 				"skipNetwork": {"1"},
 			},
 		},
-		Identity: &pluginbridge.IdentitySnapshotV1{
+		Identity: &protocol.IdentitySnapshotV1{
 			UserID:       1,
 			Username:     "admin",
 			DataScope:    1,
 			IsSuperAdmin: true,
 		},
-		Request: &pluginbridge.HTTPRequestSnapshotV1{
+		Request: &protocol.HTTPRequestSnapshotV1{
 			Method: http.MethodGet,
 		},
 	})
@@ -535,6 +543,28 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 	if networkPayload["skipped"] != true {
 		t.Fatalf("expected network payload skipped=true during offline-safe test run, got %#v", networkPayload)
 	}
+
+	orgPayload, ok := payload["org"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected org payload object, got %#v", payload["org"])
+	}
+	if _, ok = orgPayload["available"].(bool); !ok {
+		t.Fatalf("expected org payload to include availability, got %#v", orgPayload)
+	}
+	if orgPayload["assignmentCount"] == nil || orgPayload["currentUserDeptCount"] == nil {
+		t.Fatalf("expected org payload to include current-user organization projections, got %#v", orgPayload)
+	}
+
+	tenantPayload, ok := payload["tenant"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected tenant payload object, got %#v", payload["tenant"])
+	}
+	if tenantPayload["visible"] != true {
+		t.Fatalf("expected tenant visibility check to pass, got %#v", tenantPayload)
+	}
+	if tenantPayload["currentTenantId"] == nil || tenantPayload["userTenantCount"] == nil {
+		t.Fatalf("expected tenant payload to include current tenant and user tenant count, got %#v", tenantPayload)
+	}
 }
 
 // TestExecuteDynamicWasmBridgeCreatesDemoRecord verifies the bundled dynamic
@@ -550,25 +580,25 @@ func TestExecuteDynamicWasmBridgeCreatesDemoRecord(t *testing.T) {
 		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
 	}
 
-	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &pluginbridge.BridgeRequestEnvelopeV1{
+	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &protocol.BridgeRequestEnvelopeV1{
 		PluginID:  "linapro-demo-dynamic",
 		RequestID: "req-demo-record-create",
-		Route: &pluginbridge.RouteMatchSnapshotV1{
+		Route: &protocol.RouteMatchSnapshotV1{
 			Method:       http.MethodPost,
 			InternalPath: "/api/v1/demo-records",
 			PublicPath:   "/x/linapro-demo-dynamic/api/v1/demo-records",
-			Access:       pluginbridge.AccessLogin,
+			Access:       protocol.AccessLogin,
 			Permission:   "linapro-demo-dynamic:record:create",
 			RequestType:  "CreateDemoRecordReq",
 			RoutePath:    "/api/v1/demo-records",
 		},
-		Identity: &pluginbridge.IdentitySnapshotV1{
+		Identity: &protocol.IdentitySnapshotV1{
 			UserID:       1,
 			Username:     "admin",
 			DataScope:    1,
 			IsSuperAdmin: true,
 		},
-		Request: &pluginbridge.HTTPRequestSnapshotV1{
+		Request: &protocol.HTTPRequestSnapshotV1{
 			Method:      http.MethodPost,
 			ContentType: "application/json",
 			Body: []byte(`{
@@ -680,7 +710,7 @@ CREATE TABLE IF NOT EXISTS plugin_linapro_demo_dynamic_record (
 
 // responseBodyForTest returns response body bytes without forcing every failure
 // assertion to nil-check the response first.
-func responseBodyForTest(response *pluginbridge.BridgeResponseEnvelopeV1) []byte {
+func responseBodyForTest(response *protocol.BridgeResponseEnvelopeV1) []byte {
 	if response == nil {
 		return nil
 	}
@@ -688,7 +718,7 @@ func responseBodyForTest(response *pluginbridge.BridgeResponseEnvelopeV1) []byte
 }
 
 // findCronContract locates one declared cron contract by stable plugin-local name.
-func findCronContract(contracts []*pluginbridge.CronContract, name string) *pluginbridge.CronContract {
+func findCronContract(contracts []*protocol.CronContract, name string) *protocol.CronContract {
 	for _, item := range contracts {
 		if item != nil && item.Name == name {
 			return item

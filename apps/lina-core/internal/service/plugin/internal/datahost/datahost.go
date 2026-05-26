@@ -13,8 +13,9 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/plugindb"
+	plugindata "lina-core/pkg/plugin/capability/data"
+	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // Default pagination limits for governed list operations.
@@ -28,8 +29,9 @@ const (
 type executionContext struct {
 	pluginID        string
 	table           string
-	executionSource pluginbridge.ExecutionSource
-	identity        *pluginbridge.IdentitySnapshotV1
+	executionSource protocol.ExecutionSource
+	identity        *protocol.IdentitySnapshotV1
+	orgSvc          orgcap.Service
 }
 
 // modelProvider abstracts gdb.DB and gdb.TX so mutation helpers can share logic.
@@ -43,21 +45,22 @@ func ExecuteList(
 	ctx context.Context,
 	pluginID string,
 	table string,
-	executionSource pluginbridge.ExecutionSource,
-	identity *pluginbridge.IdentitySnapshotV1,
+	executionSource protocol.ExecutionSource,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataListRequest,
-) (*pluginbridge.HostServiceDataListResponse, error) {
+	request *protocol.HostServiceDataListRequest,
+) (*protocol.HostServiceDataListResponse, error) {
 	execCtx := &executionContext{
 		pluginID:        pluginID,
 		table:           table,
 		executionSource: executionSource,
 		identity:        identity,
 	}
-	if err := validateExecutionAccess(execCtx, resource, pluginbridge.HostServiceMethodDataList); err != nil {
+	if err := validateExecutionAccess(execCtx, resource, protocol.HostServiceMethodDataList); err != nil {
 		return nil, err
 	}
-	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, pluginbridge.HostServiceMethodDataList, false))
+	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, protocol.HostServiceMethodDataList, false))
 
 	db, err := getPluginDataDB()
 	if err != nil {
@@ -73,7 +76,7 @@ func ExecuteList(
 	if err != nil {
 		return nil, err
 	}
-	model, err = applyResourceDataScope(ctx, model, resource, identity)
+	model, err = applyResourceDataScope(ctx, model, resource, identity, orgSvc)
 	if err != nil {
 		return nil, err
 	}
@@ -83,10 +86,10 @@ func ExecuteList(
 		return nil, err
 	}
 
-	response := &pluginbridge.HostServiceDataListResponse{
+	response := &protocol.HostServiceDataListResponse{
 		Total: int32(total),
 	}
-	if requestPlan.Action == plugindb.DataPlanActionCount {
+	if requestPlan.Action == plugindata.DataPlanActionCount {
 		return response, nil
 	}
 	fieldArgs, err := buildPlanFieldArgs(resource, requestPlan.Fields)
@@ -125,18 +128,19 @@ func ExecuteGet(
 	ctx context.Context,
 	pluginID string,
 	table string,
-	executionSource pluginbridge.ExecutionSource,
-	identity *pluginbridge.IdentitySnapshotV1,
+	executionSource protocol.ExecutionSource,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataGetRequest,
-) (*pluginbridge.HostServiceDataGetResponse, error) {
+	request *protocol.HostServiceDataGetRequest,
+) (*protocol.HostServiceDataGetResponse, error) {
 	execCtx := &executionContext{
 		pluginID:        pluginID,
 		table:           table,
 		executionSource: executionSource,
 		identity:        identity,
 	}
-	if err := validateExecutionAccess(execCtx, resource, pluginbridge.HostServiceMethodDataGet); err != nil {
+	if err := validateExecutionAccess(execCtx, resource, protocol.HostServiceMethodDataGet); err != nil {
 		return nil, err
 	}
 	requestPlan, err := decodeDataGetPlan(table, request)
@@ -147,7 +151,7 @@ func ExecuteGet(
 	if err != nil {
 		return nil, err
 	}
-	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, pluginbridge.HostServiceMethodDataGet, false))
+	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, protocol.HostServiceMethodDataGet, false))
 
 	db, err := getPluginDataDB()
 	if err != nil {
@@ -156,7 +160,7 @@ func ExecuteGet(
 
 	model := buildResourceModel(db, ctx, resource).
 		Where(resolveResourceKeyColumn(resource), keyValue)
-	model, err = applyResourceDataScope(ctx, model, resource, identity)
+	model, err = applyResourceDataScope(ctx, model, resource, identity, orgSvc)
 	if err != nil {
 		return nil, err
 	}
@@ -173,13 +177,13 @@ func ExecuteGet(
 		return nil, err
 	}
 	if len(records) == 0 {
-		return &pluginbridge.HostServiceDataGetResponse{Found: false}, nil
+		return &protocol.HostServiceDataGetResponse{Found: false}, nil
 	}
 	recordJSON, err := json.Marshal(buildResourceRecordWithSelection(records[0].Map(), resource, requestPlan.Fields))
 	if err != nil {
 		return nil, err
 	}
-	return &pluginbridge.HostServiceDataGetResponse{
+	return &protocol.HostServiceDataGetResponse{
 		Found:      true,
 		RecordJSON: recordJSON,
 	}, nil
@@ -190,16 +194,18 @@ func ExecuteCreate(
 	ctx context.Context,
 	pluginID string,
 	table string,
-	executionSource pluginbridge.ExecutionSource,
-	identity *pluginbridge.IdentitySnapshotV1,
+	executionSource protocol.ExecutionSource,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataMutationRequest,
-) (*pluginbridge.HostServiceDataMutationResponse, error) {
+	request *protocol.HostServiceDataMutationRequest,
+) (*protocol.HostServiceDataMutationResponse, error) {
 	execCtx := &executionContext{
 		pluginID:        pluginID,
 		table:           table,
 		executionSource: executionSource,
 		identity:        identity,
+		orgSvc:          orgSvc,
 	}
 	return executeCreateWithProvider(ctx, execCtx, resource, request, false, nil)
 }
@@ -209,16 +215,18 @@ func ExecuteUpdate(
 	ctx context.Context,
 	pluginID string,
 	table string,
-	executionSource pluginbridge.ExecutionSource,
-	identity *pluginbridge.IdentitySnapshotV1,
+	executionSource protocol.ExecutionSource,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataMutationRequest,
-) (*pluginbridge.HostServiceDataMutationResponse, error) {
+	request *protocol.HostServiceDataMutationRequest,
+) (*protocol.HostServiceDataMutationResponse, error) {
 	execCtx := &executionContext{
 		pluginID:        pluginID,
 		table:           table,
 		executionSource: executionSource,
 		identity:        identity,
+		orgSvc:          orgSvc,
 	}
 	return executeUpdateWithProvider(ctx, execCtx, resource, request, false, nil)
 }
@@ -228,16 +236,18 @@ func ExecuteDelete(
 	ctx context.Context,
 	pluginID string,
 	table string,
-	executionSource pluginbridge.ExecutionSource,
-	identity *pluginbridge.IdentitySnapshotV1,
+	executionSource protocol.ExecutionSource,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataMutationRequest,
-) (*pluginbridge.HostServiceDataMutationResponse, error) {
+	request *protocol.HostServiceDataMutationRequest,
+) (*protocol.HostServiceDataMutationResponse, error) {
 	execCtx := &executionContext{
 		pluginID:        pluginID,
 		table:           table,
 		executionSource: executionSource,
 		identity:        identity,
+		orgSvc:          orgSvc,
 	}
 	return executeDeleteWithProvider(ctx, execCtx, resource, request, false, nil)
 }
@@ -247,18 +257,20 @@ func ExecuteTransaction(
 	ctx context.Context,
 	pluginID string,
 	table string,
-	executionSource pluginbridge.ExecutionSource,
-	identity *pluginbridge.IdentitySnapshotV1,
+	executionSource protocol.ExecutionSource,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataTransactionRequest,
-) (*pluginbridge.HostServiceDataTransactionResponse, error) {
+	request *protocol.HostServiceDataTransactionRequest,
+) (*protocol.HostServiceDataTransactionResponse, error) {
 	execCtx := &executionContext{
 		pluginID:        pluginID,
 		table:           table,
 		executionSource: executionSource,
 		identity:        identity,
+		orgSvc:          orgSvc,
 	}
-	if err := validateExecutionAccess(execCtx, resource, pluginbridge.HostServiceMethodDataTransaction); err != nil {
+	if err := validateExecutionAccess(execCtx, resource, protocol.HostServiceMethodDataTransaction); err != nil {
 		return nil, err
 	}
 	if request == nil || len(request.Operations) == 0 {
@@ -269,10 +281,10 @@ func ExecuteTransaction(
 	if err != nil {
 		return nil, err
 	}
-	txCtx := withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, pluginbridge.HostServiceMethodDataTransaction, true))
+	txCtx := withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, protocol.HostServiceMethodDataTransaction, true))
 
-	response := &pluginbridge.HostServiceDataTransactionResponse{
-		Results: make([]*pluginbridge.HostServiceDataMutationResponse, 0, len(request.Operations)),
+	response := &protocol.HostServiceDataTransactionResponse{
+		Results: make([]*protocol.HostServiceDataMutationResponse, 0, len(request.Operations)),
 	}
 	err = db.Transaction(txCtx, func(txExecCtx context.Context, tx gdb.TX) error {
 		for _, operation := range request.Operations {
@@ -280,12 +292,12 @@ func ExecuteTransaction(
 				return gerror.New("data transaction operation cannot be nil")
 			}
 			switch strings.ToLower(strings.TrimSpace(operation.Method)) {
-			case pluginbridge.HostServiceMethodDataCreate:
+			case protocol.HostServiceMethodDataCreate:
 				result, createErr := executeCreateWithProvider(
 					txExecCtx,
 					execCtx,
 					resource,
-					&pluginbridge.HostServiceDataMutationRequest{RecordJSON: append([]byte(nil), operation.RecordJSON...)},
+					&protocol.HostServiceDataMutationRequest{RecordJSON: append([]byte(nil), operation.RecordJSON...)},
 					true,
 					tx,
 				)
@@ -294,12 +306,12 @@ func ExecuteTransaction(
 				}
 				response.Results = append(response.Results, result)
 				response.AffectedRows += result.AffectedRows
-			case pluginbridge.HostServiceMethodDataUpdate:
+			case protocol.HostServiceMethodDataUpdate:
 				result, updateErr := executeUpdateWithProvider(
 					txExecCtx,
 					execCtx,
 					resource,
-					&pluginbridge.HostServiceDataMutationRequest{
+					&protocol.HostServiceDataMutationRequest{
 						KeyJSON:    append([]byte(nil), operation.KeyJSON...),
 						RecordJSON: append([]byte(nil), operation.RecordJSON...),
 					},
@@ -311,12 +323,12 @@ func ExecuteTransaction(
 				}
 				response.Results = append(response.Results, result)
 				response.AffectedRows += result.AffectedRows
-			case pluginbridge.HostServiceMethodDataDelete:
+			case protocol.HostServiceMethodDataDelete:
 				result, deleteErr := executeDeleteWithProvider(
 					txExecCtx,
 					execCtx,
 					resource,
-					&pluginbridge.HostServiceDataMutationRequest{KeyJSON: append([]byte(nil), operation.KeyJSON...)},
+					&protocol.HostServiceDataMutationRequest{KeyJSON: append([]byte(nil), operation.KeyJSON...)},
 					true,
 					tx,
 				)
@@ -342,18 +354,18 @@ func executeCreateWithProvider(
 	ctx context.Context,
 	execCtx *executionContext,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataMutationRequest,
+	request *protocol.HostServiceDataMutationRequest,
 	inTransaction bool,
 	provider modelProvider,
-) (*pluginbridge.HostServiceDataMutationResponse, error) {
-	if err := validateExecutionAccess(execCtx, resource, pluginbridge.HostServiceMethodDataCreate); err != nil {
+) (*protocol.HostServiceDataMutationResponse, error) {
+	if err := validateExecutionAccess(execCtx, resource, protocol.HostServiceMethodDataCreate); err != nil {
 		return nil, err
 	}
 	data, keyValue, err := decodeMutationRecord(resource, request, false)
 	if err != nil {
 		return nil, err
 	}
-	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, pluginbridge.HostServiceMethodDataCreate, inTransaction))
+	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, protocol.HostServiceMethodDataCreate, inTransaction))
 
 	if provider == nil {
 		db, dbErr := getPluginDataDB()
@@ -367,7 +379,7 @@ func executeCreateWithProvider(
 		return nil, err
 	}
 
-	response := &pluginbridge.HostServiceDataMutationResponse{AffectedRows: 1}
+	response := &protocol.HostServiceDataMutationResponse{AffectedRows: 1}
 	if result != nil {
 		rowsAffected, rowsErr := result.RowsAffected()
 		if rowsErr != nil {
@@ -396,11 +408,11 @@ func executeUpdateWithProvider(
 	ctx context.Context,
 	execCtx *executionContext,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataMutationRequest,
+	request *protocol.HostServiceDataMutationRequest,
 	inTransaction bool,
 	provider modelProvider,
-) (*pluginbridge.HostServiceDataMutationResponse, error) {
-	if err := validateExecutionAccess(execCtx, resource, pluginbridge.HostServiceMethodDataUpdate); err != nil {
+) (*protocol.HostServiceDataMutationResponse, error) {
+	if err := validateExecutionAccess(execCtx, resource, protocol.HostServiceMethodDataUpdate); err != nil {
 		return nil, err
 	}
 	var keyJSON []byte
@@ -415,7 +427,7 @@ func executeUpdateWithProvider(
 	if err != nil {
 		return nil, err
 	}
-	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, pluginbridge.HostServiceMethodDataUpdate, inTransaction))
+	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, protocol.HostServiceMethodDataUpdate, inTransaction))
 
 	if provider == nil {
 		db, dbErr := getPluginDataDB()
@@ -426,7 +438,7 @@ func executeUpdateWithProvider(
 	}
 	model := buildResourceModel(provider, ctx, resource).
 		Where(resolveResourceKeyColumn(resource), keyValue)
-	model, err = applyResourceDataScope(ctx, model, resource, execCtx.identity)
+	model, err = applyResourceDataScope(ctx, model, resource, execCtx.identity, execCtx.orgSvc)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +447,7 @@ func executeUpdateWithProvider(
 		return nil, err
 	}
 
-	response := &pluginbridge.HostServiceDataMutationResponse{}
+	response := &protocol.HostServiceDataMutationResponse{}
 	if result != nil {
 		rowsAffected, rowsErr := result.RowsAffected()
 		if rowsErr != nil {
@@ -455,11 +467,11 @@ func executeDeleteWithProvider(
 	ctx context.Context,
 	execCtx *executionContext,
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataMutationRequest,
+	request *protocol.HostServiceDataMutationRequest,
 	inTransaction bool,
 	provider modelProvider,
-) (*pluginbridge.HostServiceDataMutationResponse, error) {
-	if err := validateExecutionAccess(execCtx, resource, pluginbridge.HostServiceMethodDataDelete); err != nil {
+) (*protocol.HostServiceDataMutationResponse, error) {
+	if err := validateExecutionAccess(execCtx, resource, protocol.HostServiceMethodDataDelete); err != nil {
 		return nil, err
 	}
 	var keyJSON []byte
@@ -470,7 +482,7 @@ func executeDeleteWithProvider(
 	if err != nil {
 		return nil, err
 	}
-	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, pluginbridge.HostServiceMethodDataDelete, inTransaction))
+	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, protocol.HostServiceMethodDataDelete, inTransaction))
 
 	if provider == nil {
 		db, dbErr := getPluginDataDB()
@@ -481,7 +493,7 @@ func executeDeleteWithProvider(
 	}
 	model := buildResourceModel(provider, ctx, resource).
 		Where(resolveResourceKeyColumn(resource), keyValue)
-	model, err = applyResourceDataScope(ctx, model, resource, execCtx.identity)
+	model, err = applyResourceDataScope(ctx, model, resource, execCtx.identity, execCtx.orgSvc)
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +502,7 @@ func executeDeleteWithProvider(
 		return nil, err
 	}
 
-	response := &pluginbridge.HostServiceDataMutationResponse{}
+	response := &protocol.HostServiceDataMutationResponse{}
 	if result != nil {
 		rowsAffected, rowsErr := result.RowsAffected()
 		if rowsErr != nil {
@@ -520,10 +532,10 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 	// Access mode combines the declared table contract with the current trigger
 	// source and identity snapshot so request-bound tables cannot be reused by
 	// anonymous or background execution paths.
-	normalizedSource := pluginbridge.NormalizeExecutionSource(execCtx.executionSource)
+	normalizedSource := protocol.NormalizeExecutionSource(execCtx.executionSource)
 	switch catalog.NormalizeResourceAccessMode(resource.Access) {
 	case catalog.ResourceAccessModeRequest:
-		if normalizedSource != pluginbridge.ExecutionSourceRoute {
+		if normalizedSource != protocol.ExecutionSourceRoute {
 			return gerror.Newf("data table %s only allows request-bound context", resource.Table)
 		}
 		if execCtx.identity == nil || execCtx.identity.UserID <= 0 {
@@ -532,7 +544,7 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 	case catalog.ResourceAccessModeSystem:
 		return nil
 	case catalog.ResourceAccessModeBoth:
-		if normalizedSource == pluginbridge.ExecutionSourceRoute && (execCtx.identity == nil || execCtx.identity.UserID <= 0) {
+		if normalizedSource == protocol.ExecutionSourceRoute && (execCtx.identity == nil || execCtx.identity.UserID <= 0) {
 			return gerror.Newf("data table %s requires authenticated user in request-bound context", resource.Table)
 		}
 	default:
@@ -541,69 +553,9 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 	return nil
 }
 
-// normalizeDataListRequest applies default and max pagination limits.
-func normalizeDataListRequest(request *pluginbridge.HostServiceDataListRequest) *pluginbridge.HostServiceDataListRequest {
-	if request == nil {
-		request = &pluginbridge.HostServiceDataListRequest{}
-	}
-	if request.PageNum <= 0 {
-		request.PageNum = defaultDataListPageNum
-	}
-	if request.PageSize <= 0 {
-		request.PageSize = defaultDataListPageSize
-	}
-	if request.PageSize > maxDataListPageSize {
-		request.PageSize = maxDataListPageSize
-	}
-	return request
-}
-
 // buildResourceModel builds the base safe model for the governed table resource.
 func buildResourceModel(provider modelProvider, ctx context.Context, resource *catalog.ResourceSpec) *gdb.Model {
 	return provider.Model(resource.Table).Safe().Ctx(ctx)
-}
-
-// applyDeclaredFilters applies manifest-declared query filters using only
-// parameters authorized by the resource contract.
-func applyDeclaredFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters map[string]string) (*gdb.Model, error) {
-	if model == nil || resource == nil || len(filters) == 0 {
-		return model, nil
-	}
-
-	declaredFilters := make(map[string]*catalog.ResourceQuery, len(resource.Filters))
-	for _, filter := range resource.Filters {
-		if filter == nil {
-			continue
-		}
-		declaredFilters[filter.Param] = filter
-	}
-	for param := range filters {
-		if _, ok := declaredFilters[param]; !ok {
-			return nil, gerror.Newf("data list filter is not declared: %s", param)
-		}
-	}
-	for _, filter := range resource.Filters {
-		if filter == nil {
-			continue
-		}
-		value := strings.TrimSpace(filters[filter.Param])
-		if value == "" {
-			continue
-		}
-		switch catalog.NormalizeResourceFilterOperator(filter.Operator) {
-		case catalog.ResourceFilterOperatorEQ:
-			model = model.Where(filter.Column, value)
-		case catalog.ResourceFilterOperatorLike:
-			model = model.WhereLike(filter.Column, "%"+value+"%")
-		case catalog.ResourceFilterOperatorGTEDate:
-			model = model.WhereGTE(filter.Column, value+" 00:00:00")
-		case catalog.ResourceFilterOperatorLTEDate:
-			model = model.WhereLTE(filter.Column, value+" 23:59:59")
-		default:
-			return nil, gerror.Newf("data list filter operator is not supported: %s", filter.Operator)
-		}
-	}
-	return model, nil
 }
 
 // buildResourceFieldArgs builds aliased select expressions for all declared fields.
@@ -673,7 +625,7 @@ func resolveResourceRecordValue(recordMap map[string]interface{}, field *catalog
 // resource writable-field contract.
 func decodeMutationRecord(
 	resource *catalog.ResourceSpec,
-	request *pluginbridge.HostServiceDataMutationRequest,
+	request *protocol.HostServiceDataMutationRequest,
 	forUpdate bool,
 ) (map[string]interface{}, interface{}, error) {
 	var recordJSON []byte

@@ -11,9 +11,9 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
 	notifysvc "lina-core/internal/service/notify"
-	"lina-core/internal/service/tenantcap"
 	"lina-core/pkg/dialect"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // trackingNotifyService records notify sends while returning deterministic
@@ -137,7 +137,7 @@ func TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser(t *testing.T) {
 		t,
 		hcc,
 		"inbox",
-		pluginbridge.MarshalHostServiceNotifySendRequest(&pluginbridge.HostServiceNotifySendRequest{
+		protocol.MarshalHostServiceNotifySendRequest(&protocol.HostServiceNotifySendRequest{
 			Title:        "同步完成",
 			Content:      "订单同步已完成",
 			SourceType:   "plugin",
@@ -146,11 +146,11 @@ func TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser(t *testing.T) {
 			PayloadJSON:  []byte(`{"scope":"orders"}`),
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("send: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 
-	payload, err := pluginbridge.UnmarshalHostServiceNotifySendResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceNotifySendResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("send payload decode failed: %v", err)
 	}
@@ -187,13 +187,13 @@ func TestHandleHostServiceInvokeNotifyRejectsInvalidPayloadJSON(t *testing.T) {
 		t,
 		hcc,
 		"inbox",
-		pluginbridge.MarshalHostServiceNotifySendRequest(&pluginbridge.HostServiceNotifySendRequest{
+		protocol.MarshalHostServiceNotifySendRequest(&protocol.HostServiceNotifySendRequest{
 			Title:       "同步完成",
 			Content:     "订单同步已完成",
 			PayloadJSON: []byte("{"),
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusInvalidRequest {
+	if response.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request for malformed notify payloadJson, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -206,12 +206,12 @@ func TestHandleHostServiceInvokeNotifyRejectsUnauthorizedChannel(t *testing.T) {
 		t,
 		hcc,
 		"ops-webhook",
-		pluginbridge.MarshalHostServiceNotifySendRequest(&pluginbridge.HostServiceNotifySendRequest{
+		protocol.MarshalHostServiceNotifySendRequest(&protocol.HostServiceNotifySendRequest{
 			Title:   "同步完成",
 			Content: "订单同步已完成",
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected capability denied for unauthorized notify channel, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -232,7 +232,7 @@ func TestHandleHostServiceInvokeNotifyUsesConfiguredSharedService(t *testing.T) 
 		t,
 		hcc,
 		"inbox",
-		pluginbridge.MarshalHostServiceNotifySendRequest(&pluginbridge.HostServiceNotifySendRequest{
+		protocol.MarshalHostServiceNotifySendRequest(&protocol.HostServiceNotifySendRequest{
 			Title:        "done",
 			Content:      "finished",
 			SourceType:   "plugin",
@@ -240,10 +240,10 @@ func TestHandleHostServiceInvokeNotifyUsesConfiguredSharedService(t *testing.T) 
 			CategoryCode: "other",
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("send through shared notify: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	payload, err := pluginbridge.UnmarshalHostServiceNotifySendResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceNotifySendResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("decode shared notify response: %v", err)
 	}
@@ -313,16 +313,16 @@ func newNotifyHostCallContext(pluginID string, channelKey string, userID int32) 
 	return &hostCallContext{
 		pluginID: pluginID,
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityNotify: {},
+			protocol.CapabilityNotify: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceNotify,
-			Methods: []string{pluginbridge.HostServiceMethodNotifySend},
-			Resources: []*pluginbridge.HostServiceResourceSpec{
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceNotify,
+			Methods: []string{protocol.HostServiceMethodNotifySend},
+			Resources: []*protocol.HostServiceResourceSpec{
 				{Ref: channelKey},
 			},
 		}},
-		identity: &pluginbridge.IdentitySnapshotV1{UserID: userID},
+		identity: &protocol.IdentitySnapshotV1{UserID: userID},
 	}
 }
 
@@ -333,18 +333,18 @@ func invokeNotifyHostService(
 	hcc *hostCallContext,
 	channelKey string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceNotify,
-		Method:      pluginbridge.HostServiceMethodNotifySend,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceNotify,
+		Method:      protocol.HostServiceMethodNotifySend,
 		ResourceRef: channelKey,
 		Payload:     payload,
 	}
 	return handleHostServiceInvoke(
 		context.Background(),
 		hcc,
-		pluginbridge.MarshalHostServiceRequestEnvelope(request),
+		protocol.MarshalHostServiceRequestEnvelope(request),
 	)
 }

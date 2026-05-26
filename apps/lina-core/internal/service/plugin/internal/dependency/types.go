@@ -21,8 +21,6 @@ const (
 	BlockerDependencyMissing BlockerCode = "dependency_missing"
 	// BlockerDependencyVersionUnsatisfied reports a plugin dependency-version mismatch.
 	BlockerDependencyVersionUnsatisfied BlockerCode = "dependency_version_unsatisfied"
-	// BlockerDependencyManualInstallRequired reports a missing hard dependency that must be installed manually.
-	BlockerDependencyManualInstallRequired BlockerCode = "dependency_manual_install_required"
 	// BlockerDependencyCycle reports a hard-dependency cycle.
 	BlockerDependencyCycle BlockerCode = "dependency_cycle"
 	// BlockerDependencySnapshotUnknown reports an installed plugin whose dependency snapshot cannot be trusted.
@@ -37,16 +35,10 @@ const (
 const (
 	// DependencyStatusSatisfied reports that a dependency is installed and version-compatible.
 	DependencyStatusSatisfied DependencyStatus = "satisfied"
-	// DependencyStatusAutoInstallPlanned reports that a missing hard dependency can be automatically installed.
-	DependencyStatusAutoInstallPlanned DependencyStatus = "auto_install_planned"
-	// DependencyStatusManualInstallRequired reports that a missing hard dependency needs manual install first.
-	DependencyStatusManualInstallRequired DependencyStatus = "manual_install_required"
 	// DependencyStatusMissing reports that a dependency plugin cannot be found.
 	DependencyStatusMissing DependencyStatus = "missing"
 	// DependencyStatusVersionUnsatisfied reports that a dependency version is outside the requested range.
 	DependencyStatusVersionUnsatisfied DependencyStatus = "version_unsatisfied"
-	// DependencyStatusSoftUnsatisfied reports that a soft dependency is currently unavailable or incompatible.
-	DependencyStatusSoftUnsatisfied DependencyStatus = "soft_unsatisfied"
 )
 
 // Framework compatibility states returned by the resolver.
@@ -107,12 +99,6 @@ type InstallCheckResult struct {
 	Framework FrameworkCheck
 	// Dependencies contains direct and transitive dependency edge checks.
 	Dependencies []*PluginDependencyCheck
-	// AutoInstallPlan lists missing hard dependencies that can be installed automatically.
-	AutoInstallPlan []*AutoInstallPlanItem
-	// ManualInstallRequired lists missing hard dependencies requiring manual install.
-	ManualInstallRequired []*PluginDependencyCheck
-	// SoftUnsatisfied lists optional dependencies that are missing or incompatible.
-	SoftUnsatisfied []*PluginDependencyCheck
 	// Blockers lists hard failures that must be resolved before lifecycle side effects.
 	Blockers []*Blocker
 	// Cycle contains the first detected hard-dependency cycle, if any.
@@ -153,10 +139,6 @@ type PluginDependencyCheck struct {
 	RequiredVersion string
 	// CurrentVersion is the installed or discovered dependency version.
 	CurrentVersion string
-	// Required reports whether this dependency blocks lifecycle when unsatisfied.
-	Required bool
-	// InstallMode is the declared dependency install strategy.
-	InstallMode catalog.DependencyInstallMode
 	// Installed reports whether the dependency plugin is already installed.
 	Installed bool
 	// Discovered reports whether the dependency plugin manifest is available.
@@ -164,20 +146,6 @@ type PluginDependencyCheck struct {
 	// Status is the dependency edge state.
 	Status DependencyStatus
 	// Chain is the dependency chain leading to this edge.
-	Chain []string
-}
-
-// AutoInstallPlanItem describes one planned automatic dependency installation.
-type AutoInstallPlanItem struct {
-	// PluginID is the dependency plugin to install.
-	PluginID string
-	// Name is the dependency display name when available.
-	Name string
-	// Version is the version that will be installed.
-	Version string
-	// RequiredBy is the direct parent plugin that requested this dependency.
-	RequiredBy string
-	// Chain is the dependency chain leading to this plan item.
 	Chain []string
 }
 

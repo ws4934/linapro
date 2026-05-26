@@ -10,8 +10,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // safePluginIdentifierPattern validates identifiers embedded into generated SQL
@@ -279,11 +279,11 @@ func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) 
 }
 
 // CloneLifecycleContracts returns a deep copy of the given lifecycle contracts.
-func CloneLifecycleContracts(items []*pluginbridge.LifecycleContract) []*pluginbridge.LifecycleContract {
+func CloneLifecycleContracts(items []*protocol.LifecycleContract) []*protocol.LifecycleContract {
 	if len(items) == 0 {
-		return []*pluginbridge.LifecycleContract{}
+		return []*protocol.LifecycleContract{}
 	}
-	cloned := make([]*pluginbridge.LifecycleContract, 0, len(items))
+	cloned := make([]*protocol.LifecycleContract, 0, len(items))
 	for _, item := range items {
 		if item == nil {
 			continue

@@ -4,6 +4,7 @@
 package wasmbuilder
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"regexp"
@@ -12,7 +13,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func validateRuntimeBuildManifest(manifest *pluginManifest, manifestPath string) error {
@@ -64,17 +65,10 @@ func validateRuntimeBuildManifest(manifest *pluginManifest, manifestPath string)
 	if err := validateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
 		return fmt.Errorf("dynamic plugin dependencies invalid: %w", err)
 	}
-	manifest.Capabilities = pluginbridge.NormalizeCapabilities(manifest.Capabilities)
-	if len(manifest.Capabilities) > 0 {
-		return fmt.Errorf(
-			"dynamic plugin manifest no longer supports top-level capabilities; please keep only hostServices declarations (found: %s)",
-			strings.Join(manifest.Capabilities, ", "),
-		)
-	}
-	if err := pluginbridge.ValidateHostServiceSpecs(manifest.HostServices); err != nil {
+	if err := protocol.ValidateHostServiceSpecs(manifest.HostServices); err != nil {
 		return fmt.Errorf("dynamic plugin hostServices invalid: %w", err)
 	}
-	hostServices, err := pluginbridge.NormalizeHostServiceSpecs(manifest.HostServices)
+	hostServices, err := protocol.NormalizeHostServiceSpecs(manifest.HostServices)
 	if err != nil {
 		return fmt.Errorf("dynamic plugin hostServices normalization failed: %w", err)
 	}
@@ -103,11 +97,6 @@ func validateDependencySpec(pluginID string, spec *dependencySpec) error {
 		}
 		dependency.ID = strings.TrimSpace(dependency.ID)
 		dependency.Version = strings.TrimSpace(dependency.Version)
-		dependency.Install = normalizeDependencyInstallModeForValidation(dependency.Install)
-		if dependency.Required == nil {
-			required := true
-			dependency.Required = &required
-		}
 		if dependency.ID == "" {
 			return fmt.Errorf("dependency %d is missing id", index+1)
 		}
@@ -125,9 +114,6 @@ func validateDependencySpec(pluginID string, spec *dependencySpec) error {
 			if err := validateSemanticVersionRange(dependency.Version); err != nil {
 				return fmt.Errorf("dependency %s version is invalid: %w", dependency.ID, err)
 			}
-		}
-		if dependency.Install == "" {
-			return fmt.Errorf("dependency %s install only supports manual/auto", dependency.ID)
 		}
 	}
 	return nil
@@ -147,18 +133,6 @@ func validateSemanticVersionRange(value string) error {
 		}
 	}
 	return nil
-}
-
-func normalizeDependencyInstallModeForValidation(value string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(value))
-	switch trimmed {
-	case "", "manual":
-		return "manual"
-	case "auto":
-		return "auto"
-	default:
-		return trimmed
-	}
 }
 
 func trimVersionConstraintOperator(token string) string {
@@ -181,6 +155,67 @@ func loadYAMLFile(filePath string, target interface{}) error {
 	}
 	if err = yaml.Unmarshal(content, target); err != nil {
 		return fmt.Errorf("failed to parse yaml file %s: %w", filePath, err)
+	}
+	return nil
+}
+
+func validateManifestDependencySchema(content []byte, fileLabel string) error {
+	var root yaml.Node
+	decoder := yaml.NewDecoder(bytes.NewReader(content))
+	if err := decoder.Decode(&root); err != nil {
+		return err
+	}
+	document := &root
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		document = root.Content[0]
+	}
+	if document == nil || document.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(document.Content); i += 2 {
+		key := strings.TrimSpace(document.Content[i].Value)
+		switch key {
+		case "dependencies":
+			if err := validateDependencySchema(document.Content[i+1], fileLabel); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateDependencySchema(node *yaml.Node, fileLabel string) error {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := strings.TrimSpace(node.Content[i].Value)
+		switch key {
+		case "plugins":
+			if err := validatePluginDependencySchema(node.Content[i+1], fileLabel); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validatePluginDependencySchema(node *yaml.Node, fileLabel string) error {
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return nil
+	}
+	for index, item := range node.Content {
+		if item == nil || item.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(item.Content); i += 2 {
+			key := strings.TrimSpace(item.Content[i].Value)
+			switch key {
+			case "id", "version":
+			default:
+				return fmt.Errorf("dynamic plugin manifest field dependencies.plugins[%d].%s is not part of the dependency schema: %s", index, key, fileLabel)
+			}
+		}
 	}
 	return nil
 }

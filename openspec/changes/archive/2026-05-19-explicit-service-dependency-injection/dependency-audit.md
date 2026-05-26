@@ -83,7 +83,7 @@
 |------|------|----------|----------|
 | 插件自有纯 DAO 查询服务 | `org-center` 的 `dept.New()`、`post.New()` 等 | 当前服务实现主要包装插件自有 DAO 查询和事务逻辑，不持有宿主缓存状态 | 构造函数仍应显式接收未来新增的宿主能力依赖；扫描 allowlist 需写明无状态原因 |
 | DTO 转换 helper 和导出 helper | Controller 同包私有函数、Excel helper | 纯函数，无运行期状态 | 不纳入 service `New()` allowlist |
-| GoFrame DAO 构造函数 | `internal/dao/internal/*` | 生成代码，由 `gf gen dao` 管理 | 静态扫描排除 DAO 生成目录 |
+| GoFrame DAO 构造函数 | `internal/dao/internal/*` | 生成代码，由 `make dao` 管理 | 静态扫描排除 DAO 生成目录 |
 | 测试 fake / fixture 构造 | `*_test.go`、`internal/service/plugin/internal/testutil` | 测试需要独立 fake 依赖 | 测试必须自包含并恢复全局状态 |
 | 插件 demo 的纯示例业务服务 | `plugin-demo-source`、`plugin-demo-dynamic` 的无宿主能力 service | 可作为过渡候选 | 示例最终应展示显式依赖风格，避免被复制出隐式模式 |
 

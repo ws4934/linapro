@@ -19,8 +19,8 @@ func New() *Resolver {
 	return &Resolver{}
 }
 
-// CheckInstall evaluates whether target can be installed and which automatic
-// dependency installs must run first.
+// CheckInstall evaluates whether target can be installed with all declared
+// plugin dependencies already installed and version-compatible.
 func (r *Resolver) CheckInstall(input InstallCheckInput) *InstallCheckResult {
 	targetID := strings.TrimSpace(input.TargetID)
 	result := &InstallCheckResult{
@@ -51,15 +51,13 @@ func (r *Resolver) CheckInstall(input InstallCheckInput) *InstallCheckResult {
 
 	visited := map[string]bool{}
 	visiting := map[string]int{}
-	autoPlanSeen := map[string]bool{}
 	r.walkDependencies(walkState{
-		owner:        target,
-		plugins:      plugins,
-		chain:        []string{targetID},
-		visited:      visited,
-		visiting:     visiting,
-		autoPlanSeen: autoPlanSeen,
-		result:       result,
+		owner:    target,
+		plugins:  plugins,
+		chain:    []string{targetID},
+		visited:  visited,
+		visiting: visiting,
+		result:   result,
 	})
 	sortInstallResult(result)
 	return result
@@ -89,9 +87,6 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 		}
 		for _, declaredDependency := range normalizedPluginDependencies(plugin.Dependencies) {
 			if declaredDependency == nil || strings.TrimSpace(declaredDependency.ID) != targetID {
-				continue
-			}
-			if declaredDependency.Required != nil && !*declaredDependency.Required {
 				continue
 			}
 			dependent := &ReverseDependent{
@@ -146,9 +141,6 @@ func unknownSnapshotRequiresReverseBlock(plugin *PluginSnapshot, targetID string
 		if declaredDependency == nil || strings.TrimSpace(declaredDependency.ID) != targetID {
 			continue
 		}
-		if declaredDependency.Required != nil && !*declaredDependency.Required {
-			continue
-		}
 		return true
 	}
 	return false
@@ -156,13 +148,12 @@ func unknownSnapshotRequiresReverseBlock(plugin *PluginSnapshot, targetID string
 
 // walkState carries mutable traversal state for install dependency resolution.
 type walkState struct {
-	owner        *PluginSnapshot
-	plugins      map[string]*PluginSnapshot
-	chain        []string
-	visited      map[string]bool
-	visiting     map[string]int
-	autoPlanSeen map[string]bool
-	result       *InstallCheckResult
+	owner    *PluginSnapshot
+	plugins  map[string]*PluginSnapshot
+	chain    []string
+	visited  map[string]bool
+	visiting map[string]int
+	result   *InstallCheckResult
 }
 
 // checkFramework evaluates the target plugin framework-version declaration.
@@ -185,8 +176,7 @@ func (r *Resolver) checkFramework(plugin *PluginSnapshot, frameworkVersion strin
 	return check
 }
 
-// walkDependencies traverses hard dependency edges in deterministic order while
-// collecting soft-dependency notices and automatic install plans.
+// walkDependencies traverses hard dependency edges in deterministic order.
 func (r *Resolver) walkDependencies(state walkState) {
 	if state.owner == nil {
 		return
@@ -215,30 +205,39 @@ func (r *Resolver) walkDependencies(state walkState) {
 	state.visiting[ownerID] = len(state.chain) - 1
 	dependencies := normalizedPluginDependencies(pluginDependencies(state.owner))
 	for _, declaredDependency := range dependencies {
+		dependencyID := strings.TrimSpace(declaredDependency.ID)
+		if index, ok := state.visiting[dependencyID]; ok {
+			cycle := append([]string(nil), state.chain[index:]...)
+			cycle = append(cycle, dependencyID)
+			state.result.Cycle = cycle
+			state.result.Blockers = append(state.result.Blockers, &Blocker{
+				Code:         BlockerDependencyCycle,
+				PluginID:     ownerID,
+				DependencyID: dependencyID,
+				Chain:        cycle,
+				Detail:       "plugin dependency cycle detected",
+			})
+			continue
+		}
 		check := r.evaluateDependency(state.owner, declaredDependency, state.plugins, state.chain)
 		state.result.Dependencies = append(state.result.Dependencies, check)
 		if check == nil {
 			continue
 		}
 		r.recordDependencyOutcome(state, check)
-		if check.Required && check.Discovered &&
-			(check.Status == DependencyStatusSatisfied || check.Status == DependencyStatusAutoInstallPlanned) {
+		if check.Discovered && check.Status == DependencyStatusSatisfied {
 			next := state.plugins[check.DependencyID]
 			if next != nil {
 				nextChain := append(append([]string(nil), state.chain...), check.DependencyID)
 				r.walkDependencies(walkState{
-					owner:        next,
-					plugins:      state.plugins,
-					chain:        nextChain,
-					visited:      state.visited,
-					visiting:     state.visiting,
-					autoPlanSeen: state.autoPlanSeen,
-					result:       state.result,
+					owner:    next,
+					plugins:  state.plugins,
+					chain:    nextChain,
+					visited:  state.visited,
+					visiting: state.visiting,
+					result:   state.result,
 				})
 			}
-		}
-		if check.Status == DependencyStatusAutoInstallPlanned {
-			appendAutoInstallPlan(state, check)
 		}
 	}
 	delete(state.visiting, ownerID)
@@ -252,26 +251,16 @@ func (r *Resolver) evaluateDependency(
 	plugins map[string]*PluginSnapshot,
 	chain []string,
 ) *PluginDependencyCheck {
-	required := true
-	if declaredDependency.Required != nil {
-		required = *declaredDependency.Required
-	}
-	installMode := catalog.NormalizeDependencyInstallMode(declaredDependency.Install)
 	dependencyID := strings.TrimSpace(declaredDependency.ID)
 	dependency := plugins[dependencyID]
 	check := &PluginDependencyCheck{
 		OwnerID:         strings.TrimSpace(owner.ID),
 		DependencyID:    dependencyID,
 		RequiredVersion: strings.TrimSpace(declaredDependency.Version),
-		Required:        required,
-		InstallMode:     installMode,
 		Chain:           append(append([]string(nil), chain...), dependencyID),
 	}
 	if dependency == nil {
 		check.Status = DependencyStatusMissing
-		if !required {
-			check.Status = DependencyStatusSoftUnsatisfied
-		}
 		return check
 	}
 
@@ -283,9 +272,6 @@ func (r *Resolver) evaluateDependency(
 		matches, err := catalog.MatchesSemanticVersionRange(check.CurrentVersion, check.RequiredVersion)
 		if err != nil || !matches {
 			check.Status = DependencyStatusVersionUnsatisfied
-			if !required {
-				check.Status = DependencyStatusSoftUnsatisfied
-			}
 			return check
 		}
 	}
@@ -293,15 +279,7 @@ func (r *Resolver) evaluateDependency(
 		check.Status = DependencyStatusSatisfied
 		return check
 	}
-	if !required {
-		check.Status = DependencyStatusSoftUnsatisfied
-		return check
-	}
-	if installMode == catalog.DependencyInstallModeAuto {
-		check.Status = DependencyStatusAutoInstallPlanned
-		return check
-	}
-	check.Status = DependencyStatusManualInstallRequired
+	check.Status = DependencyStatusMissing
 	return check
 }
 
@@ -310,34 +288,11 @@ func (r *Resolver) recordDependencyOutcome(state walkState, check *PluginDepende
 	switch check.Status {
 	case DependencyStatusSatisfied:
 		return
-	case DependencyStatusAutoInstallPlanned:
-		return
-	case DependencyStatusManualInstallRequired:
-		state.result.ManualInstallRequired = append(state.result.ManualInstallRequired, check)
-		state.result.Blockers = appendDependencyBlocker(state.result.Blockers, BlockerDependencyManualInstallRequired, check)
 	case DependencyStatusMissing:
 		state.result.Blockers = appendDependencyBlocker(state.result.Blockers, BlockerDependencyMissing, check)
 	case DependencyStatusVersionUnsatisfied:
 		state.result.Blockers = appendDependencyBlocker(state.result.Blockers, BlockerDependencyVersionUnsatisfied, check)
-	case DependencyStatusSoftUnsatisfied:
-		state.result.SoftUnsatisfied = append(state.result.SoftUnsatisfied, check)
 	}
-}
-
-// appendAutoInstallPlan adds an auto-install item after traversing its own
-// dependencies, producing dependency-first topological order.
-func appendAutoInstallPlan(state walkState, check *PluginDependencyCheck) {
-	if state.autoPlanSeen[check.DependencyID] || check.DependencyID == state.result.TargetID {
-		return
-	}
-	state.autoPlanSeen[check.DependencyID] = true
-	state.result.AutoInstallPlan = append(state.result.AutoInstallPlan, &AutoInstallPlanItem{
-		PluginID:   check.DependencyID,
-		Name:       check.DependencyName,
-		Version:    check.CurrentVersion,
-		RequiredBy: check.OwnerID,
-		Chain:      append([]string(nil), check.Chain...),
-	})
 }
 
 // appendDependencyBlocker builds one blocker from a dependency check.
@@ -420,12 +375,6 @@ func sortedSnapshots(plugins []*PluginSnapshot) []*PluginSnapshot {
 func sortInstallResult(result *InstallCheckResult) {
 	sort.SliceStable(result.Dependencies, func(i, j int) bool {
 		return dependencyCheckSortKey(result.Dependencies[i]) < dependencyCheckSortKey(result.Dependencies[j])
-	})
-	sort.SliceStable(result.ManualInstallRequired, func(i, j int) bool {
-		return dependencyCheckSortKey(result.ManualInstallRequired[i]) < dependencyCheckSortKey(result.ManualInstallRequired[j])
-	})
-	sort.SliceStable(result.SoftUnsatisfied, func(i, j int) bool {
-		return dependencyCheckSortKey(result.SoftUnsatisfied[i]) < dependencyCheckSortKey(result.SoftUnsatisfied[j])
 	})
 	sort.SliceStable(result.Blockers, func(i, j int) bool {
 		return blockerSortKey(result.Blockers[i]) < blockerSortKey(result.Blockers[j])

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	pluginsvc "lina-core/internal/service/plugin"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestBuildUpgradePreviewResponseProjectsAllSections verifies preview DTO
@@ -26,10 +26,10 @@ func TestBuildUpgradePreviewResponseProjectsAllSections(t *testing.T) {
 			ManifestDeclared:        true,
 			InstallSQLCount:         1,
 			HostServiceAuthRequired: true,
-			RequestedHostServices: []*pluginbridge.HostServiceSpec{
+			RequestedHostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceData,
-					Methods: []string{pluginbridge.HostServiceMethodDataList},
+					Service: protocol.HostServiceData,
+					Methods: []string{protocol.HostServiceMethodDataList},
 					Tables:  []string{"sys_plugin"},
 				},
 			},
@@ -45,10 +45,10 @@ func TestBuildUpgradePreviewResponseProjectsAllSections(t *testing.T) {
 			RuntimeFrontendAssetCount: 3,
 			RuntimeSQLAssetCount:      2,
 			HostServiceAuthRequired:   true,
-			RequestedHostServices: []*pluginbridge.HostServiceSpec{
+			RequestedHostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceData,
-					Methods: []string{pluginbridge.HostServiceMethodDataList},
+					Service: protocol.HostServiceData,
+					Methods: []string{protocol.HostServiceMethodDataList},
 					Tables:  []string{"sys_plugin", "sys_plugin_release"},
 				},
 			},
@@ -67,7 +67,7 @@ func TestBuildUpgradePreviewResponseProjectsAllSections(t *testing.T) {
 		HostServicesDiff: pluginsvc.RuntimeUpgradeHostServicesDiff{
 			Changed: []*pluginsvc.RuntimeUpgradeHostServiceChange{
 				{
-					Service:    pluginbridge.HostServiceData,
+					Service:    protocol.HostServiceData,
 					FromTables: []string{"sys_plugin"},
 					ToTables:   []string{"sys_plugin", "sys_plugin_release"},
 				},

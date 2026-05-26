@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
+	"lina-core/pkg/plugin/capability/contract"
 )
 
 // ContextKey is the key for business context in request context.
@@ -24,6 +25,9 @@ type Service interface {
 	// Get retrieves the current business context from ctx and returns nil when
 	// middleware has not initialized it.
 	Get(ctx context.Context) *model.Context
+	// Current returns the plugin-visible read-only projection of the current
+	// business context for public pluginservice contracts.
+	Current(ctx context.Context) contract.CurrentContext
 	// SetLocale records the resolved request locale for downstream i18n lookups.
 	SetLocale(ctx context.Context, locale string)
 	// SetUser records authenticated token and user identity after token

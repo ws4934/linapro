@@ -171,7 +171,7 @@ func (s *serviceImpl) listActiveInboxUserIDs(ctx context.Context, excludedUserID
 	)
 	if tenantID == datascope.PlatformTenantID {
 		model = model.Where(do.SysUser{TenantId: datascope.PlatformTenantID})
-	} else if s == nil || s.tenantSvc == nil || !s.tenantSvc.Enabled(ctx) {
+	} else if s == nil || s.tenantSvc == nil || !s.tenantSvc.Available(ctx) {
 		model = model.Where(do.SysUser{TenantId: tenantID})
 	} else {
 		var err error

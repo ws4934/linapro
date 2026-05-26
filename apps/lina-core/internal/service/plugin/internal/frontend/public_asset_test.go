@@ -14,7 +14,7 @@ import (
 	pluginfrontend "lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestResolveRuntimeFrontendAssetRequiresPublicAssetDeclaration verifies that
@@ -43,8 +43,8 @@ func TestResolveRuntimeFrontendAssetRequiresPublicAssetDeclaration(t *testing.T)
 			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: 1,
 		},
 		[]*catalog.ArtifactFrontendAsset{
@@ -159,8 +159,8 @@ func TestResolveRuntimeFrontendAssetUsesDeclaredIndex(t *testing.T) {
 			},
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: 1,
 		},
 		[]*catalog.ArtifactFrontendAsset{

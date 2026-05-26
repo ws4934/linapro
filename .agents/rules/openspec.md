@@ -4,16 +4,6 @@
 
 本规则约束 LinaPro 仓库的 SDD 开发流程、OpenSpec 变更生命周期、反馈修复、审查、归档、任务记录、文档语言和验证门禁。
 
-## 强制遵守场景
-
-以下任一场景命中时，必须先读取并遵守本规则：
-
-- 创建、修改、执行或归档 OpenSpec 变更
-- 编写或更新`proposal.md`、`design.md`、`tasks.md`或`specs/`增量规范
-- 处理用户反馈、缺陷、改进点或治理类问题
-- 执行`/opsx:explore`、`/opsx:propose`、`/opsx:apply`、`/opsx:archive`、`lina-feedback`或`lina-review`
-- 判断活跃变更、反馈归属、任务完成状态或归档前门禁
-
 ## 基础流程
 
 本项目采用 SDD 驱动开发，使用 OpenSpec 工具辅助落地。变更记录存放在`openspec/changes/`目录下。每个变更包含`proposal.md`、`design.md`、`specs/`和`tasks.md`等产物。

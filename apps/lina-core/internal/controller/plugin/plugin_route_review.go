@@ -6,9 +6,9 @@ package plugin
 import (
 	"strings"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // buildPluginRouteReviewItems converts current release dynamic route contracts
@@ -16,7 +16,7 @@ import (
 // metadata used by governance dialogs.
 func buildPluginRouteReviewItems(
 	pluginID string,
-	routes []*pluginbridge.RouteContract,
+	routes []*protocol.RouteContract,
 ) []*v1.PluginRouteReviewItem {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	if normalizedPluginID == "" || len(routes) == 0 {

@@ -20,7 +20,7 @@ type MessageSourceDescriptor struct {
 type MessageExportOutput struct {
 	Locale        string            // Locale is the exported locale.
 	DefaultLocale string            // DefaultLocale is the current runtime default locale.
-	Mode          string            // Mode is the export mode, such as effective or raw.
+	Mode          string            // Mode is the export mode, currently effective.
 	Messages      map[string]string // Messages contains exported flat messages.
 }
 
@@ -42,21 +42,14 @@ type MessageDiagnosticItem struct {
 }
 
 // ExportMessages exports flat runtime messages for one locale.
-func (s *serviceImpl) ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput {
+func (s *serviceImpl) ExportMessages(ctx context.Context, locale string) MessageExportOutput {
 	resolvedLocale := s.ResolveLocale(ctx, locale)
 	defaultLocale := s.getDefaultRuntimeLocale(ctx)
-	mode := "effective"
-	if raw {
-		mode = "raw"
-	}
-	// Both effective and raw exports return the same merged catalog: the cache
-	// already deduplicates host/plugin/dynamic sectors. The "raw" flag is
-	// retained for API compatibility but no longer carries different semantics.
 	messages := cloneFlatMessageMap(s.snapshotMergedCatalog(ctx, resolvedLocale))
 	return MessageExportOutput{
 		Locale:        resolvedLocale,
 		DefaultLocale: defaultLocale,
-		Mode:          mode,
+		Mode:          "effective",
 		Messages:      messages,
 	}
 }

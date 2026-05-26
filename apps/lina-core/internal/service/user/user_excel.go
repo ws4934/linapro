@@ -259,8 +259,8 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			if insertErr != nil {
 				return insertErr
 			}
-			if tenantPlan.ShouldReplace {
-				return s.tenantSvc.ReplaceUserTenantAssignments(ctx, int(insertedID), tenantPlan)
+			if tenantPlan.ShouldReplace && s.tenantMembers != nil {
+				return s.tenantMembers.ReplaceUserTenantAssignments(ctx, int(insertedID), tenantPlan)
 			}
 			return nil
 		})

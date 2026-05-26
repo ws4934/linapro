@@ -35,7 +35,7 @@ func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploa
 	if err != nil {
 		return nil, err
 	}
-	if err = s.markRuntimeCacheChanged(ctx, "dynamic_package_uploaded"); err != nil {
+	if _, err = s.markRuntimeCacheChanged(ctx, "dynamic_package_uploaded"); err != nil {
 		return nil, err
 	}
 	return out, nil

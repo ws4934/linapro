@@ -10,21 +10,21 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // recordingDynamicCronExecutor captures which manifests are sent to dynamic
 // cron discovery without executing any runtime code.
 type recordingDynamicCronExecutor struct {
 	discoverPluginIDs []string
-	contracts         []*pluginbridge.CronContract
+	contracts         []*protocol.CronContract
 }
 
 // DiscoverCronContracts records the manifest passed to dynamic discovery.
 func (e *recordingDynamicCronExecutor) DiscoverCronContracts(
 	_ context.Context,
 	manifest *catalog.Manifest,
-) ([]*pluginbridge.CronContract, error) {
+) ([]*protocol.CronContract, error) {
 	if manifest != nil {
 		e.discoverPluginIDs = append(e.discoverPluginIDs, manifest.ID)
 	}
@@ -35,7 +35,7 @@ func (e *recordingDynamicCronExecutor) DiscoverCronContracts(
 func (e *recordingDynamicCronExecutor) ExecuteDeclaredCronJob(
 	_ context.Context,
 	_ *catalog.Manifest,
-	_ *pluginbridge.CronContract,
+	_ *protocol.CronContract,
 ) error {
 	return nil
 }
@@ -46,7 +46,7 @@ func rewriteRuntimeArtifactHostServices(
 	t *testing.T,
 	artifactPath string,
 	manifest *catalog.Manifest,
-	hostServices []*pluginbridge.HostServiceSpec,
+	hostServices []*protocol.HostServiceSpec,
 ) {
 	t.Helper()
 	if manifest == nil || manifest.RuntimeArtifact == nil {
@@ -145,10 +145,10 @@ func TestListExecutableCronJobsSkipsPendingUpgradeDynamicPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected dynamic cron manifest to load, got error: %v", err)
 	}
-	cronHostServices := []*pluginbridge.HostServiceSpec{{
-		Service: pluginbridge.HostServiceCron,
+	cronHostServices := []*protocol.HostServiceSpec{{
+		Service: protocol.HostServiceCron,
 		Methods: []string{
-			pluginbridge.HostServiceMethodCronRegister,
+			protocol.HostServiceMethodCronRegister,
 		},
 	}}
 	rewriteRuntimeArtifactHostServices(t, artifactPath, manifest, cronHostServices)
@@ -203,15 +203,15 @@ func TestListExecutableCronJobsSkipsPendingUpgradeDynamicPlugin(t *testing.T) {
 func TestListCronDeclarationsDiscoversDisabledDynamicPlugin(t *testing.T) {
 	services := testutil.NewServices()
 	executor := &recordingDynamicCronExecutor{
-		contracts: []*pluginbridge.CronContract{
+		contracts: []*protocol.CronContract{
 			{
 				Name:           "heartbeat",
 				DisplayName:    "Dynamic Plugin Heartbeat",
 				Description:    "Runs a dynamic heartbeat.",
 				Pattern:        "# */10 * * * *",
-				Timezone:       pluginbridge.DefaultCronContractTimezone,
-				Scope:          pluginbridge.CronScopeAllNode,
-				Concurrency:    pluginbridge.CronConcurrencySingleton,
+				Timezone:       protocol.DefaultCronContractTimezone,
+				Scope:          protocol.CronScopeAllNode,
+				Concurrency:    protocol.CronConcurrencySingleton,
 				MaxConcurrency: 1,
 				TimeoutSeconds: 30,
 				InternalPath:   "/cron-heartbeat",
@@ -248,10 +248,10 @@ func TestListCronDeclarationsDiscoversDisabledDynamicPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected dynamic cron manifest to load, got error: %v", err)
 	}
-	cronHostServices := []*pluginbridge.HostServiceSpec{{
-		Service: pluginbridge.HostServiceCron,
+	cronHostServices := []*protocol.HostServiceSpec{{
+		Service: protocol.HostServiceCron,
 		Methods: []string{
-			pluginbridge.HostServiceMethodCronRegister,
+			protocol.HostServiceMethodCronRegister,
 		},
 	}}
 	rewriteRuntimeArtifactHostServices(t, artifactPath, manifest, cronHostServices)
@@ -301,15 +301,15 @@ func TestListCronDeclarationsDiscoversDisabledDynamicPlugin(t *testing.T) {
 func TestListInstalledCronDeclarationsDiscoversInstalledDisabledDynamicPlugin(t *testing.T) {
 	services := testutil.NewServices()
 	executor := &recordingDynamicCronExecutor{
-		contracts: []*pluginbridge.CronContract{
+		contracts: []*protocol.CronContract{
 			{
 				Name:           "heartbeat",
 				DisplayName:    "Dynamic Plugin Heartbeat",
 				Description:    "Runs a dynamic heartbeat.",
 				Pattern:        "# */10 * * * *",
-				Timezone:       pluginbridge.DefaultCronContractTimezone,
-				Scope:          pluginbridge.CronScopeAllNode,
-				Concurrency:    pluginbridge.CronConcurrencySingleton,
+				Timezone:       protocol.DefaultCronContractTimezone,
+				Scope:          protocol.CronScopeAllNode,
+				Concurrency:    protocol.CronConcurrencySingleton,
 				MaxConcurrency: 1,
 				TimeoutSeconds: 30,
 				InternalPath:   "/cron-heartbeat",
@@ -340,10 +340,10 @@ func TestListInstalledCronDeclarationsDiscoversInstalledDisabledDynamicPlugin(t 
 	if err != nil {
 		t.Fatalf("expected dynamic cron manifest to load, got error: %v", err)
 	}
-	cronHostServices := []*pluginbridge.HostServiceSpec{{
-		Service: pluginbridge.HostServiceCron,
+	cronHostServices := []*protocol.HostServiceSpec{{
+		Service: protocol.HostServiceCron,
 		Methods: []string{
-			pluginbridge.HostServiceMethodCronRegister,
+			protocol.HostServiceMethodCronRegister,
 		},
 	}}
 	rewriteRuntimeArtifactHostServices(t, artifactPath, manifest, cronHostServices)
@@ -375,15 +375,15 @@ func TestListInstalledCronDeclarationsDiscoversInstalledDisabledDynamicPlugin(t 
 func TestListCronDeclarationsDiscoversSyntheticDynamicPreview(t *testing.T) {
 	services := testutil.NewServices()
 	executor := &recordingDynamicCronExecutor{
-		contracts: []*pluginbridge.CronContract{
+		contracts: []*protocol.CronContract{
 			{
 				Name:           "heartbeat",
 				DisplayName:    "Dynamic Plugin Heartbeat",
 				Description:    "Runs a dynamic heartbeat.",
 				Pattern:        "# */10 * * * *",
-				Timezone:       pluginbridge.DefaultCronContractTimezone,
-				Scope:          pluginbridge.CronScopeAllNode,
-				Concurrency:    pluginbridge.CronConcurrencySingleton,
+				Timezone:       protocol.DefaultCronContractTimezone,
+				Scope:          protocol.CronScopeAllNode,
+				Concurrency:    protocol.CronConcurrencySingleton,
 				MaxConcurrency: 1,
 				TimeoutSeconds: 30,
 				InternalPath:   "/cron-heartbeat",
@@ -414,10 +414,10 @@ func TestListCronDeclarationsDiscoversSyntheticDynamicPreview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected synthetic dynamic manifest to load, got error: %v", err)
 	}
-	cronHostServices := []*pluginbridge.HostServiceSpec{{
-		Service: pluginbridge.HostServiceCron,
+	cronHostServices := []*protocol.HostServiceSpec{{
+		Service: protocol.HostServiceCron,
 		Methods: []string{
-			pluginbridge.HostServiceMethodCronRegister,
+			protocol.HostServiceMethodCronRegister,
 		},
 	}}
 	rewriteRuntimeArtifactHostServices(t, artifactPath, manifest, cronHostServices)

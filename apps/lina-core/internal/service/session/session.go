@@ -8,7 +8,7 @@ import (
 
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // sessionLastActiveUpdateWindow is the minimum interval between two
@@ -69,7 +69,7 @@ type Store interface {
 		filter *ListFilter,
 		pageNum, pageSize int,
 		scopeSvc datascope.Service,
-		tenantSvc tenantcapsvc.Service,
+		tenantSvc tenantcapsvc.ScopeService,
 	) (*ListResult, error)
 	// Count returns the total number of active online sessions.
 	Count(ctx context.Context) (int, error)

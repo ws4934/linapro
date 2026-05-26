@@ -18,7 +18,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/dialect"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // LoadReleaseManifest loads the dynamic plugin manifest from a persisted release artifact.
@@ -300,7 +300,7 @@ func (s *serviceImpl) buildManifestSnapshot(manifest *Manifest, existing *entity
 			return "", parseErr
 		}
 		if existingSnapshot != nil {
-			authorizedHostServices, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+			authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
 			if normalizeErr != nil {
 				return "", normalizeErr
 			}
@@ -323,7 +323,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		return nil, nil
 	}
 
-	requestedHostServices, err := pluginbridge.NormalizeHostServiceSpecs(manifest.HostServices)
+	requestedHostServices, err := protocol.NormalizeHostServiceSpecs(manifest.HostServices)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +364,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		HostServiceAuthRequired:   HasResourceScopedHostServices(manifest.HostServices),
 	}
 	if !snapshot.HostServiceAuthRequired {
-		authorizedHostServices, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+		authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
 		if normalizeErr != nil {
 			return nil, normalizeErr
 		}
@@ -440,12 +440,12 @@ func (s *serviceImpl) applyReleaseAuthorizedHostServices(manifest *Manifest, rel
 	if !snapshot.HostServiceAuthConfirmed && snapshot.HostServiceAuthRequired {
 		return nil
 	}
-	hostServices, err := pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	hostServices, err := protocol.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
 	if err != nil {
 		return err
 	}
 	manifest.HostServices = hostServices
-	manifest.HostCapabilities = pluginbridge.CapabilityMapFromHostServices(manifest.HostServices)
+	manifest.HostCapabilities = protocol.CapabilityMapFromHostServices(manifest.HostServices)
 	return nil
 }
 

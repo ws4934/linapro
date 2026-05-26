@@ -22,12 +22,14 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/wasm"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
-	"lina-core/pkg/pluginhost"
-	pluginserviceconfig "lina-core/pkg/pluginservice/config"
-	"lina-core/pkg/pluginservice/contract"
-	pluginservicehostconfig "lina-core/pkg/pluginservice/hostconfig"
-	pluginservicemanifest "lina-core/pkg/pluginservice/manifest"
+	"lina-core/pkg/plugin/capability"
+	capabilityconfig "lina-core/pkg/plugin/capability/config"
+	"lina-core/pkg/plugin/capability/contract"
+	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfig"
+	capabilitymanifest "lina-core/pkg/plugin/capability/manifest"
+	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Services groups the wired plugin sub-services used by package-level tests.
@@ -81,6 +83,7 @@ func NewServices() *Services {
 		kvCacheSvc     = kvcache.New()
 		tenantSvc      = tenantcapsvc.New(nil, bizCtxProvider)
 		notifySvc      = notify.New(tenantSvc)
+		capabilitySvc  = newTestCapabilities()
 	)
 	hostLockSvc := mustNewHostLockServiceForTest()
 
@@ -98,7 +101,7 @@ func NewServices() *Services {
 
 	integrationSvc.SetBizCtxProvider(&bizCtxAdapter{svc: bizCtxProvider})
 	integrationSvc.SetDynamicCronExecutor(runtimeSvc)
-	integrationSvc.SetHostServices(newTestHostServices())
+	integrationSvc.SetCapabilities(capabilitySvc)
 	integrationSvc.SetTopologyProvider(topology)
 
 	runtimeSvc.SetMenuManager(integrationSvc)
@@ -114,9 +117,10 @@ func NewServices() *Services {
 		hostLockSvc,
 		notifySvc,
 		configProvider,
-		pluginserviceconfig.NewFactory("", ""),
-		pluginservicehostconfig.New(configProvider),
-		pluginservicemanifest.NewFactory(""),
+		capabilitySvc,
+		capabilityconfig.NewFactory("", ""),
+		capabilityhostconfig.New(configProvider),
+		capabilitymanifest.NewFactory(""),
 	)
 
 	return &Services{
@@ -146,6 +150,7 @@ func mustConfigureWasmHostServicesForTest(
 	hostLockSvc hostlock.Service,
 	notifySvc notify.Service,
 	configProvider configsvc.Service,
+	hostServices capability.Services,
 	configFactory contract.ConfigServiceFactory,
 	hostConfigSvc contract.HostConfigService,
 	manifestFactory contract.ManifestServiceFactory,
@@ -158,6 +163,8 @@ func mustConfigureWasmHostServicesForTest(
 		{name: "lock", fn: func() error { return wasm.ConfigureLockHostService(hostLockSvc) }},
 		{name: "notify", fn: func() error { return wasm.ConfigureNotifyHostService(notifySvc) }},
 		{name: "storage", fn: func() error { return wasm.ConfigureStorageHostService(configProvider) }},
+		{name: "org", fn: func() error { return wasm.ConfigureOrgHostService(hostServices) }},
+		{name: "tenant", fn: func() error { return wasm.ConfigureTenantHostService(hostServices) }},
 		{name: "config", fn: func() error { return wasm.ConfigureConfigHostService(configFactory) }},
 		{name: "host config", fn: func() error { return wasm.ConfigureHostConfigService(hostConfigSvc) }},
 		{name: "manifest", fn: func() error { return wasm.ConfigureManifestHostService(manifestFactory) }},
@@ -169,57 +176,57 @@ func mustConfigureWasmHostServicesForTest(
 	}
 }
 
-// testHostServices publishes the minimal host service directory needed by
+// testCapabilities publishes the minimal capability services needed by
 // source-plugin callbacks exercised in plugin service tests.
-type testHostServices struct {
+type testCapabilities struct {
 	// configFactory creates plugin-scoped configuration views.
 	configFactory contract.ConfigServiceFactory
 	// manifestFactory creates plugin-scoped manifest resource views.
 	manifestFactory contract.ManifestServiceFactory
-	// pluginID scopes source-plugin host services when non-empty.
+	// pluginID scopes source-plugin capabilities when non-empty.
 	pluginID string
 }
 
-// Ensure testHostServices satisfies the source-plugin host service directory.
-var _ pluginhost.HostServices = (*testHostServices)(nil)
+// Ensure testCapabilities satisfies the source-plugin capability services.
+var _ pluginhost.Services = (*testCapabilities)(nil)
 
-// Ensure testHostServices can return plugin-scoped host service views.
-var _ pluginhost.ScopedHostServicesFactory = (*testHostServices)(nil)
+// Ensure testCapabilities can return plugin-scoped capability views.
+var _ capability.ScopedServicesFactory = (*testCapabilities)(nil)
 
-// newTestHostServices creates a host service directory for integration tests.
-func newTestHostServices() pluginhost.HostServices {
-	return &testHostServices{
-		configFactory:   pluginserviceconfig.NewFactory("", ""),
-		manifestFactory: pluginservicemanifest.NewFactory(""),
+// newTestCapabilities creates capability services for integration tests.
+func newTestCapabilities() capability.Services {
+	return &testCapabilities{
+		configFactory:   capabilityconfig.NewFactory("", ""),
+		manifestFactory: capabilitymanifest.NewFactory(""),
 	}
 }
 
 // APIDoc returns no apidoc service for plugin integration tests.
-func (s *testHostServices) APIDoc() contract.APIDocService { return nil }
+func (s *testCapabilities) APIDoc() contract.APIDocService { return nil }
 
 // Auth returns no auth service for plugin integration tests.
-func (s *testHostServices) Auth() contract.AuthService { return nil }
+func (s *testCapabilities) Auth() contract.AuthService { return nil }
 
 // BizCtx returns no bizctx service for plugin integration tests.
-func (s *testHostServices) BizCtx() contract.BizCtxService { return nil }
+func (s *testCapabilities) BizCtx() contract.BizCtxService { return nil }
 
 // Cache returns no cache service for plugin integration tests.
-func (s *testHostServices) Cache() contract.CacheService { return nil }
+func (s *testCapabilities) Cache() contract.CacheService { return nil }
 
 // Config returns the plugin-scoped test host configuration service.
-func (s *testHostServices) Config() contract.ConfigService {
+func (s *testCapabilities) Config() contract.ConfigService {
 	if s == nil || s.configFactory == nil {
 		return nil
 	}
 	return s.configFactory.ForPlugin(s.pluginID)
 }
 
-// ForPlugin returns a plugin-bound host service view for source-plugin callbacks.
-func (s *testHostServices) ForPlugin(pluginID string) pluginhost.HostServices {
+// ForPlugin returns a plugin-bound capability view for source-plugin callbacks.
+func (s *testCapabilities) ForPlugin(pluginID string) capability.Services {
 	if s == nil {
 		return nil
 	}
-	return &testHostServices{
+	return &testCapabilities{
 		configFactory:   s.configFactory,
 		manifestFactory: s.manifestFactory,
 		pluginID:        pluginID,
@@ -227,13 +234,13 @@ func (s *testHostServices) ForPlugin(pluginID string) pluginhost.HostServices {
 }
 
 // HostConfig returns no host config service for plugin integration tests.
-func (s *testHostServices) HostConfig() contract.HostConfigService { return nil }
+func (s *testCapabilities) HostConfig() contract.HostConfigService { return nil }
 
 // I18n returns no i18n service for plugin integration tests.
-func (s *testHostServices) I18n() contract.I18nService { return nil }
+func (s *testCapabilities) I18n() contract.I18nService { return nil }
 
 // Manifest returns the plugin-scoped manifest service for plugin integration tests.
-func (s *testHostServices) Manifest() contract.ManifestService {
+func (s *testCapabilities) Manifest() contract.ManifestService {
 	if s == nil || s.manifestFactory == nil {
 		return nil
 	}
@@ -241,22 +248,32 @@ func (s *testHostServices) Manifest() contract.ManifestService {
 }
 
 // Notify returns no notification service for plugin integration tests.
-func (s *testHostServices) Notify() contract.NotifyService { return nil }
+func (s *testCapabilities) Notify() contract.NotifyService { return nil }
+
+// Org returns the default organization capability fallback service.
+func (s *testCapabilities) Org() capabilityorgcap.Service {
+	return capabilityorgcap.New(nil)
+}
 
 // PluginLifecycle returns no lifecycle service for plugin integration tests.
-func (s *testHostServices) PluginLifecycle() contract.PluginLifecycleService { return nil }
+func (s *testCapabilities) PluginLifecycle() contract.PluginLifecycleService { return nil }
 
 // PluginState returns no plugin-state service for plugin integration tests.
-func (s *testHostServices) PluginState() contract.PluginStateService { return nil }
+func (s *testCapabilities) PluginState() contract.PluginStateService { return nil }
 
 // Route returns no route service for plugin integration tests.
-func (s *testHostServices) Route() contract.RouteService { return nil }
+func (s *testCapabilities) Route() contract.RouteService { return nil }
 
 // Session returns no session service for plugin integration tests.
-func (s *testHostServices) Session() contract.SessionService { return nil }
+func (s *testCapabilities) Session() contract.SessionService { return nil }
 
 // TenantFilter returns no tenant-filter service for plugin integration tests.
-func (s *testHostServices) TenantFilter() contract.TenantFilterService { return nil }
+func (s *testCapabilities) TenantFilter() contract.TenantFilterService { return nil }
+
+// Tenant returns the default tenant capability fallback service.
+func (s *testCapabilities) Tenant() tenantcapsvc.Service {
+	return tenantcapsvc.New(nil, nil)
+}
 
 // jwtConfigAdapter exposes config service JWT settings through the runtime test seam.
 type jwtConfigAdapter struct {

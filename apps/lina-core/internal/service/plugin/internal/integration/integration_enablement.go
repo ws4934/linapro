@@ -14,7 +14,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // authoritativeEnablementContextKey stores the opt-in marker for persisted
@@ -57,6 +57,22 @@ func (s *serviceImpl) CanExposeBusinessEntries(ctx context.Context, pluginID str
 	manifest, _ := s.catalogSvc.GetDesiredManifest(normalizedPluginID)
 	enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifest)
 	return err == nil && enabled
+}
+
+// IsProviderEnabled reports whether pluginID is platform-enabled for framework
+// capability provider use. It reads the process-local platform enabled snapshot
+// and never falls back to tenant/request business-entry visibility.
+func (s *serviceImpl) IsProviderEnabled(ctx context.Context, pluginID string) bool {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" || s == nil || s.sharedState == nil {
+		return false
+	}
+	s.sharedState.enabledSnapshotMu.RLock()
+	defer s.sharedState.enabledSnapshotMu.RUnlock()
+	if !s.sharedState.enabledSnapshotLoaded {
+		return false
+	}
+	return s.sharedState.enabledSnapshot[normalizedPluginID]
 }
 
 // IsInstalledEnabledForTenant reports whether the plugin is installed, enabled,

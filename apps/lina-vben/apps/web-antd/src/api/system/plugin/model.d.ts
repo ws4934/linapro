@@ -67,10 +67,6 @@ export interface PluginDependencyCheckResult {
   targetId: string;
   framework?: PluginDependencyFrameworkCheck;
   dependencies?: PluginDependencyItem[];
-  autoInstallPlan?: PluginDependencyAutoInstallItem[];
-  autoInstalled?: PluginDependencyAutoInstallItem[];
-  manualInstallRequired?: PluginDependencyItem[];
-  softUnsatisfied?: PluginDependencyItem[];
   blockers?: PluginDependencyBlocker[];
   cycle?: string[];
   reverseDependents?: PluginDependencyReverseDependent[];
@@ -89,26 +85,9 @@ export interface PluginDependencyItem {
   dependencyName?: string;
   requiredVersion?: string;
   currentVersion?: string;
-  required: boolean;
-  installMode: 'auto' | 'manual' | string;
   installed: boolean;
   discovered: boolean;
-  status:
-    | 'auto_install_planned'
-    | 'manual_install_required'
-    | 'missing'
-    | 'satisfied'
-    | 'soft_unsatisfied'
-    | 'version_unsatisfied'
-    | string;
-  chain?: string[];
-}
-
-export interface PluginDependencyAutoInstallItem {
-  pluginId: string;
-  name?: string;
-  version?: string;
-  requiredBy?: string;
+  status: 'missing' | 'satisfied' | 'version_unsatisfied' | string;
   chain?: string[];
 }
 

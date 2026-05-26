@@ -5,7 +5,7 @@ package plugin
 import (
 	"context"
 
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // English fallback messages published with host authentication lifecycle events.

@@ -3,7 +3,7 @@ import type { Page, Route } from '@playwright/test';
 import { test, expect } from '../../../fixtures/auth';
 import { PluginPage } from '../../../pages/PluginPage';
 
-const autoPlanPluginID = 'plugin-dev-dependency-auto-plan-e2e';
+const frameworkBlockedPluginID = 'plugin-dev-dependency-framework-blocked-e2e';
 const blockedPluginID = 'plugin-dev-dependency-blocked-e2e';
 const basePluginID = 'plugin-dev-dependency-base-e2e';
 const consumerPluginID = 'plugin-dev-dependency-consumer-e2e';
@@ -55,8 +55,6 @@ function pluginRow(input: {
 
 function emptyDependencyCheck(pluginId: string): DependencyCheck {
   return {
-    autoInstallPlan: [],
-    autoInstalled: [],
     blockers: [],
     cycle: [],
     dependencies: [],
@@ -65,41 +63,20 @@ function emptyDependencyCheck(pluginId: string): DependencyCheck {
       requiredVersion: '',
       status: 'not_declared',
     },
-    manualInstallRequired: [],
     reverseBlockers: [],
     reverseDependents: [],
-    softUnsatisfied: [],
     targetId: pluginId,
   };
 }
 
-function autoInstallPlanCheck(): DependencyCheck {
+function frameworkBlockerCheck(): DependencyCheck {
   return {
-    ...emptyDependencyCheck(autoPlanPluginID),
-    autoInstallPlan: [
-      {
-        chain: [autoPlanPluginID, basePluginID],
-        name: 'Dependency Base',
-        pluginId: basePluginID,
-        requiredBy: autoPlanPluginID,
-        version: 'v0.1.0',
-      },
-    ],
-    dependencies: [
-      {
-        chain: [autoPlanPluginID, basePluginID],
-        currentVersion: 'v0.1.0',
-        dependencyId: basePluginID,
-        dependencyName: 'Dependency Base',
-        discovered: true,
-        installMode: 'auto',
-        installed: false,
-        ownerId: autoPlanPluginID,
-        required: true,
-        requiredVersion: '>=0.1.0',
-        status: 'auto_install_planned',
-      },
-    ],
+    ...emptyDependencyCheck(frameworkBlockedPluginID),
+    framework: {
+      currentVersion: 'v0.6.0',
+      requiredVersion: '>=0.7.0',
+      status: 'unsatisfied',
+    },
   };
 }
 
@@ -123,10 +100,8 @@ function installBlockerCheck(): DependencyCheck {
         dependencyId: basePluginID,
         dependencyName: 'Dependency Base',
         discovered: true,
-        installMode: 'manual',
         installed: true,
         ownerId: blockedPluginID,
-        required: true,
         requiredVersion: '>=0.3.0',
         status: 'version_unsatisfied',
       },
@@ -201,35 +176,38 @@ async function mockPluginDependencyApis(
 }
 
 test.describe('TC-6 插件依赖管理展示', () => {
-  test('TC-6a: 安装确认展示服务端返回的自动安装计划', async ({
+  test('TC-6a: 安装确认展示框架版本阻断并禁用提交', async ({
     adminPage,
   }) => {
     await mockPluginDependencyApis(
       adminPage,
       [
         pluginRow({
-          description: 'Used by E2E to verify automatic dependency plan display.',
-          id: autoPlanPluginID,
+          description: 'Used by E2E to verify framework dependency blocker display.',
+          id: frameworkBlockedPluginID,
           installed: 0,
-          name: 'Dependency Auto Plan Plugin',
+          name: 'Dependency Framework Blocked Plugin',
         }),
       ],
-      { [autoPlanPluginID]: autoInstallPlanCheck() },
+      { [frameworkBlockedPluginID]: frameworkBlockerCheck() },
     );
 
     const pluginPage = new PluginPage(adminPage);
     await pluginPage.gotoManage();
-    await pluginPage.searchByPluginId(autoPlanPluginID);
-    await pluginPage.openInstallAuthorization(autoPlanPluginID);
+    await pluginPage.searchByPluginId(frameworkBlockedPluginID);
+    await pluginPage.openInstallAuthorization(frameworkBlockedPluginID);
 
-    await expect(pluginPage.pluginDependencyAutoInstallPlan()).toBeVisible();
-    await expect(pluginPage.pluginDependencyAutoInstallPlan()).toContainText(
-      '宿主将先安装以下依赖插件。',
+    await expect(pluginPage.pluginDependencyFrameworkBlocker()).toBeVisible();
+    await expect(pluginPage.pluginDependencyFrameworkBlocker()).toContainText(
+      '框架版本不满足插件要求。',
     );
-    await expect(pluginPage.pluginDependencyAutoInstallPlan()).toContainText(
-      'Dependency Base@v0.1.0',
+    await expect(pluginPage.pluginDependencyFrameworkBlocker()).toContainText(
+      '要求版本：>=0.7.0；当前版本：v0.6.0。',
     );
-    await expect(pluginPage.hostServiceAuthConfirmButton()).toBeEnabled();
+    await expect(pluginPage.hostServiceAuthConfirmButton()).toBeDisabled();
+    await expect(
+      pluginPage.hostServiceAuthInstallAndEnableButton(),
+    ).toBeDisabled();
   });
 
   test('TC-6b: 安装确认展示依赖阻断并禁用提交', async ({

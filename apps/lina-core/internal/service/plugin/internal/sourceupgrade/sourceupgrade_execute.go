@@ -9,7 +9,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // UpgradeSourcePlugin applies one explicit source-plugin upgrade from the

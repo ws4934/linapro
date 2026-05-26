@@ -8,9 +8,9 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/kvcache"
-	bridgehostcall "lina-core/pkg/pluginbridge"
-	bridgehostservice "lina-core/pkg/pluginbridge"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // cacheHostService is the shared governed cache backend used by wasm host calls.
@@ -147,7 +147,7 @@ func dispatchCacheHostService(
 func buildPluginCacheKey(hcc *hostCallContext, namespace string, logicalKey string) string {
 	if hcc != nil && hcc.identity != nil && hcc.identity.TenantId > 0 {
 		return kvcache.BuildTenantCacheKey(
-			pkgtenantcap.TenantID(hcc.identity.TenantId),
+			tenantcap.TenantID(hcc.identity.TenantId),
 			"plugin-cache",
 			hcc.pluginID,
 			namespace,

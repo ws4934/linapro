@@ -7,7 +7,7 @@ package integration
 import (
 	"sync"
 
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // sharedState stores process-wide integration caches used by source-plugin

@@ -18,7 +18,7 @@ import (
 	"lina-core/internal/packed"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 const frontendDevServerURLEnv = "LINAPRO_FRONTEND_DEV_SERVER_URL"

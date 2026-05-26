@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata verifies current
@@ -16,11 +16,11 @@ import (
 func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	items := buildPluginRouteReviewItems(
 		"plugin-dev-route-review",
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
 				Method:      http.MethodGet,
 				Path:        "/api/v1/review-summary",
-				Access:      pluginbridge.AccessLogin,
+				Access:      protocol.AccessLogin,
 				Permission:  "plugin-dev-route-review:review:query",
 				Summary:     "查询评审摘要",
 				Description: "返回插件当前评审摘要。",
@@ -29,7 +29,7 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 			{
 				Method:  http.MethodPost,
 				Path:    "/api/v1/public-ping",
-				Access:  pluginbridge.AccessPublic,
+				Access:  protocol.AccessPublic,
 				Summary: "公开探活",
 			},
 		},
@@ -45,7 +45,7 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	if items[0].PublicPath != "/x/plugin-dev-route-review/api/v1/review-summary" {
 		t.Fatalf("unexpected first route public path: %s", items[0].PublicPath)
 	}
-	if items[0].Access != pluginbridge.AccessLogin {
+	if items[0].Access != protocol.AccessLogin {
 		t.Fatalf("expected first route access login, got %s", items[0].Access)
 	}
 	if items[0].Permission != "plugin-dev-route-review:review:query" {
@@ -64,7 +64,7 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	if items[1].PublicPath != "/x/plugin-dev-route-review/api/v1/public-ping" {
 		t.Fatalf("unexpected second route public path: %s", items[1].PublicPath)
 	}
-	if items[1].Access != pluginbridge.AccessPublic {
+	if items[1].Access != protocol.AccessPublic {
 		t.Fatalf("expected second route access public, got %s", items[1].Access)
 	}
 	if items[1].Permission != "" {
@@ -78,21 +78,21 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 func TestBuildPluginRouteReviewItemsPreservesPluginOwnedPathContent(t *testing.T) {
 	items := buildPluginRouteReviewItems(
 		"plugin-dev-route-review",
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
 				Method: http.MethodGet,
 				Path:   "/api/v2/review-summary",
-				Access: pluginbridge.AccessLogin,
+				Access: protocol.AccessLogin,
 			},
 			{
 				Method: http.MethodPost,
 				Path:   "/interface/m1/review-summary",
-				Access: pluginbridge.AccessLogin,
+				Access: protocol.AccessLogin,
 			},
 			{
 				Method: http.MethodPost,
 				Path:   "/graphql",
-				Access: pluginbridge.AccessPublic,
+				Access: protocol.AccessPublic,
 			},
 		},
 	)
@@ -117,7 +117,7 @@ func TestBuildPluginRouteReviewItemsPreservesPluginOwnedPathContent(t *testing.T
 func TestBuildPluginRouteReviewItemsSkipsBlankPluginID(t *testing.T) {
 	items := buildPluginRouteReviewItems(
 		" ",
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
 				Method: http.MethodGet,
 				Path:   "/api/v1/review-summary",

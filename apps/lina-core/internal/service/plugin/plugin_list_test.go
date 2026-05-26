@@ -19,7 +19,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState verifies that
@@ -363,12 +363,12 @@ func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceStorage,
-					Methods: []string{pluginbridge.HostServiceMethodStorageGet},
+					Service: protocol.HostServiceStorage,
+					Methods: []string{protocol.HostServiceMethodStorageGet},
 					Paths:   []string{"reports/"},
 				},
 			},
@@ -402,14 +402,14 @@ func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceStorage,
+					Service: protocol.HostServiceStorage,
 					Methods: []string{
-						pluginbridge.HostServiceMethodStorageGet,
-						pluginbridge.HostServiceMethodStoragePut,
+						protocol.HostServiceMethodStorageGet,
+						protocol.HostServiceMethodStoragePut,
 					},
 					Paths: []string{"reports/", "exports/"},
 				},
@@ -461,7 +461,7 @@ func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
 		t.Fatalf("expected one changed host service, got %#v", preview.HostServicesDiff)
 	}
 	change := preview.HostServicesDiff.Changed[0]
-	if change.Service != pluginbridge.HostServiceStorage {
+	if change.Service != protocol.HostServiceStorage {
 		t.Fatalf("expected storage host service change, got %#v", change)
 	}
 	if len(change.FromPaths) != 1 || change.FromPaths[0] != "reports/" {
@@ -772,8 +772,8 @@ func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
 			Description: "未安装动态插件的中文描述",
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(testutil.DefaultTestRuntimeFrontendAssets()),
 		},
 		testutil.DefaultTestRuntimeFrontendAssets(),
@@ -972,7 +972,7 @@ func appendRuntimeI18NSectionForPluginListTest(
 	}
 	content = appendPluginListTestWasmCustomSection(
 		content,
-		pluginbridge.WasmSectionI18NAssets,
+		protocol.WasmSectionI18NAssets,
 		sectionPayload,
 	)
 	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {

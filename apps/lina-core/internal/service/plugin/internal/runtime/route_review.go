@@ -4,7 +4,7 @@
 
 package runtime
 
-import bridgecontract "lina-core/pkg/pluginbridge/contract"
+import bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 
 // cloneRouteContracts deep-copies dynamic route contracts for management-list
 // projections so response models do not alias catalog manifest slices.

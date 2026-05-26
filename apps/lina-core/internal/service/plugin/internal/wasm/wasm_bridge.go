@@ -9,8 +9,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/tetratelabs/wazero"
 
-	bridgecodec "lina-core/pkg/pluginbridge"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgecodec "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // ExecuteBridge executes one bridge request against the archived active wasm

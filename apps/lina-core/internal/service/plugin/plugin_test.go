@@ -5,6 +5,7 @@ package plugin
 import (
 	"context"
 	"encoding/base64"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -16,8 +17,8 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
-	"lina-core/pkg/pluginbridge"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // newTestService constructs the root plugin facade with default single-node topology.
@@ -42,7 +43,10 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 			panic(err)
 		}
 		serviceImpl := service.(*serviceImpl)
-		serviceImpl.SetTenantCapability(tenantcapsvc.New(serviceImpl, bizCtxProvider))
+		tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
+		serviceImpl.SetTenantStartupCapability(tenantSvc)
+		serviceImpl.SetTenantProvisioningCapability(tenantSvc)
+		serviceImpl.SetTenantPlatformGovernanceCapability(tenantSvc)
 		return serviceImpl
 	}
 	i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
@@ -51,7 +55,10 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 		panic(err)
 	}
 	serviceImpl := service.(*serviceImpl)
-	serviceImpl.SetTenantCapability(tenantcapsvc.New(serviceImpl, bizCtxProvider))
+	tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
+	serviceImpl.SetTenantStartupCapability(tenantSvc)
+	serviceImpl.SetTenantProvisioningCapability(tenantSvc)
+	serviceImpl.SetTenantPlatformGovernanceCapability(tenantSvc)
 	return serviceImpl
 }
 
@@ -112,7 +119,7 @@ func (s *serviceImpl) setPluginStatus(ctx context.Context, pluginID string, stat
 }
 
 // executeDynamicRoute forwards one prepared bridge request to the runtime executor for tests.
-func (s *serviceImpl) executeDynamicRoute(ctx context.Context, manifest *catalog.Manifest, request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+func (s *serviceImpl) executeDynamicRoute(ctx context.Context, manifest *catalog.Manifest, request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	return s.runtimeSvc.ExecuteDynamicRoute(ctx, manifest, request)
 }
 
@@ -175,6 +182,11 @@ func buildVersionedRuntimeFrontendAssets(marker string) []*catalog.ArtifactFront
 			Path:          "frontend/pages/index.html",
 			ContentBase64: base64.StdEncoding.EncodeToString([]byte("<html><body>" + marker + "</body></html>")),
 			ContentType:   "text/html; charset=utf-8",
+		},
+		{
+			Path:          "frontend/pages/mount.js",
+			ContentBase64: base64.StdEncoding.EncodeToString([]byte("export function mount() { return " + strconv.Quote(marker) + "; }")),
+			ContentType:   "application/javascript",
 		},
 	}
 }

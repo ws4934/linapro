@@ -12,7 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
-	bridgehostcall "lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // handleHostStateGet processes OpcodeStateGet requests.
@@ -109,8 +109,7 @@ func handleHostStateDelete(ctx context.Context, hcc *hostCallContext, reqBytes [
 }
 
 // pluginStateIdentity builds the tenant-scoped plugin state identity used by
-// dynamic host state operations. Tenant 0 keeps legacy platform/single-tenant
-// behavior unchanged.
+// dynamic host state operations.
 func pluginStateIdentity(ctx context.Context, pluginID string, key string) do.SysPluginState {
 	return do.SysPluginState{
 		PluginId: strings.TrimSpace(pluginID),

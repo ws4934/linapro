@@ -289,9 +289,9 @@ export class PluginPage {
     return this.page.getByTestId("plugin-dependency-summary").last();
   }
 
-  pluginDependencyAutoInstallPlan(): Locator {
+  pluginDependencyFrameworkBlocker(): Locator {
     return this.page
-      .getByTestId("plugin-dependency-auto-install-plan")
+      .getByTestId("plugin-dependency-framework-blocker")
       .last();
   }
 

@@ -13,7 +13,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/startupstats"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // Stable governance resource identities and remark templates used when
@@ -479,7 +479,7 @@ func newResourceRefDescriptor(
 // the descriptor set while de-duplicating by kind and key.
 func appendHostServiceResourceDescriptors(
 	descriptors []*catalog.ResourceRefDescriptor,
-	hostServices []*pluginbridge.HostServiceSpec,
+	hostServices []*protocol.HostServiceSpec,
 ) []*catalog.ResourceRefDescriptor {
 	if len(hostServices) == 0 {
 		return descriptors
@@ -572,23 +572,23 @@ func appendHostServiceResourceDescriptors(
 // resource kind used in sys_plugin_resource_ref.
 func mapHostServiceResourceKind(service string) catalog.ResourceKind {
 	switch strings.TrimSpace(service) {
-	case pluginbridge.HostServiceStorage:
+	case protocol.HostServiceStorage:
 		return catalog.ResourceKindHostStorage
-	case pluginbridge.HostServiceNetwork:
+	case protocol.HostServiceNetwork:
 		return catalog.ResourceKindHostUpstream
-	case pluginbridge.HostServiceData:
+	case protocol.HostServiceData:
 		return catalog.ResourceKindHostData
-	case pluginbridge.HostServiceCache:
+	case protocol.HostServiceCache:
 		return catalog.ResourceKindHostCache
-	case pluginbridge.HostServiceLock:
+	case protocol.HostServiceLock:
 		return catalog.ResourceKindHostLock
-	case pluginbridge.HostServiceSecret:
+	case protocol.HostServiceSecret:
 		return catalog.ResourceKindHostSecret
-	case pluginbridge.HostServiceEvent:
+	case protocol.HostServiceEvent:
 		return catalog.ResourceKindHostEventTopic
-	case pluginbridge.HostServiceQueue:
+	case protocol.HostServiceQueue:
 		return catalog.ResourceKindHostQueue
-	case pluginbridge.HostServiceNotify:
+	case protocol.HostServiceNotify:
 		return catalog.ResourceKindHostNotify
 	default:
 		return ""

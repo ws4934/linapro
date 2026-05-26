@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestBuildRuntimeWasmArtifactEmbedsBackendContracts verifies that hook and
@@ -163,8 +163,8 @@ func TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts(t *testin
 }
 
 // TestBundledDynamicSampleDeclaresBeforeAndAfterLifecycleCallbacks verifies
-// the official dynamic sample registers the full source-compatible lifecycle
-// callback set in its runtime artifact.
+// the official dynamic sample registers the full canonical lifecycle callback
+// set in its runtime artifact.
 func TestBundledDynamicSampleDeclaresBeforeAndAfterLifecycleCallbacks(t *testing.T) {
 	services := testutil.NewServices()
 	repoRoot, err := testutil.FindRepoRoot(".")
@@ -185,23 +185,23 @@ func TestBundledDynamicSampleDeclaresBeforeAndAfterLifecycleCallbacks(t *testing
 		t.Fatalf("expected bundled dynamic sample artifact to parse, got error: %v", err)
 	}
 
-	expected := map[pluginbridge.LifecycleOperation]struct{}{
-		pluginbridge.LifecycleOperationBeforeInstall:           {},
-		pluginbridge.LifecycleOperationAfterInstall:            {},
-		pluginbridge.LifecycleOperationBeforeUpgrade:           {},
-		pluginbridge.LifecycleOperationUpgrade:                 {},
-		pluginbridge.LifecycleOperationAfterUpgrade:            {},
-		pluginbridge.LifecycleOperationBeforeDisable:           {},
-		pluginbridge.LifecycleOperationAfterDisable:            {},
-		pluginbridge.LifecycleOperationBeforeUninstall:         {},
-		pluginbridge.LifecycleOperationUninstall:               {},
-		pluginbridge.LifecycleOperationAfterUninstall:          {},
-		pluginbridge.LifecycleOperationBeforeTenantDisable:     {},
-		pluginbridge.LifecycleOperationAfterTenantDisable:      {},
-		pluginbridge.LifecycleOperationBeforeTenantDelete:      {},
-		pluginbridge.LifecycleOperationAfterTenantDelete:       {},
-		pluginbridge.LifecycleOperationBeforeInstallModeChange: {},
-		pluginbridge.LifecycleOperationAfterInstallModeChange:  {},
+	expected := map[protocol.LifecycleOperation]struct{}{
+		protocol.LifecycleOperationBeforeInstall:           {},
+		protocol.LifecycleOperationAfterInstall:            {},
+		protocol.LifecycleOperationBeforeUpgrade:           {},
+		protocol.LifecycleOperationUpgrade:                 {},
+		protocol.LifecycleOperationAfterUpgrade:            {},
+		protocol.LifecycleOperationBeforeDisable:           {},
+		protocol.LifecycleOperationAfterDisable:            {},
+		protocol.LifecycleOperationBeforeUninstall:         {},
+		protocol.LifecycleOperationUninstall:               {},
+		protocol.LifecycleOperationAfterUninstall:          {},
+		protocol.LifecycleOperationBeforeTenantDisable:     {},
+		protocol.LifecycleOperationAfterTenantDisable:      {},
+		protocol.LifecycleOperationBeforeTenantDelete:      {},
+		protocol.LifecycleOperationAfterTenantDelete:       {},
+		protocol.LifecycleOperationBeforeInstallModeChange: {},
+		protocol.LifecycleOperationAfterInstallModeChange:  {},
 	}
 	if len(artifact.LifecycleContracts) != len(expected) {
 		t.Fatalf("expected %d lifecycle contracts, got %d", len(expected), len(artifact.LifecycleContracts))

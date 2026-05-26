@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 
-	bridgehostcall "lina-core/pkg/pluginbridge"
-	bridgehostservice "lina-core/pkg/pluginbridge"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // handleHostServiceInvoke validates capability and authorization state before
@@ -81,6 +81,10 @@ func handleHostServiceInvoke(
 		return dispatchHostConfigService(ctx, hcc, request.Method, request.Payload)
 	case bridgehostservice.HostServiceManifest:
 		return dispatchManifestHostService(ctx, hcc, request.Method, request.Payload)
+	case bridgehostservice.HostServiceOrg:
+		return dispatchOrgHostService(ctx, hcc, request.Method, request.Payload)
+	case bridgehostservice.HostServiceTenant:
+		return dispatchTenantHostService(ctx, hcc, request.Method, request.Payload)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusNotFound,

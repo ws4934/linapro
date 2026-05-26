@@ -5,15 +5,16 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/bizctx"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestEnsurePlatformGovernanceAllowsSingleTenantMode verifies disabled tenancy
@@ -29,7 +30,7 @@ func TestEnsurePlatformGovernanceAllowsSingleTenantMode(t *testing.T) {
 // multi-tenancy requires platform all-data context for lifecycle writes.
 func TestEnsurePlatformGovernanceRejectsTenantContext(t *testing.T) {
 	err := ensurePlatformGovernanceContext(context.Background(), pluginTenantGuardHolder{tenantSvc: pluginTenantGuard{enabled: true, platformBypass: false}})
-	if !bizerr.Is(err, pkgtenantcap.CodePlatformPermissionRequired) {
+	if !bizerr.Is(err, tenantcap.CodePlatformPermissionRequired) {
 		t.Fatalf("expected platform permission error, got %v", err)
 	}
 }
@@ -52,7 +53,7 @@ func TestPluginGovernanceMethodsRejectTenantContext(t *testing.T) {
 		DataScope: 1,
 	})
 	svc := newTestService()
-	svc.SetTenantCapability(newPluginPlatformGuardTenantService(t))
+	svc.SetTenantPlatformGovernanceCapability(newPluginPlatformGuardTenantService(t))
 	cases := []struct {
 		name string
 		run  func() error
@@ -103,7 +104,7 @@ func TestPluginGovernanceMethodsRejectTenantContext(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.run(); !bizerr.Is(err, pkgtenantcap.CodePlatformPermissionRequired) {
+			if err := tc.run(); !bizerr.Is(err, tenantcap.CodePlatformPermissionRequired) {
 				t.Fatalf("expected platform permission error, got %v", err)
 			}
 		})
@@ -127,7 +128,7 @@ type pluginTenantGuard struct {
 }
 
 // Enabled returns whether multi-tenancy is active in this test.
-func (g pluginTenantGuard) Enabled(context.Context) bool {
+func (g pluginTenantGuard) Available(context.Context) bool {
 	return g.enabled
 }
 
@@ -136,24 +137,32 @@ func (g pluginTenantGuard) PlatformBypass(context.Context) bool {
 	return g.platformBypass
 }
 
-// newPluginPlatformGuardTenantService creates a real tenantcap service in
-// active linapro-tenant-core mode for plugin facade entry-point tests.
-func newPluginPlatformGuardTenantService(t *testing.T) tenantcapsvc.Service {
+// newPluginPlatformGuardTenantService creates a real tenantcap service with
+// one enabled test provider for plugin facade entry-point tests.
+func newPluginPlatformGuardTenantService(t *testing.T) tenantcap.RuntimeService {
 	t.Helper()
-	previousProvider := pkgtenantcap.CurrentProvider()
-	pkgtenantcap.RegisterProvider(pluginPlatformGuardProvider{})
-	t.Cleanup(func() {
-		pkgtenantcap.RegisterProvider(previousProvider)
-	})
-	return tenantcapsvc.New(pluginPlatformGuardPluginState{}, bizctx.New())
+	providerPluginID := fmt.Sprintf("plugin-test-plugin-tenant-provider-%d", time.Now().UnixNano())
+	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+		return pluginPlatformGuardProvider{}, nil
+	}); err != nil {
+		t.Fatalf("register plugin tenant provider: %v", err)
+	}
+	return tenantcap.New(pluginPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
 }
 
-// pluginPlatformGuardPluginState marks the linapro-tenant-core provider plugin enabled.
-type pluginPlatformGuardPluginState struct{}
+// pluginPlatformGuardProviderRuntime marks exactly one test provider plugin enabled.
+type pluginPlatformGuardProviderRuntime struct {
+	pluginID string
+}
 
-// IsEnabled reports the linapro-tenant-core provider plugin as enabled.
-func (pluginPlatformGuardPluginState) IsEnabled(_ context.Context, pluginID string) bool {
-	return pluginID == pkgtenantcap.ProviderPluginID
+// IsProviderEnabled reports whether the given test provider plugin is enabled.
+func (r pluginPlatformGuardProviderRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return pluginID == r.pluginID
+}
+
+// TenantProviderEnv returns an empty typed provider environment in plugin facade tests.
+func (pluginPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
+	return tenantcap.ProviderEnv{}
 }
 
 // pluginPlatformGuardProvider satisfies the tenantcap provider contract for
@@ -164,21 +173,21 @@ type pluginPlatformGuardProvider struct{}
 func (pluginPlatformGuardProvider) ResolveTenant(
 	context.Context,
 	*ghttp.Request,
-) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
 }
 
 // ValidateUserInTenant is unused by plugin platform-guard tests.
-func (pluginPlatformGuardProvider) ValidateUserInTenant(context.Context, int, pkgtenantcap.TenantID) error {
+func (pluginPlatformGuardProvider) ValidateUserInTenant(context.Context, int, tenantcap.TenantID) error {
 	return nil
 }
 
 // ListUserTenants is unused by plugin platform-guard tests.
-func (pluginPlatformGuardProvider) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
+func (pluginPlatformGuardProvider) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
 	return nil, nil
 }
 
 // SwitchTenant is unused by plugin platform-guard tests.
-func (pluginPlatformGuardProvider) SwitchTenant(context.Context, int, pkgtenantcap.TenantID) error {
+func (pluginPlatformGuardProvider) SwitchTenant(context.Context, int, tenantcap.TenantID) error {
 	return nil
 }

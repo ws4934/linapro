@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/contract"
 )
 
 // TestRoleUsersApplyDataScope verifies role authorization pages and assignment
@@ -87,8 +88,8 @@ func (roleScopeEnabledOrgState) FilterPermissionMenus(_ context.Context, menus [
 	return menus
 }
 
-// Enabled reports organization capability as available.
-func (roleScopeEnabledOrgState) Enabled(context.Context) bool { return true }
+// Available reports organization capability as available.
+func (roleScopeEnabledOrgState) Available(context.Context) bool { return true }
 
 // roleScopeStaticBizCtx returns a fixed business context.
 type roleScopeStaticBizCtx struct {
@@ -100,6 +101,22 @@ func (s roleScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 
 // Get returns the configured business context.
 func (s roleScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
+
+// Current returns the plugin-visible business context projection.
+func (s roleScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+	if s.ctx == nil {
+		return contract.CurrentContext{}
+	}
+	return contract.CurrentContext{
+		UserID:          s.ctx.UserId,
+		Username:        s.ctx.Username,
+		TenantID:        s.ctx.TenantId,
+		ActingUserID:    s.ctx.ActingUserId,
+		ActingAsTenant:  s.ctx.ActingAsTenant,
+		IsImpersonation: s.ctx.IsImpersonation,
+		PlatformBypass:  s.ctx.TenantId == 0,
+	}
+}
 
 // SetLocale is unused by role data-scope tests.
 func (s roleScopeStaticBizCtx) SetLocale(context.Context, string) {}

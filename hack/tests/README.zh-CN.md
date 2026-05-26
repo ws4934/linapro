@@ -4,13 +4,13 @@
 
 ## 前置依赖
 
-首次运行 E2E 测试前，需安装前端依赖和 Playwright 浏览器：
+首次运行 E2E 测试前，需安装前端依赖和 Playwright 浏览器 shell：
 
 ```bash
-make dev.setup
+make env.setup
 ```
 
-该命令会为前端工作区执行 `pnpm install`（如缺失），并下载 Chromium 浏览器及所需系统库（Linux 下为 `libnss3`、`libatk-bridge2.0-0` 等）。macOS 和 Windows 仅下载浏览器。只需执行一次（升级依赖后重新执行即可）。
+该命令会为前端工作区执行`pnpm install`（如缺失），并下载 Chromium headless shell 及所需系统库（Linux 下为`libnss3`、`libatk-bridge2.0-0`等）。macOS 和 Windows 仅下载浏览器 shell。只需执行一次（升级依赖后重新执行即可）。如果需要运行 headed、UI 或 debug 模式，可能还需要完整 Chromium 浏览器；可在`hack/tests`目录按需执行`pnpm exec playwright install --with-deps chromium`显式安装。
 
 ## 目录结构
 

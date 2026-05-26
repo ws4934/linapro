@@ -12,8 +12,8 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
-	pkgorgcap "lina-core/pkg/orgcap"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // Host data-scope levels reused by governed data-table access.
@@ -30,7 +30,8 @@ func applyResourceDataScope(
 	ctx context.Context,
 	model *gdb.Model,
 	resource *catalog.ResourceSpec,
-	identity *pluginbridge.IdentitySnapshotV1,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
 ) (*gdb.Model, error) {
 	if model == nil || resource == nil || resource.DataScope == nil {
 		return model, nil
@@ -55,7 +56,7 @@ func applyResourceDataScope(
 		if resource.DataScope.DeptColumn == "" {
 			return model.Where("1 = 0"), nil
 		}
-		deptIDs, deptErr := getCurrentResourceDeptIDs(ctx, int(identity.UserID))
+		deptIDs, deptErr := getCurrentResourceDeptIDs(ctx, int(identity.UserID), orgSvc)
 		if deptErr != nil {
 			return nil, deptErr
 		}
@@ -74,10 +75,9 @@ func applyResourceDataScope(
 }
 
 // getCurrentResourceDeptIDs returns the deduplicated department IDs assigned to the user.
-func getCurrentResourceDeptIDs(ctx context.Context, userID int) ([]int, error) {
-	provider := pkgorgcap.CurrentProvider()
-	if provider == nil {
+func getCurrentResourceDeptIDs(ctx context.Context, userID int, orgSvc orgcap.Service) ([]int, error) {
+	if orgSvc == nil {
 		return []int{}, nil
 	}
-	return provider.GetUserDeptIDs(ctx, userID)
+	return orgSvc.GetUserDeptIDs(ctx, userID)
 }

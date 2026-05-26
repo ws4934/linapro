@@ -14,15 +14,15 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
-	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // newUserTestService constructs user service tests through explicit dependencies.
-func newUserTestService(tenantEnablementReaders ...tenantcapsvc.PluginEnablementReader) Service {
+func newUserTestService(tenantRuntimes ...tenantcapsvc.ProviderRuntime) Service {
 	bizCtxSvc := bizctx.New()
 	configSvc := hostconfig.New()
 	clusterSvc := cluster.New(configSvc.GetCluster(context.Background()))
@@ -35,14 +35,14 @@ func newUserTestService(tenantEnablementReaders ...tenantcapsvc.PluginEnablement
 	}
 	orgCapSvc := orgcap.New(pluginSvc)
 	tenantSvc := tenantcapsvc.New(nil, nil)
-	if len(tenantEnablementReaders) > 0 {
-		tenantSvc = tenantcapsvc.New(tenantEnablementReaders[0], nil)
+	if len(tenantRuntimes) > 0 {
+		tenantSvc = tenantcapsvc.New(tenantRuntimes[0], nil)
 	}
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
 	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvcache.New())
-	return New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc).(*serviceImpl)
+	return New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc).(*serviceImpl)
 }
 
 // setUserTestBizCtx replaces the business context dependency and refreshes
@@ -56,11 +56,27 @@ func setUserTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
 // refreshes the derived data-scope service used by user-management tests.
 func setUserTestOrgCap(svc *serviceImpl, orgCapSvc orgcap.Service) {
 	svc.orgCapSvc = orgCapSvc
+	if orgScope, ok := orgCapSvc.(orgcap.ScopeService); ok {
+		svc.orgScope = orgScope
+	} else {
+		svc.orgScope = nil
+	}
+	if orgAssignment, ok := orgCapSvc.(orgcap.AssignmentService); ok {
+		svc.orgAssignment = orgAssignment
+	} else {
+		svc.orgAssignment = nil
+	}
 	refreshUserTestScope(svc)
 }
 
 // refreshUserTestScope rebuilds the stateless data-scope helper from the
 // current explicit fake dependencies.
 func refreshUserTestScope(svc *serviceImpl) {
-	svc.scopeSvc = datascope.New(svc.bizCtxSvc, svc.roleSvc, svc.orgCapSvc)
+	var orgScope orgcap.ScopeService
+	if svc.orgScope != nil {
+		orgScope = svc.orgScope
+	} else if scope, ok := svc.orgCapSvc.(orgcap.ScopeService); ok {
+		orgScope = scope
+	}
+	svc.scopeSvc = datascope.New(svc.bizCtxSvc, svc.roleSvc, orgScope)
 }

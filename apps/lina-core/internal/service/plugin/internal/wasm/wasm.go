@@ -8,8 +8,8 @@ import (
 
 	"github.com/tetratelabs/wazero"
 
-	bridgehostservice "lina-core/pkg/pluginbridge"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // ExecutionInput carries the minimum manifest data needed to run one bridge call.

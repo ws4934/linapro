@@ -23,10 +23,11 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/orgcap"
 	rolesvc "lina-core/internal/service/role"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes verifies file
@@ -139,8 +140,12 @@ func newFileDataScopeRoleService(bizCtxSvc bizctx.Service, orgCapSvc orgcap.Serv
 	configSvc := hostconfig.New()
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
 	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
-	roleSvc := rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
-	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
+	roleSvc := rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
+	var orgScope orgcap.ScopeService
+	if scope, ok := orgCapSvc.(orgcap.ScopeService); ok {
+		orgScope = scope
+	}
+	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgScope))
 	return roleSvc
 }
 
@@ -212,6 +217,22 @@ func (s fileScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 
 // Get returns the configured business context.
 func (s fileScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
+
+// Current returns the plugin-visible business context projection.
+func (s fileScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+	if s.ctx == nil {
+		return contract.CurrentContext{}
+	}
+	return contract.CurrentContext{
+		UserID:          s.ctx.UserId,
+		Username:        s.ctx.Username,
+		TenantID:        s.ctx.TenantId,
+		ActingUserID:    s.ctx.ActingUserId,
+		ActingAsTenant:  s.ctx.ActingAsTenant,
+		IsImpersonation: s.ctx.IsImpersonation,
+		PlatformBypass:  s.ctx.TenantId == 0,
+	}
+}
 
 // SetLocale is unused by file data-scope tests.
 func (s fileScopeStaticBizCtx) SetLocale(context.Context, string) {}

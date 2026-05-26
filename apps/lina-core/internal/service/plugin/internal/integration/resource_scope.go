@@ -11,7 +11,6 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
-	pkgorgcap "lina-core/pkg/orgcap"
 )
 
 // pluginResourceDataScopeMode classifies host role scopes for generic plugin resource filtering.
@@ -101,9 +100,8 @@ func (s *serviceImpl) getCurrentPluginResourceUserID(ctx context.Context) int {
 
 // getCurrentPluginResourceDeptIDs returns the deduplicated department IDs for the given user.
 func (s *serviceImpl) getCurrentPluginResourceDeptIDs(ctx context.Context, userID int) ([]int, error) {
-	provider := pkgorgcap.CurrentProvider()
-	if provider == nil {
+	if s == nil || s.orgSvc == nil {
 		return []int{}, nil
 	}
-	return provider.GetUserDeptIDs(ctx, userID)
+	return s.orgSvc.GetUserDeptIDs(ctx, userID)
 }

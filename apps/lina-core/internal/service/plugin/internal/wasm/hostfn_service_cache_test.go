@@ -15,7 +15,7 @@ import (
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/dialect"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // trackingCacheService records cache method calls while returning deterministic
@@ -119,18 +119,18 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	setResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheSet,
+		protocol.HostServiceMethodCacheSet,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheSetRequest(&pluginbridge.HostServiceCacheSetRequest{
+		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
 			Key:           "profile",
 			Value:         `{"enabled":true}`,
 			ExpireSeconds: 60,
 		}),
 	)
-	if setResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if setResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("set: expected success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
 	}
-	setPayload, err := pluginbridge.UnmarshalHostServiceCacheSetResponse(setResponse.Payload)
+	setPayload, err := protocol.UnmarshalHostServiceCacheSetResponse(setResponse.Payload)
 	if err != nil {
 		t.Fatalf("set payload decode failed: %v", err)
 	}
@@ -141,14 +141,14 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	getResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheGet,
+		protocol.HostServiceMethodCacheGet,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheGetRequest(&pluginbridge.HostServiceCacheGetRequest{Key: "profile"}),
+		protocol.MarshalHostServiceCacheGetRequest(&protocol.HostServiceCacheGetRequest{Key: "profile"}),
 	)
-	if getResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if getResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("get: expected success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
 	}
-	getPayload, err := pluginbridge.UnmarshalHostServiceCacheGetResponse(getResponse.Payload)
+	getPayload, err := protocol.UnmarshalHostServiceCacheGetResponse(getResponse.Payload)
 	if err != nil {
 		t.Fatalf("get payload decode failed: %v", err)
 	}
@@ -159,39 +159,39 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	incrResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheIncr,
+		protocol.HostServiceMethodCacheIncr,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheIncrRequest(&pluginbridge.HostServiceCacheIncrRequest{
+		protocol.MarshalHostServiceCacheIncrRequest(&protocol.HostServiceCacheIncrRequest{
 			Key:           "counter",
 			Delta:         2,
 			ExpireSeconds: 60,
 		}),
 	)
-	if incrResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if incrResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("incr: expected success, got status=%d payload=%s", incrResponse.Status, string(incrResponse.Payload))
 	}
-	incrPayload, err := pluginbridge.UnmarshalHostServiceCacheIncrResponse(incrResponse.Payload)
+	incrPayload, err := protocol.UnmarshalHostServiceCacheIncrResponse(incrResponse.Payload)
 	if err != nil {
 		t.Fatalf("incr payload decode failed: %v", err)
 	}
-	if incrPayload.Value == nil || incrPayload.Value.IntValue != 2 || incrPayload.Value.ValueKind != pluginbridge.HostServiceCacheValueKindInt {
+	if incrPayload.Value == nil || incrPayload.Value.IntValue != 2 || incrPayload.Value.ValueKind != protocol.HostServiceCacheValueKindInt {
 		t.Fatalf("incr payload: got %#v", incrPayload.Value)
 	}
 
 	expireResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheExpire,
+		protocol.HostServiceMethodCacheExpire,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheExpireRequest(&pluginbridge.HostServiceCacheExpireRequest{
+		protocol.MarshalHostServiceCacheExpireRequest(&protocol.HostServiceCacheExpireRequest{
 			Key:           "profile",
 			ExpireSeconds: 120,
 		}),
 	)
-	if expireResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if expireResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expire: expected success, got status=%d payload=%s", expireResponse.Status, string(expireResponse.Payload))
 	}
-	expirePayload, err := pluginbridge.UnmarshalHostServiceCacheExpireResponse(expireResponse.Payload)
+	expirePayload, err := protocol.UnmarshalHostServiceCacheExpireResponse(expireResponse.Payload)
 	if err != nil {
 		t.Fatalf("expire payload decode failed: %v", err)
 	}
@@ -202,25 +202,25 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	deleteResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheDelete,
+		protocol.HostServiceMethodCacheDelete,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheDeleteRequest(&pluginbridge.HostServiceCacheDeleteRequest{Key: "profile"}),
+		protocol.MarshalHostServiceCacheDeleteRequest(&protocol.HostServiceCacheDeleteRequest{Key: "profile"}),
 	)
-	if deleteResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("delete: expected success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
 	}
 
 	getDeletedResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheGet,
+		protocol.HostServiceMethodCacheGet,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheGetRequest(&pluginbridge.HostServiceCacheGetRequest{Key: "profile"}),
+		protocol.MarshalHostServiceCacheGetRequest(&protocol.HostServiceCacheGetRequest{Key: "profile"}),
 	)
-	if getDeletedResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if getDeletedResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("get after delete: expected success, got status=%d payload=%s", getDeletedResponse.Status, string(getDeletedResponse.Payload))
 	}
-	getDeletedPayload, err := pluginbridge.UnmarshalHostServiceCacheGetResponse(getDeletedResponse.Payload)
+	getDeletedPayload, err := protocol.UnmarshalHostServiceCacheGetResponse(getDeletedResponse.Payload)
 	if err != nil {
 		t.Fatalf("get after delete payload decode failed: %v", err)
 	}
@@ -238,14 +238,14 @@ func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
 	response := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheSet,
+		protocol.HostServiceMethodCacheSet,
 		"orders-cache",
-		pluginbridge.MarshalHostServiceCacheSetRequest(&pluginbridge.HostServiceCacheSetRequest{
+		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
 			Key:   "oversized",
 			Value: strings.Repeat("a", 4097),
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusInvalidRequest {
+	if response.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request for oversized cache value, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -256,11 +256,11 @@ func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) 
 	response := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheGet,
+		protocol.HostServiceMethodCacheGet,
 		"other-cache",
-		pluginbridge.MarshalHostServiceCacheGetRequest(&pluginbridge.HostServiceCacheGetRequest{Key: "profile"}),
+		protocol.MarshalHostServiceCacheGetRequest(&protocol.HostServiceCacheGetRequest{Key: "profile"}),
 	)
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected capability denied for unauthorized cache namespace, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -281,24 +281,24 @@ func TestHandleHostServiceInvokeCacheUsesConfiguredSharedService(t *testing.T) {
 	setResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheSet,
+		protocol.HostServiceMethodCacheSet,
 		"orders-cache",
-		pluginbridge.MarshalHostServiceCacheSetRequest(&pluginbridge.HostServiceCacheSetRequest{
+		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
 			Key:   "profile",
 			Value: "shared",
 		}),
 	)
-	if setResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if setResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("set through shared cache: expected success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
 	}
 	getResponse := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheGet,
+		protocol.HostServiceMethodCacheGet,
 		"orders-cache",
-		pluginbridge.MarshalHostServiceCacheGetRequest(&pluginbridge.HostServiceCacheGetRequest{Key: "profile"}),
+		protocol.MarshalHostServiceCacheGetRequest(&protocol.HostServiceCacheGetRequest{Key: "profile"}),
 	)
-	if getResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if getResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("get through shared cache: expected success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
 	}
 	if cacheSvc.setCalls != 1 || cacheSvc.getCalls != 1 {
@@ -373,18 +373,18 @@ func newCacheHostCallContext(pluginID string, namespace string) *hostCallContext
 	return &hostCallContext{
 		pluginID: pluginID,
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityCache: {},
+			protocol.CapabilityCache: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceCache,
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceCache,
 			Methods: []string{
-				pluginbridge.HostServiceMethodCacheDelete,
-				pluginbridge.HostServiceMethodCacheExpire,
-				pluginbridge.HostServiceMethodCacheGet,
-				pluginbridge.HostServiceMethodCacheIncr,
-				pluginbridge.HostServiceMethodCacheSet,
+				protocol.HostServiceMethodCacheDelete,
+				protocol.HostServiceMethodCacheExpire,
+				protocol.HostServiceMethodCacheGet,
+				protocol.HostServiceMethodCacheIncr,
+				protocol.HostServiceMethodCacheSet,
 			},
-			Resources: []*pluginbridge.HostServiceResourceSpec{
+			Resources: []*protocol.HostServiceResourceSpec{
 				{Ref: namespace},
 			},
 		}},
@@ -394,7 +394,7 @@ func newCacheHostCallContext(pluginID string, namespace string) *hostCallContext
 // newTenantCacheHostCallContext builds a cache host call context with a tenant identity.
 func newTenantCacheHostCallContext(pluginID string, namespace string, tenantID int32) *hostCallContext {
 	hcc := newCacheHostCallContext(pluginID, namespace)
-	hcc.identity = &pluginbridge.IdentitySnapshotV1{TenantId: tenantID, UserID: 1, Username: "admin"}
+	hcc.identity = &protocol.IdentitySnapshotV1{TenantId: tenantID, UserID: 1, Username: "admin"}
 	return hcc
 }
 
@@ -404,14 +404,14 @@ func setTenantCacheValue(t *testing.T, hcc *hostCallContext, namespace string, k
 	response := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheSet,
+		protocol.HostServiceMethodCacheSet,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheSetRequest(&pluginbridge.HostServiceCacheSetRequest{
+		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
 			Key:   key,
 			Value: value,
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("set cache value: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -422,14 +422,14 @@ func assertTenantCacheValue(t *testing.T, hcc *hostCallContext, namespace string
 	response := invokeCacheHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodCacheGet,
+		protocol.HostServiceMethodCacheGet,
 		namespace,
-		pluginbridge.MarshalHostServiceCacheGetRequest(&pluginbridge.HostServiceCacheGetRequest{Key: key}),
+		protocol.MarshalHostServiceCacheGetRequest(&protocol.HostServiceCacheGetRequest{Key: key}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("get cache value: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	payload, err := pluginbridge.UnmarshalHostServiceCacheGetResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceCacheGetResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("decode cache get payload failed: %v", err)
 	}
@@ -445,11 +445,11 @@ func invokeCacheHostService(
 	method string,
 	namespace string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceCache,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceCache,
 		Method:      method,
 		ResourceRef: namespace,
 		Payload:     payload,
@@ -457,6 +457,6 @@ func invokeCacheHostService(
 	return handleHostServiceInvoke(
 		context.Background(),
 		hcc,
-		pluginbridge.MarshalHostServiceRequestEnvelope(request),
+		protocol.MarshalHostServiceRequestEnvelope(request),
 	)
 }

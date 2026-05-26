@@ -10,18 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/net/ghttp"
 
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	runtimepkg "lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
-	"lina-core/pkg/pluginbridge"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin verifies startup
@@ -157,16 +154,16 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceRuntime,
-					Methods: []string{pluginbridge.HostServiceMethodRuntimeInfoNow},
+					Service: protocol.HostServiceRuntime,
+					Methods: []string{protocol.HostServiceMethodRuntimeInfoNow},
 				},
 				{
-					Service: pluginbridge.HostServiceStorage,
-					Methods: []string{pluginbridge.HostServiceMethodStorageGet},
+					Service: protocol.HostServiceStorage,
+					Methods: []string{protocol.HostServiceMethodStorageGet},
 					Paths:   []string{"private-files/"},
 				},
 			},
@@ -182,7 +179,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	authorization := &HostServiceAuthorizationInput{
 		Services: []*HostServiceAuthorizationDecision{
 			{
-				Service: pluginbridge.HostServiceStorage,
+				Service: protocol.HostServiceStorage,
 				Paths:   []string{"private-files/"},
 			},
 		},
@@ -265,13 +262,13 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceNetwork,
-					Methods: []string{pluginbridge.HostServiceMethodNetworkRequest},
-					Resources: []*pluginbridge.HostServiceResourceSpec{
+					Service: protocol.HostServiceNetwork,
+					Methods: []string{protocol.HostServiceMethodNetworkRequest},
+					Resources: []*protocol.HostServiceResourceSpec{
 						{Ref: "https://example.com/api"},
 					},
 				},
@@ -504,7 +501,7 @@ func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testi
 		service  = newTestService()
 		pluginID = autoEnableTenantProvisioningPluginID
 		version  = "v0.1.0"
-		tenantID = pkgtenantcap.TenantID(50101)
+		tenantID = tenantcap.TenantID(50101)
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
@@ -539,7 +536,7 @@ func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testi
 	}
 
 	tenantSvc := &autoEnableTenantProvisioningService{enabled: true, pluginSvc: service, tenantID: tenantID}
-	service.SetTenantCapability(tenantSvc)
+	service.SetTenantProvisioningCapability(tenantSvc)
 	if err = service.ReconcileAutoEnabledTenantPlugins(ctx); err != nil {
 		t.Fatalf("expected tenant provisioning reconciliation to succeed, got error: %v", err)
 	}
@@ -568,105 +565,8 @@ const autoEnableTenantProvisioningPluginID = "plugin-dev-auto-enable-tenant-prov
 type autoEnableTenantProvisioningService struct {
 	enabled        bool
 	pluginSvc      *serviceImpl
-	tenantID       pkgtenantcap.TenantID
+	tenantID       tenantcap.TenantID
 	provisionCalls int
-}
-
-// Enabled returns the configured tenant capability state.
-func (s *autoEnableTenantProvisioningService) Enabled(context.Context) bool {
-	return s.enabled
-}
-
-// Current returns the fake current tenant.
-func (s *autoEnableTenantProvisioningService) Current(context.Context) tenantcapsvc.TenantID {
-	return s.tenantID
-}
-
-// Apply is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) Apply(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, error) {
-	return model, nil
-}
-
-// PlatformBypass is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) PlatformBypass(context.Context) bool {
-	return false
-}
-
-// EnsureTenantVisible is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) EnsureTenantVisible(context.Context, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ResolveTenant is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ResolveTenant(
-	context.Context,
-	*ghttp.Request,
-) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: s.tenantID, Matched: true}, nil
-}
-
-// ApplyUserTenantScope is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ApplyUserTenantScope(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenants is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return nil, nil
-}
-
-// ApplyUserTenantFilter is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ApplyUserTenantFilter(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-	_ tenantcapsvc.TenantID,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenantProjections is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ResolveUserTenantAssignment(
-	context.Context,
-	[]pkgtenantcap.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
-}
-
-// EnsureUsersInTenant is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) EnsureUsersInTenant(context.Context, []int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ValidateUserMembershipStartupConsistency is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
-	return nil, nil
 }
 
 // ProvisionAutoEnabledTenantPlugins records startup provisioning and writes the

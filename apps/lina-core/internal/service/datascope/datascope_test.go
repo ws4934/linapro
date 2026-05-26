@@ -16,7 +16,7 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/orgcap"
+	"lina-core/pkg/plugin/capability/contract"
 )
 
 // TestCurrentResolvesWidestScope verifies super-admin, enabled-role merging,
@@ -187,6 +187,22 @@ func (s dataScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 // Get returns the configured business context.
 func (s dataScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
+// Current returns the plugin-visible business context projection.
+func (s dataScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+	if s.ctx == nil {
+		return contract.CurrentContext{}
+	}
+	return contract.CurrentContext{
+		UserID:          s.ctx.UserId,
+		Username:        s.ctx.Username,
+		TenantID:        s.ctx.TenantId,
+		ActingUserID:    s.ctx.ActingUserId,
+		ActingAsTenant:  s.ctx.ActingAsTenant,
+		IsImpersonation: s.ctx.IsImpersonation,
+		PlatformBypass:  s.ctx.TenantId == 0,
+	}
+}
+
 // SetLocale is unused by data-scope tests.
 func (s dataScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
@@ -221,42 +237,12 @@ func (r *dataScopeRoleReader) GetUserDataScopeSnapshot(_ context.Context, userID
 	return &AccessSnapshot{UserID: userID, Scope: ScopeNone}, nil
 }
 
-// dataScopeDisabledOrgCap provides the explicit organization dependency for
-// tests that do not exercise department-aware data-scope behavior.
+// dataScopeDisabledOrgCap provides the explicit organization scope dependency
+// for tests that do not exercise department-aware data-scope behavior.
 type dataScopeDisabledOrgCap struct{}
 
-// Enabled reports organization capability as unavailable.
-func (dataScopeDisabledOrgCap) Enabled(context.Context) bool { return false }
-
-// ListUserDeptAssignments returns no department projections.
-func (dataScopeDisabledOrgCap) ListUserDeptAssignments(context.Context, []int) (map[int]*orgcap.UserDeptAssignment, error) {
-	return map[int]*orgcap.UserDeptAssignment{}, nil
-}
-
-// GetUserIDsByDept returns no users.
-func (dataScopeDisabledOrgCap) GetUserIDsByDept(context.Context, int) ([]int, error) {
-	return []int{}, nil
-}
-
-// GetAllAssignedUserIDs returns no assigned users.
-func (dataScopeDisabledOrgCap) GetAllAssignedUserIDs(context.Context) ([]int, error) {
-	return []int{}, nil
-}
-
-// GetUserDeptInfo returns no department projection.
-func (dataScopeDisabledOrgCap) GetUserDeptInfo(context.Context, int) (int, string, error) {
-	return 0, "", nil
-}
-
-// GetUserDeptName returns no department name.
-func (dataScopeDisabledOrgCap) GetUserDeptName(context.Context, int) (string, error) {
-	return "", nil
-}
-
-// GetUserDeptIDs returns no department IDs.
-func (dataScopeDisabledOrgCap) GetUserDeptIDs(context.Context, int) ([]int, error) {
-	return []int{}, nil
-}
+// Available reports organization capability as unavailable.
+func (dataScopeDisabledOrgCap) Available(context.Context) bool { return false }
 
 // ApplyUserDeptScope reports an empty department scope.
 func (dataScopeDisabledOrgCap) ApplyUserDeptScope(_ context.Context, model *gdb.Model, _ string, _ int) (*gdb.Model, bool, error) {
@@ -268,29 +254,14 @@ func (dataScopeDisabledOrgCap) BuildUserDeptScopeExists(context.Context, string,
 	return nil, true, nil
 }
 
-// GetUserPostIDs returns no post IDs.
-func (dataScopeDisabledOrgCap) GetUserPostIDs(context.Context, int) ([]int, error) {
-	return []int{}, nil
+// ApplyUserDeptFilter reports no visible department users.
+func (dataScopeDisabledOrgCap) ApplyUserDeptFilter(_ context.Context, model *gdb.Model, _ string, _ int) (*gdb.Model, bool, error) {
+	return model, true, nil
 }
 
-// ReplaceUserAssignments accepts assignment replacement.
-func (dataScopeDisabledOrgCap) ReplaceUserAssignments(context.Context, int, *int, []int) error {
-	return nil
-}
-
-// CleanupUserAssignments accepts assignment cleanup.
-func (dataScopeDisabledOrgCap) CleanupUserAssignments(context.Context, int) error {
-	return nil
-}
-
-// UserDeptTree returns no department tree.
-func (dataScopeDisabledOrgCap) UserDeptTree(context.Context) ([]*orgcap.DeptTreeNode, error) {
-	return []*orgcap.DeptTreeNode{}, nil
-}
-
-// ListPostOptions returns no post options.
-func (dataScopeDisabledOrgCap) ListPostOptions(context.Context, *int) ([]*orgcap.PostOption, error) {
-	return []*orgcap.PostOption{}, nil
+// ApplyUserDeptUnassignedFilter reports no extra unassigned filter.
+func (dataScopeDisabledOrgCap) ApplyUserDeptUnassignedFilter(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, bool, error) {
+	return model, false, nil
 }
 
 // insertDataScopeUser inserts one temporary user for data-scope integration tests.
@@ -319,7 +290,7 @@ func cleanupDataScopeUsers(t *testing.T, ctx context.Context, userIDs []int) {
 	}
 }
 
-// dataScopeTrackingOrgCap records organization capability calls.
+// dataScopeTrackingOrgCap records organization scope calls.
 type dataScopeTrackingOrgCap struct {
 	enabled             bool
 	applyCalls          int
@@ -331,38 +302,8 @@ type dataScopeTrackingOrgCap struct {
 	existsModel         *gdb.Model
 }
 
-// Enabled returns the configured organization capability state.
-func (f *dataScopeTrackingOrgCap) Enabled(context.Context) bool { return f.enabled }
-
-// ListUserDeptAssignments returns no department projections.
-func (f *dataScopeTrackingOrgCap) ListUserDeptAssignments(context.Context, []int) (map[int]*orgcap.UserDeptAssignment, error) {
-	return map[int]*orgcap.UserDeptAssignment{}, nil
-}
-
-// GetUserIDsByDept returns no users.
-func (f *dataScopeTrackingOrgCap) GetUserIDsByDept(context.Context, int) ([]int, error) {
-	return []int{}, nil
-}
-
-// GetAllAssignedUserIDs returns no assigned users.
-func (f *dataScopeTrackingOrgCap) GetAllAssignedUserIDs(context.Context) ([]int, error) {
-	return []int{}, nil
-}
-
-// GetUserDeptInfo returns no department projection.
-func (f *dataScopeTrackingOrgCap) GetUserDeptInfo(context.Context, int) (int, string, error) {
-	return 0, "", nil
-}
-
-// GetUserDeptName returns no department name.
-func (f *dataScopeTrackingOrgCap) GetUserDeptName(context.Context, int) (string, error) {
-	return "", nil
-}
-
-// GetUserDeptIDs returns no department IDs.
-func (f *dataScopeTrackingOrgCap) GetUserDeptIDs(context.Context, int) ([]int, error) {
-	return []int{}, nil
-}
+// Available returns the configured organization capability state.
+func (f *dataScopeTrackingOrgCap) Available(context.Context) bool { return f.enabled }
 
 // ApplyUserDeptScope records the department-scope invocation.
 func (f *dataScopeTrackingOrgCap) ApplyUserDeptScope(_ context.Context, model *gdb.Model, userIDColumn string, currentUserID int) (*gdb.Model, bool, error) {
@@ -383,27 +324,12 @@ func (f *dataScopeTrackingOrgCap) BuildUserDeptScopeExists(_ context.Context, us
 	return f.existsModel, false, nil
 }
 
-// GetUserPostIDs returns no post IDs.
-func (f *dataScopeTrackingOrgCap) GetUserPostIDs(context.Context, int) ([]int, error) {
-	return []int{}, nil
+// ApplyUserDeptFilter applies a deterministic department filter in tests.
+func (f *dataScopeTrackingOrgCap) ApplyUserDeptFilter(_ context.Context, model *gdb.Model, userIDColumn string, deptID int) (*gdb.Model, bool, error) {
+	return model.Where(userIDColumn, deptID), false, nil
 }
 
-// ReplaceUserAssignments accepts assignment replacement.
-func (f *dataScopeTrackingOrgCap) ReplaceUserAssignments(context.Context, int, *int, []int) error {
-	return nil
-}
-
-// CleanupUserAssignments accepts assignment cleanup.
-func (f *dataScopeTrackingOrgCap) CleanupUserAssignments(context.Context, int) error {
-	return nil
-}
-
-// UserDeptTree returns no department tree.
-func (f *dataScopeTrackingOrgCap) UserDeptTree(context.Context) ([]*orgcap.DeptTreeNode, error) {
-	return []*orgcap.DeptTreeNode{}, nil
-}
-
-// ListPostOptions returns no post options.
-func (f *dataScopeTrackingOrgCap) ListPostOptions(context.Context, *int) ([]*orgcap.PostOption, error) {
-	return []*orgcap.PostOption{}, nil
+// ApplyUserDeptUnassignedFilter applies a deterministic unassigned filter in tests.
+func (f *dataScopeTrackingOrgCap) ApplyUserDeptUnassignedFilter(_ context.Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error) {
+	return model.Where(userIDColumn, 0), false, nil
 }

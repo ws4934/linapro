@@ -6,15 +6,15 @@ package wasm
 import (
 	"testing"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestValidateCapabilitiesAcceptsValid verifies known capabilities pass schema
 // validation.
 func TestValidateCapabilitiesAcceptsValid(t *testing.T) {
-	err := pluginbridge.ValidateCapabilities([]string{
-		pluginbridge.CapabilityRuntime,
-		pluginbridge.CapabilityDataRead,
+	err := protocol.ValidateCapabilities([]string{
+		protocol.CapabilityRuntime,
+		protocol.CapabilityDataRead,
 	})
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -24,7 +24,7 @@ func TestValidateCapabilitiesAcceptsValid(t *testing.T) {
 // TestValidateCapabilitiesRejectsUnknown verifies unknown capability names are
 // rejected by validation.
 func TestValidateCapabilitiesRejectsUnknown(t *testing.T) {
-	err := pluginbridge.ValidateCapabilities([]string{pluginbridge.CapabilityRuntime, "host:unknown"})
+	err := protocol.ValidateCapabilities([]string{protocol.CapabilityRuntime, "host:unknown"})
 	if err == nil {
 		t.Error("expected error for unknown capability")
 	}
@@ -33,7 +33,7 @@ func TestValidateCapabilitiesRejectsUnknown(t *testing.T) {
 // TestValidateCapabilitiesRejectsEmpty verifies empty capability entries are
 // rejected during validation.
 func TestValidateCapabilitiesRejectsEmpty(t *testing.T) {
-	err := pluginbridge.ValidateCapabilities([]string{""})
+	err := protocol.ValidateCapabilities([]string{""})
 	if err == nil {
 		t.Error("expected error for empty capability")
 	}
@@ -42,18 +42,18 @@ func TestValidateCapabilitiesRejectsEmpty(t *testing.T) {
 // TestCapabilitiesFromHostServicesDerivesRuntimeCapability verifies runtime
 // host services imply the runtime capability grant.
 func TestCapabilitiesFromHostServicesDerivesRuntimeCapability(t *testing.T) {
-	capabilities := pluginbridge.CapabilitiesFromHostServices(
-		[]*pluginbridge.HostServiceSpec{
+	capabilities := protocol.CapabilitiesFromHostServices(
+		[]*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
+				Service: protocol.HostServiceRuntime,
 				Methods: []string{
-					pluginbridge.HostServiceMethodRuntimeLogWrite,
-					pluginbridge.HostServiceMethodRuntimeInfoUUID,
+					protocol.HostServiceMethodRuntimeLogWrite,
+					protocol.HostServiceMethodRuntimeInfoUUID,
 				},
 			},
 		},
 	)
-	if len(capabilities) != 1 || capabilities[0] != pluginbridge.CapabilityRuntime {
+	if len(capabilities) != 1 || capabilities[0] != protocol.CapabilityRuntime {
 		t.Fatalf("expected derived runtime capability, got %#v", capabilities)
 	}
 }
@@ -64,13 +64,13 @@ func TestHostCallContextHasCapability(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityRuntime: {},
+			protocol.CapabilityRuntime: {},
 		},
 	}
-	if !hcc.hasCapability(pluginbridge.CapabilityRuntime) {
+	if !hcc.hasCapability(protocol.CapabilityRuntime) {
 		t.Error("expected host:runtime to be granted")
 	}
-	if hcc.hasCapability(pluginbridge.CapabilityStorage) {
+	if hcc.hasCapability(protocol.CapabilityStorage) {
 		t.Error("expected host:storage to not be granted")
 	}
 }
@@ -80,20 +80,20 @@ func TestHostCallContextHasCapability(t *testing.T) {
 func TestHostCallContextHasHostServiceAccess(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
+				Service: protocol.HostServiceRuntime,
 				Methods: []string{
-					pluginbridge.HostServiceMethodRuntimeLogWrite,
-					pluginbridge.HostServiceMethodRuntimeInfoUUID,
+					protocol.HostServiceMethodRuntimeLogWrite,
+					protocol.HostServiceMethodRuntimeInfoUUID,
 				},
 			},
 		},
 	}
-	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceRuntime, pluginbridge.HostServiceMethodRuntimeLogWrite, "", "") {
+	if !hcc.hasHostServiceAccess(protocol.HostServiceRuntime, protocol.HostServiceMethodRuntimeLogWrite, "", "") {
 		t.Error("expected runtime log.write to be authorized")
 	}
-	if hcc.hasHostServiceAccess(pluginbridge.HostServiceRuntime, pluginbridge.HostServiceMethodRuntimeStateGet, "", "") {
+	if hcc.hasHostServiceAccess(protocol.HostServiceRuntime, protocol.HostServiceMethodRuntimeStateGet, "", "") {
 		t.Error("expected runtime state.get to be denied")
 	}
 }
@@ -103,19 +103,19 @@ func TestHostCallContextHasHostServiceAccess(t *testing.T) {
 func TestHostCallContextDefaultsConfigMethods(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceConfig,
+				Service: protocol.HostServiceConfig,
 			},
 		},
 	}
-	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceConfig, pluginbridge.HostServiceMethodConfigGet, "", "") {
+	if !hcc.hasHostServiceAccess(protocol.HostServiceConfig, protocol.HostServiceMethodConfigGet, "", "") {
 		t.Error("expected config get to be authorized when methods are omitted")
 	}
-	if hcc.hasHostServiceAccess(pluginbridge.HostServiceConfig, pluginbridge.HostServiceMethodConfigExists, "", "") {
+	if hcc.hasHostServiceAccess(protocol.HostServiceConfig, protocol.HostServiceMethodConfigExists, "", "") {
 		t.Error("expected config exists helper method to be unauthorized")
 	}
-	if hcc.hasHostServiceAccess(pluginbridge.HostServiceConfig, "set", "", "") {
+	if hcc.hasHostServiceAccess(protocol.HostServiceConfig, "set", "", "") {
 		t.Error("expected unsupported config method to remain unauthorized")
 	}
 }
@@ -125,16 +125,16 @@ func TestHostCallContextDefaultsConfigMethods(t *testing.T) {
 func TestHostCallContextHasHostConfigKeyAccess(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceHostConfig,
-			Methods: []string{pluginbridge.HostServiceMethodHostConfigGet},
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceHostConfig,
+			Methods: []string{protocol.HostServiceMethodHostConfigGet},
 			Keys:    []string{"workspace.basePath"},
 		}},
 	}
-	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceHostConfig, pluginbridge.HostServiceMethodHostConfigGet, "workspace.basePath", "") {
+	if !hcc.hasHostServiceAccess(protocol.HostServiceHostConfig, protocol.HostServiceMethodHostConfigGet, "workspace.basePath", "") {
 		t.Error("expected authorized hostConfig key to be allowed")
 	}
-	if hcc.hasHostServiceAccess(pluginbridge.HostServiceHostConfig, pluginbridge.HostServiceMethodHostConfigGet, "database.default.link", "") {
+	if hcc.hasHostServiceAccess(protocol.HostServiceHostConfig, protocol.HostServiceMethodHostConfigGet, "database.default.link", "") {
 		t.Error("expected unauthorized hostConfig key to be denied")
 	}
 }
@@ -144,19 +144,19 @@ func TestHostCallContextHasHostConfigKeyAccess(t *testing.T) {
 func TestHostCallContextHasManifestPathAccess(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceManifest,
-			Methods: []string{pluginbridge.HostServiceMethodManifestGet},
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceManifest,
+			Methods: []string{protocol.HostServiceMethodManifestGet},
 			Paths:   []string{"metadata.yaml", "resources/*.yaml"},
 		}},
 	}
-	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceManifest, pluginbridge.HostServiceMethodManifestGet, "metadata.yaml", "") {
+	if !hcc.hasHostServiceAccess(protocol.HostServiceManifest, protocol.HostServiceMethodManifestGet, "metadata.yaml", "") {
 		t.Error("expected exact manifest path to be allowed")
 	}
-	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceManifest, pluginbridge.HostServiceMethodManifestGet, "resources/policy.yaml", "") {
+	if !hcc.hasHostServiceAccess(protocol.HostServiceManifest, protocol.HostServiceMethodManifestGet, "resources/policy.yaml", "") {
 		t.Error("expected globbed manifest path to be allowed")
 	}
-	if hcc.hasHostServiceAccess(pluginbridge.HostServiceManifest, pluginbridge.HostServiceMethodManifestGet, "config/config.yaml", "") {
+	if hcc.hasHostServiceAccess(protocol.HostServiceManifest, protocol.HostServiceMethodManifestGet, "config/config.yaml", "") {
 		t.Error("expected dedicated config manifest path to be denied")
 	}
 }
@@ -166,18 +166,18 @@ func TestHostCallContextHasManifestPathAccess(t *testing.T) {
 func TestHostCallContextHasDataTableAccess(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceData,
-				Methods: []string{pluginbridge.HostServiceMethodDataList},
+				Service: protocol.HostServiceData,
+				Methods: []string{protocol.HostServiceMethodDataList},
 				Tables:  []string{"sys_plugin_node_state"},
 			},
 		},
 	}
-	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceData, pluginbridge.HostServiceMethodDataList, "", "sys_plugin_node_state") {
+	if !hcc.hasHostServiceAccess(protocol.HostServiceData, protocol.HostServiceMethodDataList, "", "sys_plugin_node_state") {
 		t.Error("expected data list on authorized table to be allowed")
 	}
-	if hcc.hasHostServiceAccess(pluginbridge.HostServiceData, pluginbridge.HostServiceMethodDataList, "", "sys_user") {
+	if hcc.hasHostServiceAccess(protocol.HostServiceData, protocol.HostServiceMethodDataList, "", "sys_user") {
 		t.Error("expected data list on unauthorized table to be denied")
 	}
 }
@@ -188,21 +188,21 @@ func TestHandleHostServiceInvokeRejectsUnsupportedMethod(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityRuntime: {},
+			protocol.CapabilityRuntime: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
-				Methods: []string{pluginbridge.HostServiceMethodRuntimeInfoUUID},
+				Service: protocol.HostServiceRuntime,
+				Methods: []string{protocol.HostServiceMethodRuntimeInfoUUID},
 			},
 		},
 	}
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service: pluginbridge.HostServiceRuntime,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service: protocol.HostServiceRuntime,
 		Method:  "info.unknown",
 	}
-	response := handleHostServiceInvoke(nil, hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
-	if response.Status != pluginbridge.HostCallStatusNotFound {
+	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	if response.Status != protocol.HostCallStatusNotFound {
 		t.Errorf("expected not_found, got status %d", response.Status)
 	}
 }
@@ -213,21 +213,21 @@ func TestHandleHostServiceInvokeRejectsUnauthorizedMethod(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityRuntime: {},
+			protocol.CapabilityRuntime: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
-				Methods: []string{pluginbridge.HostServiceMethodRuntimeInfoUUID},
+				Service: protocol.HostServiceRuntime,
+				Methods: []string{protocol.HostServiceMethodRuntimeInfoUUID},
 			},
 		},
 	}
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service: pluginbridge.HostServiceRuntime,
-		Method:  pluginbridge.HostServiceMethodRuntimeInfoNode,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service: protocol.HostServiceRuntime,
+		Method:  protocol.HostServiceMethodRuntimeInfoNode,
 	}
-	response := handleHostServiceInvoke(nil, hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Errorf("expected capability_denied, got status %d", response.Status)
 	}
 }
@@ -238,26 +238,26 @@ func TestHandleHostServiceInvokeRejectsUnauthorizedResourceRef(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityStorage: {},
+			protocol.CapabilityStorage: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceStorage,
-				Methods: []string{pluginbridge.HostServiceMethodStorageGet},
+				Service: protocol.HostServiceStorage,
+				Methods: []string{protocol.HostServiceMethodStorageGet},
 				Paths:   []string{"authorized-files/"},
 			},
 		},
 	}
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceStorage,
-		Method:      pluginbridge.HostServiceMethodStorageGet,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceStorage,
+		Method:      protocol.HostServiceMethodStorageGet,
 		ResourceRef: "denied-files/demo.txt",
-		Payload: pluginbridge.MarshalHostServiceStorageGetRequest(&pluginbridge.HostServiceStorageGetRequest{
+		Payload: protocol.MarshalHostServiceStorageGetRequest(&protocol.HostServiceStorageGetRequest{
 			Path: "denied-files/demo.txt",
 		}),
 	}
-	response := handleHostServiceInvoke(nil, hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Errorf("expected capability_denied, got status %d", response.Status)
 	}
 }
@@ -268,24 +268,24 @@ func TestHandleHostServiceInvokeReturnsRuntimeUUID(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityRuntime: {},
+			protocol.CapabilityRuntime: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
-				Methods: []string{pluginbridge.HostServiceMethodRuntimeInfoUUID},
+				Service: protocol.HostServiceRuntime,
+				Methods: []string{protocol.HostServiceMethodRuntimeInfoUUID},
 			},
 		},
 	}
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service: pluginbridge.HostServiceRuntime,
-		Method:  pluginbridge.HostServiceMethodRuntimeInfoUUID,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service: protocol.HostServiceRuntime,
+		Method:  protocol.HostServiceMethodRuntimeInfoUUID,
 	}
-	response := handleHostServiceInvoke(nil, hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected success, got status %d payload=%s", response.Status, string(response.Payload))
 	}
-	value, err := pluginbridge.UnmarshalHostServiceValueResponse(response.Payload)
+	value, err := protocol.UnmarshalHostServiceValueResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("expected runtime info payload to decode, got error: %v", err)
 	}

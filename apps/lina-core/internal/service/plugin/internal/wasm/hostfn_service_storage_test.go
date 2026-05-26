@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/config"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // trackingStorageConfig records dynamic storage path reads for shared-instance
@@ -41,19 +41,19 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	putResponse := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStoragePut,
+		protocol.HostServiceMethodStoragePut,
 		"reports/demo.json",
-		pluginbridge.MarshalHostServiceStoragePutRequest(&pluginbridge.HostServiceStoragePutRequest{
+		protocol.MarshalHostServiceStoragePutRequest(&protocol.HostServiceStoragePutRequest{
 			Path:        "reports/demo.json",
 			Body:        []byte(`{"ok":true}`),
 			ContentType: "application/json",
 			Overwrite:   false,
 		}),
 	)
-	if putResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if putResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("put: expected success, got status=%d payload=%s", putResponse.Status, string(putResponse.Payload))
 	}
-	putPayload, err := pluginbridge.UnmarshalHostServiceStoragePutResponse(putResponse.Payload)
+	putPayload, err := protocol.UnmarshalHostServiceStoragePutResponse(putResponse.Payload)
 	if err != nil {
 		t.Fatalf("put payload decode failed: %v", err)
 	}
@@ -80,14 +80,14 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	getResponse := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStorageGet,
+		protocol.HostServiceMethodStorageGet,
 		"reports/demo.json",
-		pluginbridge.MarshalHostServiceStorageGetRequest(&pluginbridge.HostServiceStorageGetRequest{Path: "reports/demo.json"}),
+		protocol.MarshalHostServiceStorageGetRequest(&protocol.HostServiceStorageGetRequest{Path: "reports/demo.json"}),
 	)
-	if getResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if getResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("get: expected success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
 	}
-	getPayload, err := pluginbridge.UnmarshalHostServiceStorageGetResponse(getResponse.Payload)
+	getPayload, err := protocol.UnmarshalHostServiceStorageGetResponse(getResponse.Payload)
 	if err != nil {
 		t.Fatalf("get payload decode failed: %v", err)
 	}
@@ -98,17 +98,17 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	listResponse := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStorageList,
+		protocol.HostServiceMethodStorageList,
 		"reports",
-		pluginbridge.MarshalHostServiceStorageListRequest(&pluginbridge.HostServiceStorageListRequest{
+		protocol.MarshalHostServiceStorageListRequest(&protocol.HostServiceStorageListRequest{
 			Prefix: "reports",
 			Limit:  10,
 		}),
 	)
-	if listResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if listResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("list: expected success, got status=%d payload=%s", listResponse.Status, string(listResponse.Payload))
 	}
-	listPayload, err := pluginbridge.UnmarshalHostServiceStorageListResponse(listResponse.Payload)
+	listPayload, err := protocol.UnmarshalHostServiceStorageListResponse(listResponse.Payload)
 	if err != nil {
 		t.Fatalf("list payload decode failed: %v", err)
 	}
@@ -119,25 +119,25 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	deleteResponse := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStorageDelete,
+		protocol.HostServiceMethodStorageDelete,
 		"reports/demo.json",
-		pluginbridge.MarshalHostServiceStorageDeleteRequest(&pluginbridge.HostServiceStorageDeleteRequest{Path: "reports/demo.json"}),
+		protocol.MarshalHostServiceStorageDeleteRequest(&protocol.HostServiceStorageDeleteRequest{Path: "reports/demo.json"}),
 	)
-	if deleteResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("delete: expected success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
 	}
 
 	statResponse := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStorageStat,
+		protocol.HostServiceMethodStorageStat,
 		"reports/demo.json",
-		pluginbridge.MarshalHostServiceStorageStatRequest(&pluginbridge.HostServiceStorageStatRequest{Path: "reports/demo.json"}),
+		protocol.MarshalHostServiceStorageStatRequest(&protocol.HostServiceStorageStatRequest{Path: "reports/demo.json"}),
 	)
-	if statResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if statResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("stat: expected success, got status=%d payload=%s", statResponse.Status, string(statResponse.Payload))
 	}
-	statPayload, err := pluginbridge.UnmarshalHostServiceStorageStatResponse(statResponse.Payload)
+	statPayload, err := protocol.UnmarshalHostServiceStorageStatResponse(statResponse.Payload)
 	if err != nil {
 		t.Fatalf("stat payload decode failed: %v", err)
 	}
@@ -167,29 +167,29 @@ func TestHandleHostServiceInvokeStorageLifecycleWithRelativeStorageRoot(t *testi
 	putResponse := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStoragePut,
+		protocol.HostServiceMethodStoragePut,
 		"reports/demo.json",
-		pluginbridge.MarshalHostServiceStoragePutRequest(&pluginbridge.HostServiceStoragePutRequest{
+		protocol.MarshalHostServiceStoragePutRequest(&protocol.HostServiceStoragePutRequest{
 			Path:        "reports/demo.json",
 			Body:        []byte(`{"ok":true}`),
 			ContentType: "application/json",
 		}),
 	)
-	if putResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if putResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("put with relative storage root: expected success, got status=%d payload=%s", putResponse.Status, string(putResponse.Payload))
 	}
 
 	listResponse := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStorageList,
+		protocol.HostServiceMethodStorageList,
 		"reports",
-		pluginbridge.MarshalHostServiceStorageListRequest(&pluginbridge.HostServiceStorageListRequest{Prefix: "reports", Limit: 10}),
+		protocol.MarshalHostServiceStorageListRequest(&protocol.HostServiceStorageListRequest{Prefix: "reports", Limit: 10}),
 	)
-	if listResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if listResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("list with relative storage root: expected success, got status=%d payload=%s", listResponse.Status, string(listResponse.Payload))
 	}
-	listPayload, err := pluginbridge.UnmarshalHostServiceStorageListResponse(listResponse.Payload)
+	listPayload, err := protocol.UnmarshalHostServiceStorageListResponse(listResponse.Payload)
 	if err != nil {
 		t.Fatalf("list payload decode failed: %v", err)
 	}
@@ -210,14 +210,14 @@ func TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath(t *testing.T) {
 	response := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStoragePut,
+		protocol.HostServiceMethodStoragePut,
 		"private/escape.txt",
-		pluginbridge.MarshalHostServiceStoragePutRequest(&pluginbridge.HostServiceStoragePutRequest{
+		protocol.MarshalHostServiceStoragePutRequest(&protocol.HostServiceStoragePutRequest{
 			Path: "private/escape.txt",
 			Body: []byte("blocked"),
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected capability denied for unauthorized path, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -234,14 +234,14 @@ func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 	response := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStoragePut,
+		protocol.HostServiceMethodStoragePut,
 		"reports/demo.json",
-		pluginbridge.MarshalHostServiceStoragePutRequest(&pluginbridge.HostServiceStoragePutRequest{
+		protocol.MarshalHostServiceStoragePutRequest(&protocol.HostServiceStoragePutRequest{
 			Path: "reports/other.json",
 			Body: []byte("blocked"),
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusInvalidRequest {
+	if response.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request for target mismatch, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -262,14 +262,14 @@ func TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig(t *testing.T) 
 	response := invokeStorageHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodStoragePut,
+		protocol.HostServiceMethodStoragePut,
 		"reports/demo.json",
-		pluginbridge.MarshalHostServiceStoragePutRequest(&pluginbridge.HostServiceStoragePutRequest{
+		protocol.MarshalHostServiceStoragePutRequest(&protocol.HostServiceStoragePutRequest{
 			Path: "reports/demo.json",
 			Body: []byte("shared"),
 		}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("put through shared storage config: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 	if configSvc.calls != 1 {
@@ -303,9 +303,9 @@ func TestConfigureStorageHostServiceRejectsNil(t *testing.T) {
 // TestMatchAuthorizedStoragePath verifies logical prefix and exact-file path
 // matching for authorized storage resources.
 func TestMatchAuthorizedStoragePath(t *testing.T) {
-	specs := []*pluginbridge.HostServiceSpec{{
-		Service: pluginbridge.HostServiceStorage,
-		Methods: []string{pluginbridge.HostServiceMethodStorageGet},
+	specs := []*protocol.HostServiceSpec{{
+		Service: protocol.HostServiceStorage,
+		Methods: []string{protocol.HostServiceMethodStorageGet},
 		Paths:   []string{"reports/", "exports/daily.json"},
 	}}
 
@@ -326,16 +326,16 @@ func newStorageHostCallContext(paths []string) *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-plugin-storage",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityStorage: {},
+			protocol.CapabilityStorage: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceStorage,
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceStorage,
 			Methods: []string{
-				pluginbridge.HostServiceMethodStorageDelete,
-				pluginbridge.HostServiceMethodStorageGet,
-				pluginbridge.HostServiceMethodStorageList,
-				pluginbridge.HostServiceMethodStoragePut,
-				pluginbridge.HostServiceMethodStorageStat,
+				protocol.HostServiceMethodStorageDelete,
+				protocol.HostServiceMethodStorageGet,
+				protocol.HostServiceMethodStorageList,
+				protocol.HostServiceMethodStoragePut,
+				protocol.HostServiceMethodStorageStat,
 			},
 			Paths: paths,
 		}},
@@ -350,11 +350,11 @@ func invokeStorageHostService(
 	method string,
 	targetPath string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceStorage,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceStorage,
 		Method:      method,
 		ResourceRef: targetPath,
 		Payload:     payload,
@@ -362,6 +362,6 @@ func invokeStorageHostService(
 	return handleHostServiceInvoke(
 		context.Background(),
 		hcc,
-		pluginbridge.MarshalHostServiceRequestEnvelope(request),
+		protocol.MarshalHostServiceRequestEnvelope(request),
 	)
 }

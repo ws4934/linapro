@@ -13,7 +13,7 @@ import (
 	menusvc "lina-core/internal/service/menu"
 	"lina-core/pkg/apitime"
 	"lina-core/pkg/menutype"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // GetAll returns all menus for the current user in Vben route format

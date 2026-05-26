@@ -562,7 +562,7 @@ func TestRunEnvSetupInstallsFrontendAndPlaywright(t *testing.T) {
 	}
 
 	got := strings.Join(commands, "\n")
-	expected := "pnpm install\npnpm exec playwright install --with-deps chromium"
+	expected := "pnpm install\npnpm exec playwright install --with-deps --only-shell chromium"
 	if got != expected {
 		t.Fatalf("unexpected env.setup commands:\ngot:\n%s\nexpected:\n%s", got, expected)
 	}
@@ -1823,8 +1823,8 @@ func TestPluginCommandSmokeFixtureIncludesLinactlLocalReplaceDeps(t *testing.T) 
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
-		`cp -R apps/lina-core/pkg/pluginbridge "$smoke_root/apps/lina-core/pkg/pluginbridge"`,
-		`cp -R apps/lina-core/pkg/plugindb "$smoke_root/apps/lina-core/pkg/plugindb"`,
+		`cp -R apps/lina-core/pkg/plugin/pluginbridge "$smoke_root/apps/lina-core/pkg/plugin/pluginbridge"`,
+		`cp -R apps/lina-core/pkg/plugin/capability/data "$smoke_root/apps/lina-core/pkg/plugin/capability/data"`,
 		`./apps/lina-core`,
 	} {
 		if !strings.Contains(text, expected) {
@@ -1849,8 +1849,8 @@ func TestMakeCommandSmokeDevFixtureIncludesLinactlLocalReplaceDeps(t *testing.T)
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
-		`cp -R apps/lina-core/pkg/pluginbridge "$smoke_root/apps/lina-core/pkg/pluginbridge"`,
-		`cp -R apps/lina-core/pkg/plugindb "$smoke_root/apps/lina-core/pkg/plugindb"`,
+		`cp -R apps/lina-core/pkg/plugin/pluginbridge "$smoke_root/apps/lina-core/pkg/plugin/pluginbridge"`,
+		`cp -R apps/lina-core/pkg/plugin/capability/data "$smoke_root/apps/lina-core/pkg/plugin/capability/data"`,
 		`./apps/lina-core`,
 	} {
 		if !strings.Contains(text, expected) {

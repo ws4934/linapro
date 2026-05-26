@@ -10,7 +10,7 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestHandleHostServiceInvokeDataLifecycle verifies governed data CRUD host calls.
@@ -26,25 +26,25 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin-wasm-data",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityDataRead:   {},
-			pluginbridge.CapabilityDataMutate: {},
+			protocol.CapabilityDataRead:   {},
+			protocol.CapabilityDataMutate: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceData,
+				Service: protocol.HostServiceData,
 				Methods: []string{
-					pluginbridge.HostServiceMethodDataList,
-					pluginbridge.HostServiceMethodDataGet,
-					pluginbridge.HostServiceMethodDataCreate,
-					pluginbridge.HostServiceMethodDataUpdate,
-					pluginbridge.HostServiceMethodDataDelete,
-					pluginbridge.HostServiceMethodDataTransaction,
+					protocol.HostServiceMethodDataList,
+					protocol.HostServiceMethodDataGet,
+					protocol.HostServiceMethodDataCreate,
+					protocol.HostServiceMethodDataUpdate,
+					protocol.HostServiceMethodDataDelete,
+					protocol.HostServiceMethodDataTransaction,
 				},
 				Tables: []string{table},
 			},
 		},
-		executionSource: pluginbridge.ExecutionSourceRoute,
-		identity: &pluginbridge.IdentitySnapshotV1{
+		executionSource: protocol.ExecutionSourceRoute,
+		identity: &protocol.IdentitySnapshotV1{
 			UserID:       1,
 			Username:     "admin",
 			DataScope:    1,
@@ -55,9 +55,9 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 	createResponse := invokeDataHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodDataCreate,
+		protocol.HostServiceMethodDataCreate,
 		table,
-		&pluginbridge.HostServiceDataMutationRequest{
+		&protocol.HostServiceDataMutationRequest{
 			RecordJSON: mustMarshalWasmJSON(t, map[string]any{
 				"pluginId":     pluginMarker,
 				"releaseId":    1,
@@ -69,10 +69,10 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 			}),
 		},
 	)
-	if createResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if createResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("create expected success, got status=%d payload=%s", createResponse.Status, string(createResponse.Payload))
 	}
-	createPayload, err := pluginbridge.UnmarshalHostServiceDataMutationResponse(createResponse.Payload)
+	createPayload, err := protocol.UnmarshalHostServiceDataMutationResponse(createResponse.Payload)
 	if err != nil {
 		t.Fatalf("decode create payload failed: %v", err)
 	}
@@ -83,18 +83,23 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 	listResponse := invokeDataHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodDataList,
+		protocol.HostServiceMethodDataList,
 		table,
-		&pluginbridge.HostServiceDataListRequest{
-			Filters:  map[string]string{"pluginId": pluginMarker},
-			PageNum:  1,
-			PageSize: 10,
+		&protocol.HostServiceDataListRequest{
+			PlanJSON: mustMarshalWasmJSON(t, map[string]any{
+				"table":  table,
+				"action": "list",
+				"filters": []map[string]any{
+					{"field": "pluginId", "operator": "eq", "valueJson": mustMarshalWasmJSON(t, pluginMarker)},
+				},
+				"page": map[string]any{"pageNum": 1, "pageSize": 10},
+			}),
 		},
 	)
-	if listResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if listResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("list expected success, got status=%d payload=%s", listResponse.Status, string(listResponse.Payload))
 	}
-	listPayload, err := pluginbridge.UnmarshalHostServiceDataListResponse(listResponse.Payload)
+	listPayload, err := protocol.UnmarshalHostServiceDataListResponse(listResponse.Payload)
 	if err != nil {
 		t.Fatalf("decode list payload failed: %v", err)
 	}
@@ -113,29 +118,32 @@ func TestHandleHostServiceInvokeDataRejectsAnonymousRequestAccess(t *testing.T) 
 	hcc := &hostCallContext{
 		pluginID: "test-plugin-wasm-data",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityDataRead: {},
+			protocol.CapabilityDataRead: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceData,
-				Methods: []string{pluginbridge.HostServiceMethodDataList},
+				Service: protocol.HostServiceData,
+				Methods: []string{protocol.HostServiceMethodDataList},
 				Tables:  []string{table},
 			},
 		},
-		executionSource: pluginbridge.ExecutionSourceRoute,
+		executionSource: protocol.ExecutionSourceRoute,
 	}
 
 	response := invokeDataHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodDataList,
+		protocol.HostServiceMethodDataList,
 		table,
-		&pluginbridge.HostServiceDataListRequest{
-			PageNum:  1,
-			PageSize: 10,
+		&protocol.HostServiceDataListRequest{
+			PlanJSON: mustMarshalWasmJSON(t, map[string]any{
+				"table":  table,
+				"action": "list",
+				"page":   map[string]any{"pageNum": 1, "pageSize": 10},
+			}),
 		},
 	)
-	if response.Status == pluginbridge.HostCallStatusSuccess {
+	if response.Status == protocol.HostCallStatusSuccess {
 		t.Fatal("expected anonymous request access to be rejected")
 	}
 	if !strings.Contains(string(response.Payload), "authenticated user") {
@@ -150,30 +158,30 @@ func invokeDataHostService(
 	method string,
 	table string,
 	request any,
-) *pluginbridge.HostCallResponseEnvelope {
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
 	var payload []byte
 	switch typedRequest := request.(type) {
-	case *pluginbridge.HostServiceDataListRequest:
-		payload = pluginbridge.MarshalHostServiceDataListRequest(typedRequest)
-	case *pluginbridge.HostServiceDataMutationRequest:
-		payload = pluginbridge.MarshalHostServiceDataMutationRequest(typedRequest)
-	case *pluginbridge.HostServiceDataGetRequest:
-		payload = pluginbridge.MarshalHostServiceDataGetRequest(typedRequest)
-	case *pluginbridge.HostServiceDataTransactionRequest:
-		payload = pluginbridge.MarshalHostServiceDataTransactionRequest(typedRequest)
+	case *protocol.HostServiceDataListRequest:
+		payload = protocol.MarshalHostServiceDataListRequest(typedRequest)
+	case *protocol.HostServiceDataMutationRequest:
+		payload = protocol.MarshalHostServiceDataMutationRequest(typedRequest)
+	case *protocol.HostServiceDataGetRequest:
+		payload = protocol.MarshalHostServiceDataGetRequest(typedRequest)
+	case *protocol.HostServiceDataTransactionRequest:
+		payload = protocol.MarshalHostServiceDataTransactionRequest(typedRequest)
 	default:
 		t.Fatalf("unsupported data host service request type: %T", request)
 	}
 
-	envelope := &pluginbridge.HostServiceRequestEnvelope{
-		Service: pluginbridge.HostServiceData,
+	envelope := &protocol.HostServiceRequestEnvelope{
+		Service: protocol.HostServiceData,
 		Method:  method,
 		Table:   table,
 		Payload: payload,
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, pluginbridge.MarshalHostServiceRequestEnvelope(envelope))
+	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(envelope))
 }
 
 // cleanupWasmTestNodeStates removes sys_plugin_node_state rows created by wasm data tests.

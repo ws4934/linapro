@@ -14,7 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"lina-core/pkg/pluginbridge"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
@@ -60,7 +61,7 @@ func collectHookSpecs(pluginDir string, pluginID string) ([]*hookSpec, error) {
 	return items, nil
 }
 
-func collectLifecycleSpecs(pluginDir string, pluginID string) ([]*lifecycleSpec, error) {
+func collectLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.LifecycleContract, error) {
 	discovered, err := discoverLifecycleSpecs(pluginDir, pluginID)
 	if err != nil {
 		return nil, err
@@ -73,18 +74,18 @@ func collectLifecycleSpecs(pluginDir string, pluginID string) ([]*lifecycleSpec,
 	if err != nil {
 		return nil, err
 	}
-	if err = pluginbridge.ValidateLifecycleContracts(pluginID, items); err != nil {
+	if err = protocol.ValidateLifecycleContracts(pluginID, items); err != nil {
 		return nil, fmt.Errorf("plugin lifecycle declaration is invalid: %w", err)
 	}
 	return items, nil
 }
 
-func collectLifecycleOverrides(pluginDir string, pluginID string) ([]*lifecycleSpec, error) {
+func collectLifecycleOverrides(pluginDir string, pluginID string) ([]*protocol.LifecycleContract, error) {
 	lifecycleDir := filepath.Join(pluginDir, "backend", "lifecycle")
 	entries, err := os.ReadDir(lifecycleDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*lifecycleSpec{}, nil
+			return []*protocol.LifecycleContract{}, nil
 		}
 		return nil, err
 	}
@@ -98,14 +99,14 @@ func collectLifecycleOverrides(pluginDir string, pluginID string) ([]*lifecycleS
 	}
 	sortStrings(fileNames)
 
-	items := make([]*lifecycleSpec, 0, len(fileNames))
+	items := make([]*protocol.LifecycleContract, 0, len(fileNames))
 	for _, name := range fileNames {
 		filePath := filepath.Join(lifecycleDir, name)
-		spec := &lifecycleSpec{}
+		spec := &protocol.LifecycleContract{}
 		if err = loadYAMLFile(filePath, spec); err != nil {
 			return nil, err
 		}
-		pluginbridge.NormalizeLifecycleContract(spec)
+		protocol.NormalizeLifecycleContract(spec)
 		if spec.Operation == "" {
 			return nil, fmt.Errorf("plugin lifecycle override operation is unsupported for plugin %s: %s", pluginID, filePath)
 		}
@@ -117,12 +118,12 @@ func collectLifecycleOverrides(pluginDir string, pluginID string) ([]*lifecycleS
 	return items, nil
 }
 
-func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*lifecycleSpec, error) {
+func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.LifecycleContract, error) {
 	backendDir := filepath.Join(pluginDir, "backend")
 	info, err := os.Stat(backendDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*lifecycleSpec{}, nil
+			return []*protocol.LifecycleContract{}, nil
 		}
 		return nil, err
 	}
@@ -130,8 +131,8 @@ func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*lifecycleSpec
 		return nil, fmt.Errorf("runtime backend path is not a directory: %s", backendDir)
 	}
 
-	items := make([]*lifecycleSpec, 0)
-	seen := make(map[pluginbridge.LifecycleOperation]string)
+	items := make([]*protocol.LifecycleContract, 0)
+	seen := make(map[protocol.LifecycleOperation]string)
 	err = filepath.WalkDir(backendDir, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -201,15 +202,12 @@ func shouldSkipRuntimeBackendDir(name string) bool {
 	return trimmed == "" || strings.HasPrefix(trimmed, ".") || strings.HasPrefix(trimmed, "_")
 }
 
-func extractLifecycleSpecFromFunc(pluginID string, decl *ast.FuncDecl) (*lifecycleSpec, bool, error) {
+func extractLifecycleSpecFromFunc(pluginID string, decl *ast.FuncDecl) (*protocol.LifecycleContract, bool, error) {
 	methodName := strings.TrimSpace(decl.Name.Name)
 	if methodName == "" {
 		return nil, false, nil
 	}
-	if isLegacyLifecycleMethodName(methodName) && isBridgeHandlerFuncDecl(decl) {
-		return nil, false, fmt.Errorf("legacy lifecycle handler %s is not supported for plugin %s; use source-compatible Before* or After* operation names", methodName, pluginID)
-	}
-	if !pluginbridge.IsSupportedLifecycleOperation(methodName) {
+	if !protocol.IsSupportedLifecycleOperation(methodName) {
 		return nil, false, nil
 	}
 
@@ -220,34 +218,13 @@ func extractLifecycleSpecFromFunc(pluginID string, decl *ast.FuncDecl) (*lifecyc
 	if !ok {
 		return nil, false, nil
 	}
-	spec := &lifecycleSpec{
-		Operation:    pluginbridge.LifecycleOperation(methodName),
+	spec := &protocol.LifecycleContract{
+		Operation:    protocol.LifecycleOperation(methodName),
 		RequestType:  requestType,
 		InternalPath: buildLifecycleInternalPath(methodName),
 	}
-	pluginbridge.NormalizeLifecycleContract(spec)
+	protocol.NormalizeLifecycleContract(spec)
 	return spec, true, nil
-}
-
-func isLegacyLifecycleMethodName(methodName string) bool {
-	switch strings.TrimSpace(methodName) {
-	case "CanInstall",
-		"CanUpgrade",
-		"CanDisable",
-		"CanUninstall",
-		"CanTenantDisable",
-		"CanTenantDelete",
-		"CanInstallModeChange",
-		"LifecycleGuard":
-		return true
-	default:
-		return strings.HasSuffix(methodName, "LifecycleGuard")
-	}
-}
-
-func isBridgeHandlerFuncDecl(decl *ast.FuncDecl) bool {
-	_, ok, err := inferGuestHandlerRequestType(decl)
-	return err == nil && ok
 }
 
 func inferGuestHandlerRequestType(decl *ast.FuncDecl) (string, bool, error) {
@@ -255,12 +232,6 @@ func inferGuestHandlerRequestType(decl *ast.FuncDecl) (string, bool, error) {
 	results := flattenFieldTypes(decl.Type.Results)
 	if len(results) != 2 || !isErrorType(results[1]) {
 		return "", false, nil
-	}
-
-	if len(params) == 1 &&
-		isPointerToTypeName(params[0], "BridgeRequestEnvelopeV1") &&
-		isPointerToTypeName(results[0], "BridgeResponseEnvelopeV1") {
-		return decl.Name.Name + "Req", true, nil
 	}
 
 	if len(params) == 2 && isContextType(params[0]) && isPointerToNamedType(params[1]) && isPointerToNamedType(results[0]) {
@@ -292,10 +263,6 @@ func flattenFieldTypes(fields *ast.FieldList) []ast.Expr {
 		}
 	}
 	return items
-}
-
-func isPointerToTypeName(expr ast.Expr, name string) bool {
-	return pointerTypeName(expr) == name
 }
 
 func isPointerToNamedType(expr ast.Expr) bool {
@@ -335,23 +302,23 @@ func isErrorType(expr ast.Expr) bool {
 }
 
 func buildLifecycleInternalPath(operation string) string {
-	return "/__lifecycle" + pluginbridge.BuildGuestControllerInternalPath(operation)
+	return "/__lifecycle" + bridgeguest.BuildGuestControllerInternalPath(operation)
 }
 
 func mergeLifecycleSpecs(
 	pluginID string,
-	discovered []*lifecycleSpec,
-	overrides []*lifecycleSpec,
-) ([]*lifecycleSpec, error) {
-	byOperation := make(map[pluginbridge.LifecycleOperation]*lifecycleSpec, len(discovered))
+	discovered []*protocol.LifecycleContract,
+	overrides []*protocol.LifecycleContract,
+) ([]*protocol.LifecycleContract, error) {
+	byOperation := make(map[protocol.LifecycleOperation]*protocol.LifecycleContract, len(discovered))
 	for _, item := range discovered {
 		if item == nil {
 			continue
 		}
-		pluginbridge.NormalizeLifecycleContract(item)
+		protocol.NormalizeLifecycleContract(item)
 		byOperation[item.Operation] = item
 	}
-	seenOverrides := make(map[pluginbridge.LifecycleOperation]struct{}, len(overrides))
+	seenOverrides := make(map[protocol.LifecycleOperation]struct{}, len(overrides))
 	for _, override := range overrides {
 		if override == nil {
 			return nil, fmt.Errorf("plugin lifecycle override cannot be nil for plugin %s", pluginID)
@@ -365,7 +332,6 @@ func mergeLifecycleSpecs(
 			return nil, fmt.Errorf("plugin lifecycle override has no matching handler for plugin %s operation %s", pluginID, override.Operation)
 		}
 		discoveredRequestType := strings.TrimSpace(base.RequestType)
-		dispatcherInternalPath := pluginbridge.BuildGuestControllerInternalPath(base.Operation.String())
 		if strings.TrimSpace(override.RequestType) != "" {
 			base.RequestType = strings.TrimSpace(override.RequestType)
 		}
@@ -375,17 +341,17 @@ func mergeLifecycleSpecs(
 		if override.TimeoutMs > 0 {
 			base.TimeoutMs = override.TimeoutMs
 		}
-		pluginbridge.NormalizeLifecycleContract(base)
-		if base.RequestType != discoveredRequestType && base.InternalPath != dispatcherInternalPath {
+		protocol.NormalizeLifecycleContract(base)
+		if base.RequestType != discoveredRequestType {
 			return nil, fmt.Errorf(
-				"plugin lifecycle override is not reachable by guest dispatcher for plugin %s operation %s",
+				"plugin lifecycle override requestType is not reachable by guest dispatcher for plugin %s operation %s",
 				pluginID,
 				override.Operation,
 			)
 		}
 	}
 
-	items := make([]*lifecycleSpec, 0, len(byOperation))
+	items := make([]*protocol.LifecycleContract, 0, len(byOperation))
 	for _, item := range byOperation {
 		items = append(items, item)
 	}
@@ -393,45 +359,45 @@ func mergeLifecycleSpecs(
 	return items, nil
 }
 
-func sortLifecycleSpecs(items []*lifecycleSpec) {
+func sortLifecycleSpecs(items []*protocol.LifecycleContract) {
 	sort.Slice(items, func(left int, right int) bool {
 		return lifecycleOperationOrder(items[left].Operation) < lifecycleOperationOrder(items[right].Operation)
 	})
 }
 
-func lifecycleOperationOrder(operation pluginbridge.LifecycleOperation) int {
+func lifecycleOperationOrder(operation protocol.LifecycleOperation) int {
 	switch operation {
-	case pluginbridge.LifecycleOperationBeforeInstall:
+	case protocol.LifecycleOperationBeforeInstall:
 		return 10
-	case pluginbridge.LifecycleOperationAfterInstall:
+	case protocol.LifecycleOperationAfterInstall:
 		return 20
-	case pluginbridge.LifecycleOperationBeforeUpgrade:
+	case protocol.LifecycleOperationBeforeUpgrade:
 		return 30
-	case pluginbridge.LifecycleOperationUpgrade:
+	case protocol.LifecycleOperationUpgrade:
 		return 35
-	case pluginbridge.LifecycleOperationAfterUpgrade:
+	case protocol.LifecycleOperationAfterUpgrade:
 		return 40
-	case pluginbridge.LifecycleOperationBeforeDisable:
+	case protocol.LifecycleOperationBeforeDisable:
 		return 50
-	case pluginbridge.LifecycleOperationAfterDisable:
+	case protocol.LifecycleOperationAfterDisable:
 		return 60
-	case pluginbridge.LifecycleOperationBeforeUninstall:
+	case protocol.LifecycleOperationBeforeUninstall:
 		return 70
-	case pluginbridge.LifecycleOperationUninstall:
+	case protocol.LifecycleOperationUninstall:
 		return 75
-	case pluginbridge.LifecycleOperationAfterUninstall:
+	case protocol.LifecycleOperationAfterUninstall:
 		return 80
-	case pluginbridge.LifecycleOperationBeforeTenantDisable:
+	case protocol.LifecycleOperationBeforeTenantDisable:
 		return 90
-	case pluginbridge.LifecycleOperationAfterTenantDisable:
+	case protocol.LifecycleOperationAfterTenantDisable:
 		return 100
-	case pluginbridge.LifecycleOperationBeforeTenantDelete:
+	case protocol.LifecycleOperationBeforeTenantDelete:
 		return 110
-	case pluginbridge.LifecycleOperationAfterTenantDelete:
+	case protocol.LifecycleOperationAfterTenantDelete:
 		return 120
-	case pluginbridge.LifecycleOperationBeforeInstallModeChange:
+	case protocol.LifecycleOperationBeforeInstallModeChange:
 		return 130
-	case pluginbridge.LifecycleOperationAfterInstallModeChange:
+	case protocol.LifecycleOperationAfterInstallModeChange:
 		return 140
 	default:
 		return 1000
@@ -472,12 +438,12 @@ func collectResourceSpecs(pluginDir string, pluginID string) ([]*resourceSpec, e
 	return items, nil
 }
 
-func collectRouteContracts(pluginDir string, pluginID string) ([]*routeContractSource, []*pluginbridge.RouteContract, error) {
+func collectRouteContracts(pluginDir string, pluginID string) ([]*routeContractSource, []*protocol.RouteContract, error) {
 	apiDir := filepath.Join(pluginDir, "backend", "api")
 	info, err := os.Stat(apiDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, []*pluginbridge.RouteContract{}, nil
+			return nil, []*protocol.RouteContract{}, nil
 		}
 		return nil, nil, err
 	}
@@ -521,7 +487,7 @@ func collectRouteContracts(pluginDir string, pluginID string) ([]*routeContractS
 	if err != nil {
 		return nil, nil, err
 	}
-	contracts := make([]*pluginbridge.RouteContract, 0)
+	contracts := make([]*protocol.RouteContract, 0)
 	for _, source := range sources {
 		routeGroupPrefix := routeGroupPrefixForDir(apiDir, source.dir, prefixes)
 		for _, contract := range source.contracts {
@@ -529,7 +495,7 @@ func collectRouteContracts(pluginDir string, pluginID string) ([]*routeContractS
 			contracts = append(contracts, contract)
 		}
 	}
-	if err = pluginbridge.ValidateRouteContracts(pluginID, contracts); err != nil {
+	if err = protocol.ValidateRouteContracts(pluginID, contracts); err != nil {
 		return nil, nil, err
 	}
 	return sources, contracts, nil
@@ -541,7 +507,7 @@ type routeContractSource struct {
 	// dir is the API package directory containing the DTO declarations.
 	dir string
 	// contracts are DTO-derived route contracts before group-prefix composition.
-	contracts []*pluginbridge.RouteContract
+	contracts []*protocol.RouteContract
 	// apiPackage is the backend/api-relative package path containing the DTO declarations.
 	apiPackage string
 }
@@ -802,8 +768,8 @@ var routeContractTagKeys = map[string]struct{}{
 	"permission":  {},
 }
 
-func extractRouteContractsFromFile(fileNode *ast.File) ([]*pluginbridge.RouteContract, error) {
-	items := make([]*pluginbridge.RouteContract, 0)
+func extractRouteContractsFromFile(fileNode *ast.File) ([]*protocol.RouteContract, error) {
+	items := make([]*protocol.RouteContract, 0)
 	for _, decl := range fileNode.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
@@ -833,7 +799,7 @@ func extractRouteContractsFromFile(fileNode *ast.File) ([]*pluginbridge.RouteCon
 				if metaValues["path"] == "" || metaValues["method"] == "" {
 					continue
 				}
-				contract := &pluginbridge.RouteContract{
+				contract := &protocol.RouteContract{
 					Path:        metaValues["path"],
 					Method:      metaValues["method"],
 					Tags:        splitTagList(metaValues["tags"]),
@@ -871,7 +837,7 @@ func routeGroupPrefixForDir(apiDir string, sourceDir string, prefixes map[string
 
 // applyRouteGroupPrefix composes the registered group prefix with one DTO route
 // path, mirroring source-plugin `Group(prefix).Bind(controller)` routing.
-func applyRouteGroupPrefix(prefix string, contract *pluginbridge.RouteContract) {
+func applyRouteGroupPrefix(prefix string, contract *protocol.RouteContract) {
 	if contract == nil {
 		return
 	}

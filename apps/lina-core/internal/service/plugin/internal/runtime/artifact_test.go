@@ -13,7 +13,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestScanPluginManifestsDiscoversRuntimePluginFromStorage verifies that
@@ -151,8 +151,8 @@ func TestValidateRuntimeArtifactTreatsOmittedPublicAssetIndexAsDefault(t *testin
 			},
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(testutil.DefaultTestRuntimeFrontendAssets()),
 		},
 		testutil.DefaultTestRuntimeFrontendAssets(),
@@ -203,16 +203,16 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(testutil.DefaultTestRuntimeFrontendAssets()),
 			RouteCount:         1,
-			HostServices: []*pluginbridge.HostServiceSpec{
+			HostServices: []*protocol.HostServiceSpec{
 				{
-					Service: pluginbridge.HostServiceRuntime,
+					Service: protocol.HostServiceRuntime,
 					Methods: []string{
-						pluginbridge.HostServiceMethodRuntimeLogWrite,
-						pluginbridge.HostServiceMethodRuntimeStateGet,
+						protocol.HostServiceMethodRuntimeLogWrite,
+						protocol.HostServiceMethodRuntimeStateGet,
 					},
 				},
 			},
@@ -221,21 +221,21 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
 				Path:        "/api/v1/review-summary",
 				Method:      "GET",
-				Access:      pluginbridge.AccessLogin,
+				Access:      protocol.AccessLogin,
 				Permission:  "plugin-dev-dynamic-routes:review:view",
 				RequestType: "ReviewSummaryReq",
 			},
 		},
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 
@@ -246,10 +246,10 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	if len(manifest.Routes) != 1 || manifest.BridgeSpec == nil || !manifest.BridgeSpec.RouteExecution {
 		t.Fatalf("expected runtime artifact to expose routes and executable bridge, got routes=%d bridge=%#v", len(manifest.Routes), manifest.BridgeSpec)
 	}
-	if _, ok := manifest.HostCapabilities[pluginbridge.CapabilityRuntime]; !ok {
+	if _, ok := manifest.HostCapabilities[protocol.CapabilityRuntime]; !ok {
 		t.Fatalf("expected runtime capability to be restored, got %#v", manifest.HostCapabilities)
 	}
-	if len(manifest.HostServices) != 1 || manifest.HostServices[0].Service != pluginbridge.HostServiceRuntime {
+	if len(manifest.HostServices) != 1 || manifest.HostServices[0].Service != protocol.HostServiceRuntime {
 		t.Fatalf("expected runtime host service snapshot to be restored, got %#v", manifest.HostServices)
 	}
 }
@@ -278,8 +278,8 @@ func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:           pluginbridge.RuntimeKindWasm,
-			ABIVersion:            pluginbridge.SupportedABIVersion,
+			RuntimeKind:           protocol.RuntimeKindWasm,
+			ABIVersion:            protocol.SupportedABIVersion,
 			ManifestResourceCount: 3,
 			ManifestResources: []*catalog.ArtifactManifestResource{
 				{
@@ -340,8 +340,8 @@ func TestParseRuntimeArtifactRejectsInvalidManifestResourcePath(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:           pluginbridge.RuntimeKindWasm,
-			ABIVersion:            pluginbridge.SupportedABIVersion,
+			RuntimeKind:           protocol.RuntimeKindWasm,
+			ABIVersion:            protocol.SupportedABIVersion,
 			ManifestResourceCount: 1,
 			ManifestResources: []*catalog.ArtifactManifestResource{
 				{
@@ -391,11 +391,11 @@ func TestParseRuntimeArtifactLoadsLifecycleContracts(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			LifecycleContracts: []*pluginbridge.LifecycleContract{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			LifecycleContracts: []*protocol.LifecycleContract{
 				{
-					Operation:    pluginbridge.LifecycleOperationBeforeInstall,
+					Operation:    protocol.LifecycleOperationBeforeInstall,
 					RequestType:  "DynamicBeforeInstallReq",
 					InternalPath: "__lifecycle/before-install/",
 					TimeoutMs:    1500,
@@ -418,7 +418,7 @@ func TestParseRuntimeArtifactLoadsLifecycleContracts(t *testing.T) {
 		t.Fatalf("expected one lifecycle handler, got %#v", manifest.LifecycleHandlers)
 	}
 	handler := manifest.LifecycleHandlers[0]
-	if handler.Operation != pluginbridge.LifecycleOperationBeforeInstall ||
+	if handler.Operation != protocol.LifecycleOperationBeforeInstall ||
 		handler.RequestType != "DynamicBeforeInstallReq" ||
 		handler.InternalPath != "/__lifecycle/before-install" {
 		t.Fatalf("unexpected lifecycle handler: %#v", handler)
@@ -453,14 +453,13 @@ func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
 					{
 						ID:      "linapro-tenant-core",
 						Version: ">=0.1.0",
-						Install: catalog.DependencyInstallModeAuto.String(),
 					},
 				},
 			},
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
 		},
 		nil,
 		nil,
@@ -484,11 +483,71 @@ func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
 		t.Fatalf("expected one plugin dependency, got %#v", manifest.Dependencies.Plugins)
 	}
 	dependency := manifest.Dependencies.Plugins[0]
-	if dependency.ID != "linapro-tenant-core" || dependency.Install != catalog.DependencyInstallModeAuto.String() {
+	if dependency.ID != "linapro-tenant-core" || dependency.Version != ">=0.1.0" {
 		t.Fatalf("unexpected plugin dependency: %#v", dependency)
 	}
-	if dependency.Required == nil || !*dependency.Required {
-		t.Fatalf("expected required default true, got %#v", dependency.Required)
+}
+
+// TestParseRuntimeArtifactRejectsUnsupportedDependencyPolicyFields verifies
+// dynamic artifact manifests cannot carry plugin dependency policy fields.
+func TestParseRuntimeArtifactRejectsUnsupportedDependencyPolicyFields(t *testing.T) {
+	tests := []struct {
+		name         string
+		manifestBody map[string]any
+		want         string
+	}{
+		{
+			name: "plugin dependency required",
+			manifestBody: map[string]any{
+				"dependencies": map[string]any{
+					"plugins": []map[string]any{
+						{"id": "linapro-tenant-core", "required": true},
+					},
+				},
+			},
+			want: "dependencies.plugins[0].required",
+		},
+		{
+			name: "plugin dependency install",
+			manifestBody: map[string]any{
+				"dependencies": map[string]any{
+					"plugins": []map[string]any{
+						{"id": "linapro-tenant-core", "install": "auto"},
+					},
+				},
+			},
+			want: "dependencies.plugins[0].install",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			services := testutil.NewServices()
+			manifestBody := map[string]any{
+				"id":                  "plugin-dev-dynamic-policy",
+				"name":                "Runtime Policy Plugin",
+				"version":             "v0.3.8",
+				"type":                catalog.TypeDynamic.String(),
+				"scopeNature":         catalog.ScopeNatureTenantAware.String(),
+				"supportsMultiTenant": true,
+				"defaultInstallMode":  catalog.InstallModeTenantScoped.String(),
+			}
+			for key, value := range tt.manifestBody {
+				manifestBody[key] = value
+			}
+
+			content := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
+			content = appendTestRuntimeCustomSection(t, content, protocol.WasmSectionManifest, manifestBody)
+			content = appendTestRuntimeCustomSection(t, content, protocol.WasmSectionRuntime, map[string]any{
+				"runtimeKind": protocol.RuntimeKindWasm,
+				"abiVersion":  protocol.SupportedABIVersion,
+			})
+
+			_, err := services.Runtime.ParseRuntimeWasmArtifactContent("policy.wasm", content)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected unsupported field error containing %q, got %v", tt.want, err)
+			}
+		})
 	}
 }
 
@@ -516,8 +575,8 @@ func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
-			ABIVersion:     pluginbridge.SupportedABIVersion,
+			RuntimeKind:    protocol.RuntimeKindWasm,
+			ABIVersion:     protocol.SupportedABIVersion,
 			I18NAssetCount: 1,
 		},
 		nil,
@@ -535,7 +594,7 @@ func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {
 	content = appendTestRuntimeCustomSection(
 		t,
 		content,
-		pluginbridge.WasmSectionI18NAssets,
+		protocol.WasmSectionI18NAssets,
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
@@ -581,8 +640,8 @@ func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:          pluginbridge.RuntimeKindWasm,
-			ABIVersion:           pluginbridge.SupportedABIVersion,
+			RuntimeKind:          protocol.RuntimeKindWasm,
+			ABIVersion:           protocol.SupportedABIVersion,
 			APIDocI18NAssetCount: 1,
 		},
 		nil,
@@ -600,7 +659,7 @@ func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
 	content = appendTestRuntimeCustomSection(
 		t,
 		content,
-		pluginbridge.WasmSectionAPIDocI18NAssets,
+		protocol.WasmSectionAPIDocI18NAssets,
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
@@ -646,8 +705,8 @@ func TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:          pluginbridge.RuntimeKindWasm,
-			ABIVersion:           pluginbridge.SupportedABIVersion,
+			RuntimeKind:          protocol.RuntimeKindWasm,
+			ABIVersion:           protocol.SupportedABIVersion,
 			APIDocI18NAssetCount: 1,
 		},
 		nil,
@@ -665,7 +724,7 @@ func TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets(t *testing.T) {
 	content = appendTestRuntimeCustomSection(
 		t,
 		content,
-		pluginbridge.WasmSectionAPIDocI18NAssets,
+		protocol.WasmSectionAPIDocI18NAssets,
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
@@ -681,7 +740,7 @@ func TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected invalid apidoc i18n asset content to be rejected")
 	}
-	if !strings.Contains(err.Error(), pluginbridge.WasmSectionAPIDocI18NAssets) || !strings.Contains(err.Error(), "zh-CN") {
+	if !strings.Contains(err.Error(), protocol.WasmSectionAPIDocI18NAssets) || !strings.Contains(err.Error(), "zh-CN") {
 		t.Fatalf("expected apidoc i18n error to mention section and locale, got %v", err)
 	}
 }
@@ -711,8 +770,8 @@ func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:          pluginbridge.RuntimeKindWasm,
-			ABIVersion:           pluginbridge.SupportedABIVersion,
+			RuntimeKind:          protocol.RuntimeKindWasm,
+			ABIVersion:           protocol.SupportedABIVersion,
 			APIDocI18NAssetCount: 2,
 		},
 		nil,
@@ -730,7 +789,7 @@ func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
 	content = appendTestRuntimeCustomSection(
 		t,
 		content,
-		pluginbridge.WasmSectionAPIDocI18NAssets,
+		protocol.WasmSectionAPIDocI18NAssets,
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
@@ -748,144 +807,6 @@ func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "apidoc i18n") || !strings.Contains(err.Error(), "metadata=2 actual=1") {
 		t.Fatalf("expected apidoc i18n count mismatch error, got %v", err)
-	}
-}
-
-// TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection verifies that
-// legacy capability sections are rejected in favor of structured host services.
-func TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection(t *testing.T) {
-	services := testutil.NewServices()
-	pluginDir := testutil.CreateTestRuntimePluginDir(
-		t,
-		"plugin-dev-dynamic-legacy-capabilities",
-		"Runtime Legacy Capability Plugin",
-		"v0.3.1",
-		nil,
-		nil,
-	)
-
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-legacy-capabilities"))
-	testutil.WriteRuntimeWasmArtifact(
-		t,
-		artifactPath,
-		&catalog.ArtifactManifest{
-			ID:      "plugin-dev-dynamic-legacy-capabilities",
-			Name:    "Runtime Legacy Capability Plugin",
-			Version: "v0.3.1",
-			Type:    catalog.TypeDynamic.String(),
-		},
-		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
-				{
-					Service: pluginbridge.HostServiceRuntime,
-					Methods: []string{pluginbridge.HostServiceMethodRuntimeInfoUUID},
-				},
-			},
-		},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	content, err := os.ReadFile(artifactPath)
-	if err != nil {
-		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
-	}
-	content = appendTestRuntimeCustomSection(
-		t,
-		content,
-		pluginbridge.WasmSectionBackendCapabilities,
-		[]string{pluginbridge.CapabilityRuntime, "host:db:query"},
-	)
-	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
-		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
-	}
-
-	_, err = services.Catalog.LoadManifestFromArtifactPath(artifactPath)
-	if err == nil {
-		t.Fatal("expected deprecated capabilities section to be rejected")
-	}
-	if !strings.Contains(err.Error(), pluginbridge.WasmSectionBackendCapabilities) || !strings.Contains(err.Error(), "host:db:query") {
-		t.Fatalf("expected deprecated capabilities error to mention section name and capability, got %v", err)
-	}
-}
-
-// TestParseRuntimeArtifactIgnoresLegacyCronContractsSection verifies runtime
-// artifact loading no longer depends on the deprecated cron custom section.
-func TestParseRuntimeArtifactIgnoresLegacyCronContractsSection(t *testing.T) {
-	services := testutil.NewServices()
-	pluginDir := testutil.CreateTestRuntimePluginDir(
-		t,
-		"plugin-dev-dynamic-crons",
-		"Runtime Cron Plugin",
-		"v0.3.2",
-		nil,
-		nil,
-	)
-
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-crons"))
-	testutil.WriteRuntimeWasmArtifact(
-		t,
-		artifactPath,
-		&catalog.ArtifactManifest{
-			ID:      "plugin-dev-dynamic-crons",
-			Name:    "Runtime Cron Plugin",
-			Version: "v0.3.2",
-			Type:    catalog.TypeDynamic.String(),
-		},
-		&catalog.ArtifactSpec{
-			RuntimeKind: pluginbridge.RuntimeKindWasm,
-			ABIVersion:  pluginbridge.SupportedABIVersion,
-			HostServices: []*pluginbridge.HostServiceSpec{
-				{
-					Service: pluginbridge.HostServiceRuntime,
-					Methods: []string{
-						pluginbridge.HostServiceMethodRuntimeLogWrite,
-						pluginbridge.HostServiceMethodRuntimeStateGet,
-						pluginbridge.HostServiceMethodRuntimeStateSet,
-					},
-				},
-			},
-		},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
-			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
-		},
-	)
-
-	content, err := os.ReadFile(artifactPath)
-	if err != nil {
-		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
-	}
-	content = appendTestRuntimeCustomSection(
-		t,
-		content,
-		pluginbridge.WasmSectionBackendCrons,
-		map[string]string{"legacy": "ignored"},
-	)
-	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
-		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
-	}
-
-	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
-	if err != nil {
-		t.Fatalf("expected runtime artifact load to succeed, got error: %v", err)
-	}
-	if manifest.BridgeSpec == nil || !manifest.BridgeSpec.RouteExecution {
-		t.Fatalf("expected runtime artifact bridge spec to remain available, got %#v", manifest.BridgeSpec)
 	}
 }
 

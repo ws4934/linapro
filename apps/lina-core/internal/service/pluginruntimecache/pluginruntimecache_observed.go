@@ -38,7 +38,7 @@ func (r *ObservedRevision) Ensure(
 ) error {
 	if r == nil {
 		if refresher != nil {
-			return refresher(ctx)
+			return refresher(ctx, revision)
 		}
 		return nil
 	}
@@ -48,7 +48,7 @@ func (r *ObservedRevision) Ensure(
 		return nil
 	}
 	if refresher != nil {
-		if err := refresher(ctx); err != nil {
+		if err := refresher(ctx, revision); err != nil {
 			return err
 		}
 	}

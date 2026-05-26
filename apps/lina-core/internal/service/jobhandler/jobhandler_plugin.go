@@ -11,7 +11,7 @@ import (
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // PluginLifecycleBridge exposes plugin enablement state and plugin-owned cron
@@ -128,7 +128,7 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pl
 		return err
 	}
 	for _, item := range managedJobs {
-		ref, refErr := pluginbridge.BuildPluginCronHandlerRef(pluginID, item.Name)
+		ref, refErr := protocol.BuildPluginCronHandlerRef(pluginID, item.Name)
 		if refErr != nil {
 			for _, registeredRef := range registeredRefs {
 				o.registry.Unregister(registeredRef)

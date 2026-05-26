@@ -19,7 +19,7 @@ import (
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // testConfigProvider provides fixed OpenAPI metadata for builder tests.

@@ -21,7 +21,7 @@ import (
 	"unicode"
 
 	pluginsvc "lina-core/internal/service/plugin"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 	"lina-core/pkg/testsupport"
 )
 

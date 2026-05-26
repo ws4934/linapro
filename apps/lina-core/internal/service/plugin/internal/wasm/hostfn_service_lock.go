@@ -8,8 +8,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/hostlock"
-	bridgehostcall "lina-core/pkg/pluginbridge"
-	bridgehostservice "lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // lockHostService is the shared governed lock backend used by wasm host calls.

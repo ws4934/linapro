@@ -16,7 +16,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 const (
@@ -45,12 +45,10 @@ func (s *serviceImpl) ValidateRuntimeFrontendMenuBindings(ctx context.Context, m
 func (s *serviceImpl) listPluginOwnedMenus(ctx context.Context, pluginID string) ([]*entity.SysMenu, error) {
 	columns := dao.SysMenu.Columns()
 	prefixPattern := catalog.MenuKeyPrefix + pluginID + ":%"
-	remarkPattern := catalog.MenuRemarkPrefix + pluginID + "%"
 
 	var menus []*entity.SysMenu
 	if err := dao.SysMenu.Ctx(ctx).
 		WhereLike(columns.MenuKey, prefixPattern).
-		WhereOrLike(columns.Remark, remarkPattern).
 		OrderAsc(columns.Id).
 		Scan(&menus); err != nil {
 		return nil, err

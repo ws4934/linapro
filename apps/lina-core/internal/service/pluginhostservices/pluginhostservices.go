@@ -14,15 +14,17 @@ import (
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/notify"
 	"lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
-	"lina-core/pkg/pluginhost"
-	pluginserviceconfig "lina-core/pkg/pluginservice/config"
-	"lina-core/pkg/pluginservice/contract"
-	pluginservicehostconfig "lina-core/pkg/pluginservice/hostconfig"
-	pluginservicemanifest "lina-core/pkg/pluginservice/manifest"
-	pluginservicepluginlifecycle "lina-core/pkg/pluginservice/pluginlifecycle"
-	pluginservicepluginstate "lina-core/pkg/pluginservice/pluginstate"
-	pluginservicetenantfilter "lina-core/pkg/pluginservice/tenantfilter"
+	"lina-core/pkg/plugin/capability"
+	capabilityconfig "lina-core/pkg/plugin/capability/config"
+	"lina-core/pkg/plugin/capability/contract"
+	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfig"
+	capabilitymanifest "lina-core/pkg/plugin/capability/manifest"
+	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	capabilitypluginlifecycle "lina-core/pkg/plugin/capability/pluginlifecycle"
+	capabilitypluginstate "lina-core/pkg/plugin/capability/pluginstate"
+	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	capabilitytenantfilter "lina-core/pkg/plugin/capability/tenantfilter"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // PluginLifecycleRunner defines the host lifecycle operations published to
@@ -33,7 +35,7 @@ type PluginLifecycleRunner interface {
 	contract.PluginLifecycleRunner
 }
 
-// directory implements the pluginhost.HostServices directory.
+// directory implements the source-plugin host service directory.
 type directory struct {
 	apiDoc       contract.APIDocService // apiDoc exposes localized API-documentation route text.
 	auth         contract.AuthService   // auth exposes tenant token operations.
@@ -44,10 +46,12 @@ type directory struct {
 	i18n         contract.I18nService // i18n exposes runtime translation lookups.
 	manifest     contract.ManifestServiceFactory
 	notify       contract.NotifyService // notify exposes host notification delivery.
+	org          capabilityorgcap.Service
 	pluginLife   contract.PluginLifecycleService
-	pluginState  contract.PluginStateService  // pluginState exposes plugin enablement lookups.
-	route        contract.RouteService        // route exposes dynamic route metadata lookups.
-	session      contract.SessionService      // session exposes online-session operations.
+	pluginState  contract.PluginStateService // pluginState exposes plugin enablement lookups.
+	route        contract.RouteService       // route exposes dynamic route metadata lookups.
+	session      contract.SessionService     // session exposes online-session operations.
+	tenant       capabilitytenantcap.Service
 	tenantFilter contract.TenantFilterService // tenantFilter exposes plugin table tenant filtering.
 }
 
@@ -57,14 +61,20 @@ type scopedDirectory struct {
 	pluginID string
 }
 
-// Ensure directory satisfies the source-plugin host service contract.
-var _ pluginhost.HostServices = (*directory)(nil)
+// Ensure directory satisfies the source-plugin capability contract.
+var _ pluginhost.Services = (*directory)(nil)
 
-// Ensure directory satisfies the plugin-scoped host service factory contract.
-var _ pluginhost.ScopedHostServicesFactory = (*directory)(nil)
+// Ensure directory satisfies the unified capability services contract.
+var _ capability.Services = (*directory)(nil)
 
-// Ensure scopedDirectory satisfies the source-plugin host service contract.
-var _ pluginhost.HostServices = (*scopedDirectory)(nil)
+// Ensure directory satisfies the plugin-scoped capability factory contract.
+var _ capability.ScopedServicesFactory = (*directory)(nil)
+
+// Ensure scopedDirectory satisfies the source-plugin capability contract.
+var _ pluginhost.Services = (*scopedDirectory)(nil)
+
+// Ensure scopedDirectory satisfies the unified capability services contract.
+var _ capability.Services = (*scopedDirectory)(nil)
 
 // New creates source-plugin host service adapters from runtime-owned services.
 func New(
@@ -78,15 +88,16 @@ func New(
 	pluginStateSvc contract.PluginStateService,
 	pluginLifecycleRunner PluginLifecycleRunner,
 	sessionStore session.Store,
-	tenantSvc tenantcapsvc.Service,
+	orgSvc capabilityorgcap.Service,
+	tenantSvc capabilitytenantcap.RuntimeService,
 	notifySvc notify.Service,
 	kvCacheSvc kvcache.Service,
-) (pluginhost.HostServices, error) {
+) (capability.Services, error) {
 	if kvCacheSvc == nil {
 		return nil, gerror.New("create plugin host services failed: cache service is nil")
 	}
 	bizCtxAdapter := newBizCtxAdapter(bizCtxSvc)
-	tenantFilterSvc, err := pluginservicetenantfilter.New(bizCtxAdapter, tenantSvc)
+	tenantFilterSvc, err := capabilitytenantfilter.New(bizCtxAdapter, tenantSvc)
 	if err != nil {
 		return nil, gerror.Wrap(err, "create plugin tenant filter service failed")
 	}
@@ -95,15 +106,17 @@ func New(
 		auth:         newAuthAdapter(authTokenIssuer),
 		bizCtx:       bizCtxAdapter,
 		cache:        kvCacheSvc,
-		config:       pluginserviceconfig.NewFactory("", ""),
-		hostConfig:   pluginservicehostconfig.New(configSvc),
+		config:       capabilityconfig.NewFactory("", ""),
+		hostConfig:   capabilityhostconfig.New(configSvc),
 		i18n:         newI18nAdapter(i18nSvc),
-		manifest:     pluginservicemanifest.NewFactory(""),
+		manifest:     capabilitymanifest.NewFactory(""),
 		notify:       newNotifyAdapter(notifySvc),
-		pluginLife:   pluginservicepluginlifecycle.New(pluginLifecycleRunner),
-		pluginState:  pluginservicepluginstate.New(pluginStateSvc),
+		org:          orgSvc,
+		pluginLife:   capabilitypluginlifecycle.New(pluginLifecycleRunner),
+		pluginState:  capabilitypluginstate.New(pluginStateSvc),
 		route:        newRouteAdapter(),
 		session:      newSessionAdapter(authSvc, scopeSvc, sessionStore, tenantSvc),
+		tenant:       tenantSvc,
 		tenantFilter: tenantFilterSvc,
 	}, nil
 }

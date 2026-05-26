@@ -189,7 +189,7 @@ func (s *serviceImpl) roleMenuAssignmentPlatformContext(ctx context.Context) boo
 	if s == nil || s.tenantSvc == nil {
 		return true
 	}
-	if !s.tenantSvc.Enabled(ctx) {
+	if !s.tenantSvc.Available(ctx) {
 		return true
 	}
 	return s.tenantSvc.PlatformBypass(ctx)

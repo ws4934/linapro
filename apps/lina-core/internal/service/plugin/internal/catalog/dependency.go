@@ -14,25 +14,6 @@ import (
 // token inside a whitespace-separated version range expression.
 var dependencyVersionConstraintPattern = regexp.MustCompile(`^(>=|<=|>|<|=)?v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
 
-// NormalizeDependencyInstallMode maps a raw manifest install mode to the
-// canonical dependency install-mode value.
-func NormalizeDependencyInstallMode(value string) DependencyInstallMode {
-	switch strings.TrimSpace(strings.ToLower(value)) {
-	case "", DependencyInstallModeManual.String():
-		return DependencyInstallModeManual
-	case DependencyInstallModeAuto.String():
-		return DependencyInstallModeAuto
-	default:
-		return DependencyInstallMode("")
-	}
-}
-
-// IsSupportedDependencyInstallMode reports whether value is a recognized
-// dependency install-mode declaration.
-func IsSupportedDependencyInstallMode(value string) bool {
-	return NormalizeDependencyInstallMode(value) != ""
-}
-
 // NormalizeDependencySpec applies manifest defaults and trims dependency
 // values in-place. Missing dependencies remain nil.
 func NormalizeDependencySpec(spec *DependencySpec) {
@@ -54,11 +35,6 @@ func NormalizeDependencySpec(spec *DependencySpec) {
 		}
 		dependency.ID = strings.TrimSpace(dependency.ID)
 		dependency.Version = strings.TrimSpace(dependency.Version)
-		dependency.Install = normalizeDependencyInstallModeForValidation(dependency.Install)
-		if dependency.Required == nil {
-			required := true
-			dependency.Required = &required
-		}
 		plugins = append(plugins, dependency)
 	}
 	spec.Plugins = plugins
@@ -99,9 +75,6 @@ func ValidateDependencySpec(pluginID string, spec *DependencySpec) error {
 			if err := ValidateSemanticVersionRange(dependency.Version); err != nil {
 				return gerror.Wrapf(err, "plugin %s dependency %s version is invalid", pluginID, dependency.ID)
 			}
-		}
-		if !IsSupportedDependencyInstallMode(dependency.Install) {
-			return gerror.Newf("plugin %s dependency %s install only supports manual/auto: %s", pluginID, dependency.ID, dependency.Install)
 		}
 	}
 	return nil
@@ -146,20 +119,6 @@ func ValidateSemanticVersionRange(value string) error {
 		}
 	}
 	return nil
-}
-
-// normalizeDependencyInstallModeForValidation keeps unsupported values intact
-// so validation can reject them after applying defaults for supported blanks.
-func normalizeDependencyInstallModeForValidation(value string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(value))
-	switch trimmed {
-	case "", DependencyInstallModeManual.String():
-		return DependencyInstallModeManual.String()
-	case DependencyInstallModeAuto.String():
-		return DependencyInstallModeAuto.String()
-	default:
-		return trimmed
-	}
 }
 
 // splitVersionConstraint separates one range token into operator and version.
@@ -207,16 +166,9 @@ func CloneDependencySpec(spec *DependencySpec) *DependencySpec {
 				clone.Plugins = append(clone.Plugins, nil)
 				continue
 			}
-			var required *bool
-			if dependency.Required != nil {
-				value := *dependency.Required
-				required = &value
-			}
 			clone.Plugins = append(clone.Plugins, &PluginDependencySpec{
-				ID:       strings.TrimSpace(dependency.ID),
-				Version:  strings.TrimSpace(dependency.Version),
-				Required: required,
-				Install:  strings.TrimSpace(dependency.Install),
+				ID:      strings.TrimSpace(dependency.ID),
+				Version: strings.TrimSpace(dependency.Version),
 			})
 		}
 	}

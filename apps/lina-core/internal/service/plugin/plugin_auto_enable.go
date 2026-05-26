@@ -11,7 +11,6 @@ import (
 	"lina-core/internal/model/entity"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/catalog"
-	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/pkg/bizerr"
 )
 
@@ -76,10 +75,8 @@ func (s *serviceImpl) ReconcileAutoEnabledTenantPlugins(ctx context.Context) err
 	if !requiresProvisioning {
 		return nil
 	}
-	if tenantProvisioner, ok := s.tenantSvc.(interface {
-		ProvisionAutoEnabledTenantPlugins(context.Context) error
-	}); ok && tenantProvisioner != nil {
-		if err := tenantProvisioner.ProvisionAutoEnabledTenantPlugins(ctx); err != nil {
+	if s.tenantProvisioning != nil {
+		if err := s.tenantProvisioning.ProvisionAutoEnabledTenantPlugins(ctx); err != nil {
 			return bizerr.WrapCode(err, CodePluginAutoEnableTenantProvisioningFailed, bizerr.P("pluginId", "all"))
 		}
 	}
@@ -127,7 +124,7 @@ func (s *serviceImpl) reconcileAutoEnabledTenantPluginPolicy(
 // matching source-plugin or dynamic-plugin startup bootstrap path. The entry
 // carries both the ID and the per-plugin mock-data opt-in flag.
 func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
-	if err := s.bootstrapAutoInstallDependencies(ctx, entry); err != nil {
+	if err := s.checkStartupAutoEnableDependencies(ctx, entry); err != nil {
 		return err
 	}
 
@@ -153,25 +150,16 @@ func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, entry confi
 	}
 }
 
-// bootstrapAutoInstallDependencies pre-installs automatic dependencies for one
-// configured startup target. The regular Install path repeats the safety check;
-// this pre-pass makes startup ordering explicit without enabling dependencies
-// unless they are also listed in plugin.autoEnable.
-func (s *serviceImpl) bootstrapAutoInstallDependencies(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
+// checkStartupAutoEnableDependencies verifies that configured startup targets
+// already have their hard plugin dependencies installed. The host no longer
+// installs dependencies implicitly from plugin manifests.
+func (s *serviceImpl) checkStartupAutoEnableDependencies(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
 	plan, err := s.resolveInstallDependencies(ctx, entry.ID)
 	if err != nil {
 		return err
 	}
 	if hasDependencyBlockers(plan.Blockers) {
 		return s.buildDependencyBlockedError(entry.ID, plan.Blockers)
-	}
-	for _, item := range sortedAutoInstallPlan(plan.AutoInstallPlan) {
-		if item == nil || strings.TrimSpace(item.PluginID) == "" {
-			continue
-		}
-		if err = s.ensurePluginInstalledDuringStartup(ctx, item.PluginID); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -350,18 +338,4 @@ func buildStartupAutoEnableTimeoutError(pluginID string, registry *entity.SysPlu
 		bizerr.P("desiredState", strings.TrimSpace(registry.DesiredState)),
 		bizerr.P("currentState", strings.TrimSpace(registry.CurrentState)),
 	)
-}
-
-// sortedAutoInstallPlan copies resolver plan items while preserving the
-// dependency-first order produced by the resolver. The resolver already walks
-// sibling dependencies by plugin ID, so re-sorting here would risk moving a
-// parent dependency before its own dependency.
-func sortedAutoInstallPlan(items []*plugindep.AutoInstallPlanItem) []*plugindep.AutoInstallPlanItem {
-	out := make([]*plugindep.AutoInstallPlanItem, 0, len(items))
-	for _, item := range items {
-		if item != nil {
-			out = append(out, item)
-		}
-	}
-	return out
 }

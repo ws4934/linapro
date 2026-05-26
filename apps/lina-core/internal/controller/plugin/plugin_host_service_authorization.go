@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	jobv1 "lina-core/api/job/v1"
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
@@ -57,7 +57,7 @@ func buildAuthorizationInput(req *v1.HostServiceAuthorizationReq) *pluginsvc.Hos
 // buildHostServicePermissionItems projects host-service specs and resolved table
 // comments into the API response view used by plugin detail endpoints.
 func buildHostServicePermissionItems(
-	specs []*pluginbridge.HostServiceSpec,
+	specs []*protocol.HostServiceSpec,
 	tableComments map[string]string,
 	cronJobs []pluginsvc.ManagedCronJob,
 ) []*v1.HostServicePermissionItem {
@@ -103,7 +103,7 @@ func buildHostServicePermissionCronItems(
 	service string,
 	cronJobs []pluginsvc.ManagedCronJob,
 ) []*v1.HostServicePermissionCronItem {
-	if service != pluginbridge.HostServiceCron || len(cronJobs) == 0 {
+	if service != protocol.HostServiceCron || len(cronJobs) == 0 {
 		return nil
 	}
 
@@ -152,7 +152,7 @@ func localizeManagedCronJobs(
 	dynamicTranslator, hasDynamicTranslator := translator.(dynamicPluginSourceTextTranslator)
 	for _, cronJob := range cronJobs {
 		localizedJob := cronJob
-		handlerRef, err := pluginbridge.BuildPluginCronHandlerRef(cronJob.PluginID, cronJob.Name)
+		handlerRef, err := protocol.BuildPluginCronHandlerRef(cronJob.PluginID, cronJob.Name)
 		if err == nil {
 			nameKey := jobmeta.HandlerI18nKey(handlerRef, cronDisplayNameI18nField)
 			descriptionKey := jobmeta.HandlerI18nKey(handlerRef, cronDescriptionI18nField)

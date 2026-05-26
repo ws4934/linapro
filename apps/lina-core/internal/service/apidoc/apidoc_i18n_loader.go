@@ -16,7 +16,7 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 const (

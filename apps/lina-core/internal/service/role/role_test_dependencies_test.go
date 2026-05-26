@@ -9,8 +9,8 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/orgcap"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // newRoleTestService constructs a role service with explicit test dependencies,
@@ -23,8 +23,8 @@ func newRoleTestService(permissionFilter PermissionMenuFilter, organizationState
 		orgCapSvc = orgcap.New(nil)
 		tenantSvc = tenantcapsvc.New(nil, nil)
 	)
-	svc := New(permissionFilter, bizCtxSvc, configSvc, i18nSvc, organizationState, orgCapSvc, tenantSvc).(*serviceImpl)
-	refreshRoleTestScope(svc)
+	svc := New(permissionFilter, bizCtxSvc, configSvc, i18nSvc, organizationState, tenantSvc).(*serviceImpl)
+	refreshRoleTestScope(svc, orgCapSvc)
 	return svc
 }
 
@@ -37,11 +37,15 @@ func newDefaultRoleTestService() *serviceImpl {
 // the derived data-scope service used by role-management tests.
 func setRoleTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
 	svc.bizCtxSvc = bizCtxSvc
-	refreshRoleTestScope(svc)
+	refreshRoleTestScope(svc, nil)
 }
 
 // refreshRoleTestScope rebuilds the stateless data-scope helper from the
 // current explicit fake dependencies.
-func refreshRoleTestScope(svc *serviceImpl) {
-	svc.SetDataScopeService(datascope.New(svc.bizCtxSvc, svc, svc.orgCapSvc))
+func refreshRoleTestScope(svc *serviceImpl, orgCapSvc orgcap.Service) {
+	var orgScope orgcap.ScopeService
+	if scope, ok := orgCapSvc.(orgcap.ScopeService); ok {
+		orgScope = scope
+	}
+	svc.SetDataScopeService(datascope.New(svc.bizCtxSvc, svc, orgScope))
 }

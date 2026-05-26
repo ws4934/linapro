@@ -11,8 +11,10 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/capability"
+	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 const (
@@ -60,13 +62,13 @@ type DynamicCronExecutor interface {
 	DiscoverCronContracts(
 		ctx context.Context,
 		manifest *catalog.Manifest,
-	) ([]*pluginbridge.CronContract, error)
+	) ([]*protocol.CronContract, error)
 	// ExecuteDeclaredCronJob runs one declared dynamic-plugin cron job against
 	// the active manifest/runtime.
 	ExecuteDeclaredCronJob(
 		ctx context.Context,
 		manifest *catalog.Manifest,
-		contract *pluginbridge.CronContract,
+		contract *protocol.CronContract,
 	) error
 }
 
@@ -179,7 +181,7 @@ type MenuFilterService interface {
 	) error
 }
 
-// DependencyWiringService defines provider wiring operations required by integration runtime.
+// DependencyWiringService defines runtime dependencies required by integration runtime.
 type DependencyWiringService interface {
 	// WithStartupDataSnapshot returns a child context carrying full-table
 	// snapshots for small plugin integration tables during startup reconciliation.
@@ -191,14 +193,18 @@ type DependencyWiringService interface {
 	// SetDynamicCronExecutor wires the runtime executor used by declared
 	// dynamic-plugin cron jobs.
 	SetDynamicCronExecutor(executor DynamicCronExecutor)
-	// SetHostServices wires the host-published service directory used by source plugins.
-	SetHostServices(services pluginhost.HostServices)
+	// SetCapabilities wires the runtime-owned capability services used by source plugins.
+	SetCapabilities(capabilities capability.Services)
+	// SetOrganizationCapability wires the runtime-owned organization capability used by resource scopes.
+	SetOrganizationCapability(service capabilityorgcap.Service)
 }
 
 // PluginStateService defines plugin enablement lookup operations.
 type PluginStateService interface {
 	// CanExposeBusinessEntries reports whether the plugin with the given ID can expose business entries.
 	CanExposeBusinessEntries(ctx context.Context, pluginID string) bool
+	// IsProviderEnabled reports whether pluginID is platform-enabled for capability provider use.
+	IsProviderEnabled(ctx context.Context, pluginID string) bool
 	// IsInstalledEnabledForTenant reports whether the plugin is installed, enabled, and
 	// available for the current tenant without applying business-entry upgrade gates.
 	IsInstalledEnabledForTenant(ctx context.Context, pluginID string) bool
@@ -267,7 +273,9 @@ type serviceImpl struct {
 
 	dynamicCronExecutor DynamicCronExecutor
 
-	hostServices pluginhost.HostServices
+	capabilities capability.Services
+
+	orgSvc capabilityorgcap.Service
 
 	sharedState *sharedState
 }

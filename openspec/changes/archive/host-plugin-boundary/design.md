@@ -165,7 +165,7 @@ This design does not accept "host retains complete business skeleton + scattered
 
 The database access of source plugin backends is closed within the plugin directory:
 
-- Each official source plugin's `backend/` directory maintains an independent `hack/config.yaml` for `gf gen dao`.
+- Each official source plugin's `backend/` directory maintains an independent `hack/config.yaml` for `make dao`.
 - The plugin locally generates and maintains `internal/dao`, `internal/model/do`, and `internal/model/entity`.
 - When the plugin reads host shared tables (e.g., `sys_user`, `sys_dict_data`), it also uses the plugin's local codegen artifact.
 - Once a business table completes plugin migration, the host deletes the corresponding `dao/do/entity` and direct table lookup implementation.

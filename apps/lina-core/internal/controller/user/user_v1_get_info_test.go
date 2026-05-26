@@ -8,7 +8,7 @@ import (
 
 	"lina-core/internal/service/menu"
 	"lina-core/pkg/menutype"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestResolveHomePathPrefersStableHostRoutes verifies stable workspace routes

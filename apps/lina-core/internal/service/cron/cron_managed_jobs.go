@@ -15,7 +15,7 @@ import (
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const defaultManagedJobTimeout = 5 * time.Minute
@@ -245,7 +245,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 	}
 	jobs := make([]jobmgmtsvc.BuiltinJobDef, 0, len(items))
 	for _, item := range items {
-		handlerRef, refErr := pluginbridge.BuildPluginCronHandlerRef(item.PluginID, item.Name)
+		handlerRef, refErr := protocol.BuildPluginCronHandlerRef(item.PluginID, item.Name)
 		if refErr != nil {
 			return nil, refErr
 		}

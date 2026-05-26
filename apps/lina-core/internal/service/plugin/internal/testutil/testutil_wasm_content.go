@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // BuildTestRuntimeWasmContent assembles a synthetic WASM artifact byte slice for use in tests
@@ -21,8 +21,8 @@ func BuildTestRuntimeWasmContent(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
-	routeContracts []*pluginbridge.RouteContract,
-	bridgeSpec *pluginbridge.BridgeSpec,
+	routeContracts []*protocol.RouteContract,
+	bridgeSpec *protocol.BridgeSpec,
 ) []byte {
 	t.Helper()
 	return buildTestRuntimeWasmArtifactContent(
@@ -47,9 +47,9 @@ func WriteRuntimeWasmArtifact(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
-	cronContracts []*pluginbridge.CronContract,
-	routeContracts []*pluginbridge.RouteContract,
-	bridgeSpec *pluginbridge.BridgeSpec,
+	cronContracts []*protocol.CronContract,
+	routeContracts []*protocol.RouteContract,
+	bridgeSpec *protocol.BridgeSpec,
 ) {
 	t.Helper()
 
@@ -110,9 +110,9 @@ func buildTestRuntimeWasmArtifactContent(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
-	_ []*pluginbridge.CronContract,
-	routeContracts []*pluginbridge.RouteContract,
-	bridgeSpec *pluginbridge.BridgeSpec,
+	_ []*protocol.CronContract,
+	routeContracts []*protocol.RouteContract,
+	bridgeSpec *protocol.BridgeSpec,
 ) []byte {
 	t.Helper()
 
@@ -127,70 +127,70 @@ func buildTestRuntimeWasmArtifactContent(
 	}
 
 	wasm := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
-	wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionManifest, manifestContent)
-	wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionRuntime, runtimeContent)
+	wasm = appendWasmCustomSection(wasm, protocol.WasmSectionManifest, manifestContent)
+	wasm = appendWasmCustomSection(wasm, protocol.WasmSectionRuntime, runtimeContent)
 	if len(frontendAssets) > 0 {
 		frontendContent, marshalErr := json.Marshal(frontendAssets)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal frontend assets: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionFrontendAssets, frontendContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionFrontendAssets, frontendContent)
 	}
 	if len(installSQLAssets) > 0 {
 		installContent, marshalErr := json.Marshal(installSQLAssets)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal install sql assets: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionInstallSQL, installContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionInstallSQL, installContent)
 	}
 	if len(uninstallSQLAssets) > 0 {
 		uninstallContent, marshalErr := json.Marshal(uninstallSQLAssets)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal uninstall sql assets: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionUninstallSQL, uninstallContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionUninstallSQL, uninstallContent)
 	}
 	if len(runtimeMetadata.MockSQLAssets) > 0 {
 		mockContent, marshalErr := json.Marshal(runtimeMetadata.MockSQLAssets)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal mock sql assets: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionMockSQL, mockContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionMockSQL, mockContent)
 	}
 	if len(runtimeMetadata.ManifestResources) > 0 {
 		resourceContent, marshalErr := json.Marshal(runtimeMetadata.ManifestResources)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal manifest resources: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionManifestResources, resourceContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionManifestResources, resourceContent)
 	}
 	if len(runtimeMetadata.LifecycleContracts) > 0 {
 		lifecycleContent, marshalErr := json.Marshal(runtimeMetadata.LifecycleContracts)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal lifecycle contracts: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionBackendLifecycle, lifecycleContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionBackendLifecycle, lifecycleContent)
 	}
 	if len(routeContracts) > 0 {
 		routeContent, marshalErr := json.Marshal(routeContracts)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal route contracts: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionBackendRoutes, routeContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionBackendRoutes, routeContent)
 	}
 	if bridgeSpec != nil {
 		bridgeContent, marshalErr := json.Marshal(bridgeSpec)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal bridge spec: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionBackendBridge, bridgeContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionBackendBridge, bridgeContent)
 	}
 	if len(runtimeMetadata.HostServices) > 0 {
 		hostServiceContent, marshalErr := json.Marshal(runtimeMetadata.HostServices)
 		if marshalErr != nil {
 			t.Fatalf("failed to marshal runtime host services: %v", marshalErr)
 		}
-		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionBackendHostServices, hostServiceContent)
+		wasm = appendWasmCustomSection(wasm, protocol.WasmSectionBackendHostServices, hostServiceContent)
 	}
 	return wasm
 }

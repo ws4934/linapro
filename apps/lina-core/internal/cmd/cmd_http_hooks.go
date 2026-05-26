@@ -7,7 +7,7 @@ import (
 
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // dispatchSystemStartedHook notifies enabled plugins after all host routes and

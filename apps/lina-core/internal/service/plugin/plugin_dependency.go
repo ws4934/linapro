@@ -36,10 +36,6 @@ type (
 		RequiredVersion string
 		// CurrentVersion is the discovered or installed dependency version.
 		CurrentVersion string
-		// Required reports whether the dependency blocks lifecycle.
-		Required bool
-		// InstallMode is the declared dependency install mode.
-		InstallMode string
 		// Installed reports whether the dependency is already installed.
 		Installed bool
 		// Discovered reports whether the dependency is discoverable.
@@ -47,20 +43,6 @@ type (
 		// Status is the dependency state returned by the resolver.
 		Status string
 		// Chain is the dependency chain leading to this edge.
-		Chain []string
-	}
-
-	// DependencyAutoInstallItem exposes one dependency install planned before the target.
-	DependencyAutoInstallItem struct {
-		// PluginID is the dependency plugin that will be installed automatically.
-		PluginID string
-		// Name is the dependency display name when available.
-		Name string
-		// Version is the dependency version to install.
-		Version string
-		// RequiredBy is the direct parent plugin declaring the dependency.
-		RequiredBy string
-		// Chain is the dependency chain leading to this plan item.
 		Chain []string
 	}
 
@@ -102,14 +84,6 @@ type (
 		Framework DependencyFrameworkCheck
 		// Dependencies contains direct and transitive dependency edge checks.
 		Dependencies []*DependencyPluginCheck
-		// AutoInstallPlan lists missing hard dependencies that can be installed automatically.
-		AutoInstallPlan []*DependencyAutoInstallItem
-		// AutoInstalled lists dependencies already installed by the current request.
-		AutoInstalled []*DependencyAutoInstallItem
-		// ManualInstallRequired lists hard dependencies that need manual installation first.
-		ManualInstallRequired []*DependencyPluginCheck
-		// SoftUnsatisfied lists optional dependencies that are unavailable or incompatible.
-		SoftUnsatisfied []*DependencyPluginCheck
 		// Blockers lists install-side hard failures.
 		Blockers []*DependencyBlocker
 		// Cycle contains the first detected dependency cycle.
@@ -124,8 +98,6 @@ type (
 	dependencyInstallContext struct {
 		// active marks target IDs already being installed in this request.
 		active map[string]bool
-		// skipAutoPlan disables recursive auto-install planning for plan items.
-		skipAutoPlan bool
 	}
 
 	// dependencySnapshotCache stores request-local dependency snapshots for
@@ -169,7 +141,7 @@ func (s *serviceImpl) CheckPluginDependencies(ctx context.Context, pluginID stri
 	return result, nil
 }
 
-// prepareInstallDependencies verifies a target and installs automatic dependencies first.
+// prepareInstallDependencies verifies a target before lifecycle side effects.
 func (s *serviceImpl) prepareInstallDependencies(
 	ctx context.Context,
 	pluginID string,
@@ -196,28 +168,6 @@ func (s *serviceImpl) prepareInstallDependencies(
 	if hasDependencyBlockers(check.Blockers) {
 		return result, nextCtx, s.buildDependencyBlockedError(normalizedID, check.Blockers)
 	}
-	if s.dependencyTargetAlreadyInstalled(ctx, normalizedID) && len(check.AutoInstallPlan) > 0 {
-		blockers := blockersFromAutoInstallPlan(normalizedID, check.AutoInstallPlan)
-		result.Blockers = append(result.Blockers, toDependencyBlockers(blockers)...)
-		return result, nextCtx, s.buildDependencyBlockedError(normalizedID, blockers)
-	}
-	if depCtx.skipAutoPlan {
-		return result, nextCtx, nil
-	}
-	installed := make([]*DependencyAutoInstallItem, 0, len(check.AutoInstallPlan))
-	for _, item := range check.AutoInstallPlan {
-		if item == nil || strings.TrimSpace(item.PluginID) == "" {
-			continue
-		}
-		installCtx := dependencyContextFrom(nextCtx)
-		installCtx.skipAutoPlan = true
-		itemCtx := context.WithValue(nextCtx, dependencyInstallContextKey{}, installCtx)
-		if _, err = s.install(itemCtx, item.PluginID, dependencyInstallOptions(options)); err != nil {
-			return result, nextCtx, s.buildDependencyAutoInstallFailedError(normalizedID, item.PluginID, installed, err)
-		}
-		installed = append(installed, toDependencyAutoInstallItem(item))
-	}
-	result.AutoInstalled = installed
 	return result, nextCtx, nil
 }
 
@@ -254,10 +204,6 @@ func (s *serviceImpl) validateUpgradeCandidateDependencies(ctx context.Context, 
 	}
 	if hasDependencyBlockers(installResult.Blockers) {
 		return s.buildDependencyBlockedError(manifest.ID, installResult.Blockers)
-	}
-	if len(installResult.AutoInstallPlan) > 0 {
-		blockers := blockersFromAutoInstallPlan(manifest.ID, installResult.AutoInstallPlan)
-		return s.buildDependencyBlockedError(manifest.ID, blockers)
 	}
 
 	if !s.dependencyTargetAlreadyInstalled(ctx, manifest.ID) {
@@ -517,11 +463,6 @@ func cloneDependencySnapshots(items []*plugindep.PluginSnapshot) []*plugindep.Pl
 	return out
 }
 
-// dependencyInstallOptions limits operator-only install decorations to the original target plugin.
-func dependencyInstallOptions(options InstallOptions) InstallOptions {
-	return InstallOptions{}
-}
-
 // dependencyTargetAlreadyInstalled reports whether the target is already installed.
 func (s *serviceImpl) dependencyTargetAlreadyInstalled(ctx context.Context, pluginID string) bool {
 	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
@@ -529,25 +470,6 @@ func (s *serviceImpl) dependencyTargetAlreadyInstalled(ctx context.Context, plug
 		return false
 	}
 	return registry.Installed == catalog.InstalledYes
-}
-
-// blockersFromAutoInstallPlan converts upgrade-time auto plans into hard blockers.
-func blockersFromAutoInstallPlan(pluginID string, plan []*plugindep.AutoInstallPlanItem) []*plugindep.Blocker {
-	blockers := make([]*plugindep.Blocker, 0, len(plan))
-	for _, item := range plan {
-		if item == nil {
-			continue
-		}
-		blockers = append(blockers, &plugindep.Blocker{
-			Code:           plugindep.BlockerDependencyManualInstallRequired,
-			PluginID:       strings.TrimSpace(pluginID),
-			DependencyID:   strings.TrimSpace(item.PluginID),
-			CurrentVersion: strings.TrimSpace(item.Version),
-			Chain:          cloneStringSlice(item.Chain),
-			Detail:         "dependency must be installed before upgrading or refreshing the target plugin",
-		})
-	}
-	return blockers
 }
 
 // hasDependencyBlockers reports whether resolver blockers contain any hard failure.
@@ -566,22 +488,6 @@ func (s *serviceImpl) buildDependencyBlockedError(pluginID string, blockers []*p
 		bizerr.P("currentVersion", currentVersion),
 		bizerr.P("chain", firstDependencyBlockerChain(blockers)),
 		bizerr.P("blockers", formatDependencyBlockers(blockers)),
-	)
-}
-
-// buildDependencyAutoInstallFailedError returns a structured error for partial auto-install failure.
-func (s *serviceImpl) buildDependencyAutoInstallFailedError(
-	pluginID string,
-	failedPluginID string,
-	installed []*DependencyAutoInstallItem,
-	cause error,
-) error {
-	return bizerr.WrapCode(
-		cause,
-		CodePluginDependencyAutoInstallFailed,
-		bizerr.P("pluginId", strings.TrimSpace(pluginID)),
-		bizerr.P("failedPluginId", strings.TrimSpace(failedPluginID)),
-		bizerr.P("installedDependencies", strings.Join(dependencyAutoInstalledIDs(installed), ",")),
 	)
 }
 
@@ -615,12 +521,9 @@ func toDependencyCheckResult(result *plugindep.InstallCheckResult) *DependencyCh
 			CurrentVersion:  result.Framework.CurrentVersion,
 			Status:          string(result.Framework.Status),
 		},
-		Dependencies:          toDependencyPluginChecks(result.Dependencies),
-		AutoInstallPlan:       toDependencyAutoInstallItems(result.AutoInstallPlan),
-		ManualInstallRequired: toDependencyPluginChecks(result.ManualInstallRequired),
-		SoftUnsatisfied:       toDependencyPluginChecks(result.SoftUnsatisfied),
-		Blockers:              toDependencyBlockers(result.Blockers),
-		Cycle:                 cloneStringSlice(result.Cycle),
+		Dependencies: toDependencyPluginChecks(result.Dependencies),
+		Blockers:     toDependencyBlockers(result.Blockers),
+		Cycle:        cloneStringSlice(result.Cycle),
 	}
 }
 
@@ -637,8 +540,6 @@ func toDependencyPluginChecks(items []*plugindep.PluginDependencyCheck) []*Depen
 			DependencyName:  item.DependencyName,
 			RequiredVersion: item.RequiredVersion,
 			CurrentVersion:  item.CurrentVersion,
-			Required:        item.Required,
-			InstallMode:     item.InstallMode.String(),
 			Installed:       item.Installed,
 			Discovered:      item.Discovered,
 			Status:          string(item.Status),
@@ -646,32 +547,6 @@ func toDependencyPluginChecks(items []*plugindep.PluginDependencyCheck) []*Depen
 		})
 	}
 	return out
-}
-
-// toDependencyAutoInstallItems converts resolver auto-install plan items.
-func toDependencyAutoInstallItems(items []*plugindep.AutoInstallPlanItem) []*DependencyAutoInstallItem {
-	out := make([]*DependencyAutoInstallItem, 0, len(items))
-	for _, item := range items {
-		converted := toDependencyAutoInstallItem(item)
-		if converted != nil {
-			out = append(out, converted)
-		}
-	}
-	return out
-}
-
-// toDependencyAutoInstallItem converts one resolver auto-install plan item.
-func toDependencyAutoInstallItem(item *plugindep.AutoInstallPlanItem) *DependencyAutoInstallItem {
-	if item == nil {
-		return nil
-	}
-	return &DependencyAutoInstallItem{
-		PluginID:   item.PluginID,
-		Name:       item.Name,
-		Version:    item.Version,
-		RequiredBy: item.RequiredBy,
-		Chain:      cloneStringSlice(item.Chain),
-	}
 }
 
 // toDependencyBlockers converts resolver blockers.
@@ -753,18 +628,6 @@ func firstDependencyBlockerChain(blockers []*plugindep.Blocker) string {
 		return strings.Join(blocker.Chain, ">")
 	}
 	return ""
-}
-
-// dependencyAutoInstalledIDs extracts dependency IDs from installed plan items.
-func dependencyAutoInstalledIDs(items []*DependencyAutoInstallItem) []string {
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		if item == nil || strings.TrimSpace(item.PluginID) == "" {
-			continue
-		}
-		out = append(out, strings.TrimSpace(item.PluginID))
-	}
-	return out
 }
 
 // reverseDependentIDs extracts downstream plugin IDs.

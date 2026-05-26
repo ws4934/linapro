@@ -11,7 +11,7 @@ import (
 	"lina-core/internal/service/menu"
 	"lina-core/pkg/apitime"
 	"lina-core/pkg/menutype"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 	"lina-core/pkg/statusflag"
 )
 

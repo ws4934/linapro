@@ -24,7 +24,7 @@ const (
 
 // Refresher rebuilds or invalidates one process-local plugin runtime cache
 // domain after another cluster node publishes a newer shared revision.
-type Refresher func(ctx context.Context) error
+type Refresher func(ctx context.Context, revision int64) error
 
 // ObservedRevision records the latest shared revision consumed by one local
 // cache domain.

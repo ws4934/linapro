@@ -94,9 +94,6 @@ const hasDependencyContent = computed(() => {
   return (
     previewLoading.value ||
     (check?.blockers ?? []).length > 0 ||
-    (check?.autoInstallPlan ?? []).length > 0 ||
-    (check?.manualInstallRequired ?? []).length > 0 ||
-    (check?.softUnsatisfied ?? []).length > 0 ||
     (check?.cycle ?? []).length > 0 ||
     check?.framework?.status === 'unsatisfied'
   );
@@ -105,7 +102,9 @@ const hasDependencyContent = computed(() => {
 const dependencyBlocked = computed(() => {
   return (
     previewLoading.value ||
-    (preview.value?.dependencyCheck?.blockers ?? []).length > 0
+    (preview.value?.dependencyCheck?.blockers ?? []).length > 0 ||
+    (preview.value?.dependencyCheck?.cycle ?? []).length > 0 ||
+    preview.value?.dependencyCheck?.framework?.status === 'unsatisfied'
   );
 });
 

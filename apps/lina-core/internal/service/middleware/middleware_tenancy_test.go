@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
@@ -21,112 +20,32 @@ import (
 	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	tenantcap "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // tenancyTestTenantService provides deterministic tenantcap outcomes for middleware tests.
 type tenancyTestTenantService struct {
 	enabled       bool
-	resolveResult *pkgtenantcap.ResolverResult
+	resolveResult *tenantcap.ResolverResult
 	resolveErr    error
 	resolveCalls  int
 }
 
 // Enabled returns the configured linapro-tenant-core enablement state.
-func (s *tenancyTestTenantService) Enabled(context.Context) bool {
+func (s *tenancyTestTenantService) Available(context.Context) bool {
 	return s.enabled
 }
 
-// Current is unused by middleware tests and returns platform.
-func (s *tenancyTestTenantService) Current(context.Context) tenantcapsvc.TenantID {
-	return pkgtenantcap.PLATFORM
-}
-
-// Apply is unused by middleware tests and returns the input model unchanged.
-func (s *tenancyTestTenantService) Apply(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, error) {
-	return model, nil
-}
-
-// PlatformBypass is unused by middleware tests and returns false.
+// PlatformBypass returns the fixed platform-governance state for middleware tests.
 func (s *tenancyTestTenantService) PlatformBypass(context.Context) bool {
 	return false
 }
 
-// EnsureTenantVisible is unused by middleware tests and accepts all tenants.
-func (s *tenancyTestTenantService) EnsureTenantVisible(context.Context, tenantcapsvc.TenantID) error {
-	return nil
-}
-
 // ResolveTenant records one middleware resolver call and returns the configured result.
-func (s *tenancyTestTenantService) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
+func (s *tenancyTestTenantService) ResolveTenant(context.Context, *ghttp.Request) (*tenantcap.ResolverResult, error) {
 	s.resolveCalls++
 	return s.resolveResult, s.resolveErr
-}
-
-// ListUserTenants is unused by middleware tests and returns no tenants.
-func (s *tenancyTestTenantService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return []pkgtenantcap.TenantInfo{}, nil
-}
-
-// ApplyUserTenantScope is unused by middleware tests.
-func (s *tenancyTestTenantService) ApplyUserTenantScope(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ApplyUserTenantFilter is unused by middleware tests.
-func (s *tenancyTestTenantService) ApplyUserTenantFilter(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-	_ tenantcapsvc.TenantID,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenantProjections is unused by middleware tests.
-func (s *tenancyTestTenantService) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment is unused by middleware tests.
-func (s *tenancyTestTenantService) ResolveUserTenantAssignment(
-	context.Context,
-	[]tenantcapsvc.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is unused by middleware tests.
-func (s *tenancyTestTenantService) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
-}
-
-// EnsureUsersInTenant is unused by middleware tests.
-func (s *tenancyTestTenantService) EnsureUsersInTenant(context.Context, []int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ValidateUserMembershipStartupConsistency is unused by middleware tests.
-func (s *tenancyTestTenantService) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
-	return nil, nil
 }
 
 // TestTenancyDisabledInjectsPlatformAndContinues verifies disabled tenancy
@@ -151,7 +70,7 @@ func TestTenancyDisabledInjectsPlatformAndContinues(t *testing.T) {
 func TestTenancyEnabledInjectsResolvedTenant(t *testing.T) {
 	tenantSvc := &tenancyTestTenantService{
 		enabled: true,
-		resolveResult: &pkgtenantcap.ResolverResult{
+		resolveResult: &tenantcap.ResolverResult{
 			TenantID:        42,
 			Matched:         true,
 			ActingAsTenant:  true,
@@ -191,7 +110,7 @@ func TestTenancyEnabledRequiresMatchedTenant(t *testing.T) {
 func TestTenancyResolverTenantRequiredErrorUsesUnauthorized(t *testing.T) {
 	tenantSvc := &tenancyTestTenantService{
 		enabled:    true,
-		resolveErr: bizerr.NewCode(pkgtenantcap.CodeTenantRequired),
+		resolveErr: bizerr.NewCode(tenantcap.CodeTenantRequired),
 	}
 	status, body := runTenancyMiddlewareRequest(t, tenantSvc)
 
@@ -205,7 +124,7 @@ func TestTenancyResolverTenantRequiredErrorUsesUnauthorized(t *testing.T) {
 func TestTenancyResolverForbiddenErrorUsesForbidden(t *testing.T) {
 	tenantSvc := &tenancyTestTenantService{
 		enabled:    true,
-		resolveErr: bizerr.NewCode(pkgtenantcap.CodeTenantForbidden, bizerr.P("tenantId", 9)),
+		resolveErr: bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", 9)),
 	}
 	status, body := runTenancyMiddlewareRequest(t, tenantSvc)
 
@@ -216,7 +135,7 @@ func TestTenancyResolverForbiddenErrorUsesForbidden(t *testing.T) {
 
 // runTenancyMiddlewareRequest serves one request through Ctx and Tenancy and
 // returns the observed response status and body.
-func runTenancyMiddlewareRequest(t *testing.T, tenantSvc tenantcapsvc.Service) (int, string) {
+func runTenancyMiddlewareRequest(t *testing.T, tenantSvc tenantMiddlewareService) (int, string) {
 	t.Helper()
 
 	svc := &serviceImpl{

@@ -11,7 +11,8 @@ import (
 	"lina-core/internal/service/kvcache"
 	notifysvc "lina-core/internal/service/notify"
 	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/pkg/pluginservice/contract"
+	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/contract"
 )
 
 // ConfigureWasmHostServices wires dynamic-plugin host-service dispatchers to
@@ -21,6 +22,7 @@ func ConfigureWasmHostServices(
 	lockSvc hostlock.Service,
 	notifySvc notifysvc.Service,
 	configSvc configsvc.PluginConfigReader,
+	hostServices capability.Services,
 	configFactory contract.ConfigServiceFactory,
 	hostConfigSvc contract.HostConfigService,
 	manifestFactory contract.ManifestServiceFactory,
@@ -36,6 +38,12 @@ func ConfigureWasmHostServices(
 	}
 	if err := wasm.ConfigureStorageHostService(configSvc); err != nil {
 		return gerror.Wrap(err, "configure wasm storage host service failed")
+	}
+	if err := wasm.ConfigureOrgHostService(hostServices); err != nil {
+		return gerror.Wrap(err, "configure wasm org host service failed")
+	}
+	if err := wasm.ConfigureTenantHostService(hostServices); err != nil {
+		return gerror.Wrap(err, "configure wasm tenant host service failed")
 	}
 	if err := wasm.ConfigureConfigHostService(configFactory); err != nil {
 		return gerror.Wrap(err, "configure wasm config host service failed")

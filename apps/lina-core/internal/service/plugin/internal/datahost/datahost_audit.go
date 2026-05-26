@@ -1,5 +1,5 @@
 // This file builds plugin data audit metadata and bridges the datahost package
-// to the reusable plugindb host-side governance layer.
+// to the reusable data capability host-side governance layer.
 
 package datahost
 
@@ -10,13 +10,13 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/plugindb"
+	datahost "lina-core/internal/service/plugin/internal/datahost/internal/host"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// withPluginDataAudit attaches audit metadata for downstream plugindb host logging.
-func withPluginDataAudit(ctx context.Context, metadata *plugindb.AuditMetadata) context.Context {
-	return plugindb.WithAudit(ctx, metadata)
+// withPluginDataAudit attaches audit metadata for downstream data capability host logging.
+func withPluginDataAudit(ctx context.Context, metadata *datahost.AuditMetadata) context.Context {
+	return datahost.WithAudit(ctx, metadata)
 }
 
 // buildPluginDataAuditMetadata builds the audit metadata snapshot for one governed request.
@@ -25,15 +25,15 @@ func buildPluginDataAuditMetadata(
 	resource *catalog.ResourceSpec,
 	method string,
 	inTransaction bool,
-) *plugindb.AuditMetadata {
-	metadata := &plugindb.AuditMetadata{
+) *datahost.AuditMetadata {
+	metadata := &datahost.AuditMetadata{
 		Method:      strings.ToLower(strings.TrimSpace(method)),
 		Transaction: inTransaction,
 	}
 	if execCtx != nil {
 		metadata.PluginID = strings.TrimSpace(execCtx.pluginID)
 		metadata.Table = strings.TrimSpace(execCtx.table)
-		metadata.ExecutionSource = pluginbridge.NormalizeExecutionSource(execCtx.executionSource)
+		metadata.ExecutionSource = protocol.NormalizeExecutionSource(execCtx.executionSource)
 		if execCtx.identity != nil {
 			metadata.UserID = execCtx.identity.UserID
 		}
@@ -44,7 +44,7 @@ func buildPluginDataAuditMetadata(
 	return metadata
 }
 
-// getPluginDataDB returns the governed plugindb host database handle.
+// getPluginDataDB returns the governed data capability host database handle.
 func getPluginDataDB() (gdb.DB, error) {
-	return plugindb.HostDB()
+	return datahost.DB()
 }

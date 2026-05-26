@@ -57,6 +57,6 @@ The system SHALL require the source plugin to converge the backend business impl
 
 #### Scenario: Plugin requires local ORM artifacts
 - **WHEN** Source code plugin needs to access the database
-- **THEN** `backend/hack/config.yaml` serves as the plugin's local `gf gen dao` configuration entry
+- **THEN** `backend/hack/config.yaml` serves as the plugin's local `make dao` configuration entry
 - **AND** The generated results fall into `backend/internal/dao/`, `backend/internal/model/do/` and `backend/internal/model/entity/`
 - **AND** Access to the host shared table also continues to use the plugin's local generation of artifacts

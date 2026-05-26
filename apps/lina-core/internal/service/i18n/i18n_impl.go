@@ -16,8 +16,13 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginfs"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
+)
+
+const (
+	// sourcePluginManifestPath is the embedded source-plugin manifest location
+	// used only to read the plugin i18n policy.
+	sourcePluginManifestPath = "plugin.yaml"
 )
 
 // ResolveRequestLocale resolves the effective locale for the current HTTP request.
@@ -358,7 +363,7 @@ func sourcePluginRuntimeI18NEnabled(ctx context.Context, pluginID string, filesy
 	if filesystem == nil {
 		return false
 	}
-	content, err := fs.ReadFile(filesystem, pluginfs.EmbeddedManifestPath)
+	content, err := fs.ReadFile(filesystem, sourcePluginManifestPath)
 	if err != nil {
 		logger.Warningf(ctx, "read source plugin manifest for runtime i18n resources failed plugin=%s err=%v", pluginID, err)
 		return false

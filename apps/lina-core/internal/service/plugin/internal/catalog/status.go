@@ -75,12 +75,8 @@ const (
 const (
 	// MenuKeyPrefix is the common prefix for plugin-owned menu keys in sys_menu.menu_key.
 	MenuKeyPrefix = "plugin:"
-	// MenuRemarkPrefix is the legacy plugin marker prefix stored in sys_menu.remark.
-	MenuRemarkPrefix = "plugin:"
 	// DynamicRoutePermissionMenuKeySeparator marks synthetic route-permission menu keys.
 	DynamicRoutePermissionMenuKeySeparator = ":perm:"
-	// DynamicRoutePermissionMenuRemarkSuffix marks synthetic route-permission menu remarks.
-	DynamicRoutePermissionMenuRemarkSuffix = ":dynamic-route-permission"
 	// DynamicRoutePermissionMenuNamePrefix prefixes hidden route-permission menu names.
 	DynamicRoutePermissionMenuNamePrefix = "Dynamic Route Permission:"
 	// PluginStatusKeyPrefix is the stable status record key exposed to runtime consumers.
@@ -103,16 +99,12 @@ func BuildReleaseStatus(installed int, enabled int) ReleaseStatus {
 	return ReleaseStatusInstalled
 }
 
-// ParsePluginIDFromMenu extracts the owning plugin ID from a menu row's key or remark field.
-// It checks the menu key first and falls back to the remark field.
+// ParsePluginIDFromMenu extracts the owning plugin ID from a menu row's key.
 func ParsePluginIDFromMenu(menu *entity.SysMenu) string {
 	if menu == nil {
 		return ""
 	}
-	if pluginID := parsePluginIDFromMenuTagged(menu.MenuKey, MenuKeyPrefix); pluginID != "" {
-		return pluginID
-	}
-	return parsePluginIDFromMenuTagged(menu.Remark, MenuRemarkPrefix)
+	return parsePluginIDFromMenuTagged(menu.MenuKey, MenuKeyPrefix)
 }
 
 // parsePluginIDFromMenuTagged extracts the plugin ID segment from a tagged value such as

@@ -13,7 +13,10 @@ import (
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/bizerr"
-	plugincontract "lina-core/pkg/pluginservice/contract"
+	"lina-core/pkg/plugin/capability"
+	plugincontract "lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestCacheAdapterUsesSharedKVCache verifies common cache operations delegate
@@ -161,21 +164,41 @@ func TestCacheAdapterReturnsBizErrorsForMissingScope(t *testing.T) {
 	}
 }
 
-// TestDirectoryForPluginReturnsScopedCache verifies source-plugin host service
-// directories bind cache services to the requested plugin ID.
-func TestDirectoryForPluginReturnsScopedCache(t *testing.T) {
+// TestServicesForPluginReturnsScopedCache verifies source-plugin host services
+// bind cache services to the requested plugin ID.
+func TestServicesForPluginReturnsScopedCache(t *testing.T) {
 	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	directory := &directory{
+	services := &directory{
 		bizCtx: nil,
 		cache:  cacheSvc,
 	}
 
-	scoped := directory.ForPlugin("source-plugin-a")
+	scoped := services.ForPlugin("source-plugin-a")
 	if scoped == nil || scoped.Cache() == nil {
 		t.Fatal("expected scoped host services to expose cache adapter")
 	}
-	if directory.Cache() != nil {
-		t.Fatal("expected unscoped base directory cache to remain unavailable")
+	if services.Cache() != nil {
+		t.Fatal("expected unscoped base services cache to remain unavailable")
+	}
+}
+
+// TestServicesExposeCapabilitiesThroughScopedServices verifies the common
+// capability helper returns capability-owned consumers.
+func TestServicesExposeCapabilitiesThroughScopedServices(t *testing.T) {
+	services := &directory{
+		org:    orgcap.New(nil),
+		tenant: tenantcap.New(nil, nil),
+	}
+
+	scoped := capability.ServicesForPlugin(services, "source-plugin-a")
+	if scoped == nil {
+		t.Fatal("expected scoped services")
+	}
+	if scoped.Org() == nil {
+		t.Fatal("expected organization capability consumer")
+	}
+	if scoped.Tenant() == nil {
+		t.Fatal("expected tenant capability consumer")
 	}
 }
 

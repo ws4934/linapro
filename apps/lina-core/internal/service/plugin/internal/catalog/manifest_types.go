@@ -8,8 +8,8 @@ import (
 
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/menutype"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // MenuType defines the canonical display category for one plugin-declared menu entry.
@@ -80,17 +80,17 @@ type Manifest struct {
 	// Hooks holds plugin-declared hook handler specifications.
 	Hooks []*HookSpec
 	// LifecycleHandlers holds plugin-declared lifecycle precondition handlers.
-	LifecycleHandlers []*pluginbridge.LifecycleContract
+	LifecycleHandlers []*protocol.LifecycleContract
 	// BackendResources holds plugin-declared backend resource specifications keyed by resource ID.
 	BackendResources map[string]*ResourceSpec
 	// Routes holds plugin-declared bridge route contracts.
-	Routes []*pluginbridge.RouteContract
+	Routes []*protocol.RouteContract
 	// BridgeSpec carries the WASM bridge ABI metadata.
-	BridgeSpec *pluginbridge.BridgeSpec
+	BridgeSpec *protocol.BridgeSpec
 	// HostCapabilities is the set of granted host call capabilities.
 	HostCapabilities map[string]struct{}
 	// HostServices holds the structured host service declarations restored from release metadata.
-	HostServices []*pluginbridge.HostServiceSpec
+	HostServices []*protocol.HostServiceSpec
 	// RuntimeArtifact holds the validated WASM artifact for dynamic plugins.
 	RuntimeArtifact *ArtifactSpec
 	// SourcePlugin is the embedded source-plugin registration for source plugins.
@@ -98,7 +98,7 @@ type Manifest struct {
 }
 
 // SupportsTenantGovernance reports whether this manifest can use tenant-level
-// plugin governance. Missing legacy values fall back to the scope nature.
+// plugin governance.
 func (manifest *Manifest) SupportsTenantGovernance() bool {
 	if manifest == nil {
 		return false
@@ -106,7 +106,7 @@ func (manifest *Manifest) SupportsTenantGovernance() bool {
 	if manifest.SupportsMultiTenant != nil {
 		return *manifest.SupportsMultiTenant
 	}
-	return NormalizeScopeNature(manifest.ScopeNature) == ScopeNatureTenantAware
+	return false
 }
 
 // I18NEnabled reports whether this manifest participates in i18n governance.
@@ -288,17 +288,17 @@ type ArtifactSpec struct {
 	// HookSpecs holds the embedded hook handler declarations.
 	HookSpecs []*HookSpec
 	// LifecycleContracts holds the embedded lifecycle precondition declarations.
-	LifecycleContracts []*pluginbridge.LifecycleContract
+	LifecycleContracts []*protocol.LifecycleContract
 	// ResourceSpecs holds the embedded resource declarations.
 	ResourceSpecs []*ResourceSpec
 	// RouteContracts holds the embedded bridge route contracts.
-	RouteContracts []*pluginbridge.RouteContract
+	RouteContracts []*protocol.RouteContract
 	// BridgeSpec carries the WASM bridge ABI metadata.
-	BridgeSpec *pluginbridge.BridgeSpec
+	BridgeSpec *protocol.BridgeSpec
 	// Capabilities lists the coarse host capability identifiers derived from HostServices.
 	Capabilities []string
 	// HostServices lists the structured host service declarations embedded in the artifact.
-	HostServices []*pluginbridge.HostServiceSpec
+	HostServices []*protocol.HostServiceSpec
 }
 
 // ArtifactManifest stores the plugin identity embedded in WASM custom sections.
@@ -348,10 +348,6 @@ type PluginDependencySpec struct {
 	ID string `json:"id" yaml:"id"`
 	// Version is the semantic version range required from the dependency.
 	Version string `json:"version,omitempty" yaml:"version,omitempty"`
-	// Required reports whether this dependency blocks lifecycle operations.
-	Required *bool `json:"required,omitempty" yaml:"required,omitempty"`
-	// Install declares whether the host may install this dependency automatically.
-	Install string `json:"install,omitempty" yaml:"install,omitempty"`
 }
 
 // ArtifactFrontendAsset stores one embedded frontend static asset.

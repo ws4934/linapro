@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestManifestDeclaresCronHostService verifies dynamic cron discovery only
@@ -15,9 +15,9 @@ import (
 func TestManifestDeclaresCronHostService(t *testing.T) {
 	t.Run("missing cron service", func(t *testing.T) {
 		manifest := &catalog.Manifest{
-			HostServices: []*pluginbridge.HostServiceSpec{
-				{Service: pluginbridge.HostServiceRuntime},
-				{Service: pluginbridge.HostServiceStorage},
+			HostServices: []*protocol.HostServiceSpec{
+				{Service: protocol.HostServiceRuntime},
+				{Service: protocol.HostServiceStorage},
 			},
 		}
 		if manifestDeclaresCronHostService(manifest) {
@@ -27,8 +27,8 @@ func TestManifestDeclaresCronHostService(t *testing.T) {
 
 	t.Run("with cron service", func(t *testing.T) {
 		manifest := &catalog.Manifest{
-			HostServices: []*pluginbridge.HostServiceSpec{
-				{Service: pluginbridge.HostServiceCron},
+			HostServices: []*protocol.HostServiceSpec{
+				{Service: protocol.HostServiceCron},
 			},
 		}
 		if !manifestDeclaresCronHostService(manifest) {

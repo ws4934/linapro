@@ -21,14 +21,15 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
-	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/pluginhost"
-	pluginservicebizctx "lina-core/pkg/pluginservice/bizctx"
-	pluginserviceconfig "lina-core/pkg/pluginservice/config"
-	plugincontract "lina-core/pkg/pluginservice/contract"
-	pluginservicetenantfilter "lina-core/pkg/pluginservice/tenantfilter"
+	pluginservicebizctx "lina-core/pkg/plugin/capability/bizctx"
+	pluginserviceconfig "lina-core/pkg/plugin/capability/config"
+	plugincontract "lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	pluginservicetenantfilter "lina-core/pkg/plugin/capability/tenantfilter"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestLoginRejectsBlacklistedIP verifies managed login IP blacklist settings
@@ -63,31 +64,31 @@ func newRuntimeParamAuthTestService() Service {
 	if err != nil {
 		panic(err)
 	}
-	pluginSvc.SetHostServices(newRuntimeParamAuthTestHostServices(i18nSvc))
+	pluginSvc.SetCapabilities(newRuntimeParamAuthTestCapabilities(i18nSvc))
 	cacheSvc := kvcache.New()
 	return New(configSvc, pluginSvc, orgcap.New(pluginSvc), roleTestService{}, disabledTenantAuthTestService{}, sessionStore, cacheSvc)
 }
 
-// runtimeParamAuthTestHostServices publishes the host services required by
+// runtimeParamAuthTestCapabilities publishes the capabilities required by
 // official source-plugin auth hooks during plugin-full tests.
-type runtimeParamAuthTestHostServices struct {
+type runtimeParamAuthTestCapabilities struct {
 	config       plugincontract.ConfigService
 	i18n         plugincontract.I18nService
 	tenantFilter plugincontract.TenantFilterService
 }
 
-// Ensure runtimeParamAuthTestHostServices satisfies the source-plugin directory.
-var _ pluginhost.HostServices = (*runtimeParamAuthTestHostServices)(nil)
+// Ensure runtimeParamAuthTestCapabilities satisfies the source-plugin directory.
+var _ pluginhost.Services = (*runtimeParamAuthTestCapabilities)(nil)
 
-// newRuntimeParamAuthTestHostServices creates the minimal source-plugin host
-// service directory needed by auth runtime-parameter tests.
-func newRuntimeParamAuthTestHostServices(i18nSvc i18nsvc.Service) pluginhost.HostServices {
+// newRuntimeParamAuthTestCapabilities creates the minimal source-plugin
+// capability directory needed by auth runtime-parameter tests.
+func newRuntimeParamAuthTestCapabilities(i18nSvc i18nsvc.Service) pluginhost.Services {
 	bizCtxSvc := pluginservicebizctx.New(nil)
 	tenantFilterSvc, err := pluginservicetenantfilter.New(bizCtxSvc, nil)
 	if err != nil {
 		panic(err)
 	}
-	return &runtimeParamAuthTestHostServices{
+	return &runtimeParamAuthTestCapabilities{
 		config:       pluginserviceconfig.New(),
 		i18n:         runtimeParamAuthTestI18n{service: i18nSvc},
 		tenantFilter: tenantFilterSvc,
@@ -95,19 +96,19 @@ func newRuntimeParamAuthTestHostServices(i18nSvc i18nsvc.Service) pluginhost.Hos
 }
 
 // APIDoc returns no apidoc service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) APIDoc() plugincontract.APIDocService { return nil }
+func (s *runtimeParamAuthTestCapabilities) APIDoc() plugincontract.APIDocService { return nil }
 
 // Auth returns no auth service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) Auth() plugincontract.AuthService { return nil }
+func (s *runtimeParamAuthTestCapabilities) Auth() plugincontract.AuthService { return nil }
 
 // BizCtx returns no bizctx service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) BizCtx() plugincontract.BizCtxService { return nil }
+func (s *runtimeParamAuthTestCapabilities) BizCtx() plugincontract.BizCtxService { return nil }
 
 // Cache returns no cache service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) Cache() plugincontract.CacheService { return nil }
+func (s *runtimeParamAuthTestCapabilities) Cache() plugincontract.CacheService { return nil }
 
 // Config returns the test host configuration service.
-func (s *runtimeParamAuthTestHostServices) Config() plugincontract.ConfigService {
+func (s *runtimeParamAuthTestCapabilities) Config() plugincontract.ConfigService {
 	if s == nil {
 		return nil
 	}
@@ -115,17 +116,17 @@ func (s *runtimeParamAuthTestHostServices) Config() plugincontract.ConfigService
 }
 
 // HostConfig returns no host config service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) HostConfig() plugincontract.HostConfigService {
+func (s *runtimeParamAuthTestCapabilities) HostConfig() plugincontract.HostConfigService {
 	return nil
 }
 
 // Manifest returns no manifest service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) Manifest() plugincontract.ManifestService {
+func (s *runtimeParamAuthTestCapabilities) Manifest() plugincontract.ManifestService {
 	return nil
 }
 
 // I18n returns the runtime translation adapter used by auth hooks.
-func (s *runtimeParamAuthTestHostServices) I18n() plugincontract.I18nService {
+func (s *runtimeParamAuthTestCapabilities) I18n() plugincontract.I18nService {
 	if s == nil {
 		return nil
 	}
@@ -133,30 +134,40 @@ func (s *runtimeParamAuthTestHostServices) I18n() plugincontract.I18nService {
 }
 
 // Notify returns no notification service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) Notify() plugincontract.NotifyService { return nil }
+func (s *runtimeParamAuthTestCapabilities) Notify() plugincontract.NotifyService { return nil }
+
+// Org returns the default organization capability fallback service.
+func (s *runtimeParamAuthTestCapabilities) Org() orgcap.Service {
+	return orgcap.New(nil)
+}
 
 // PluginLifecycle returns no plugin lifecycle service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) PluginLifecycle() plugincontract.PluginLifecycleService {
+func (s *runtimeParamAuthTestCapabilities) PluginLifecycle() plugincontract.PluginLifecycleService {
 	return nil
 }
 
 // PluginState returns no plugin-state service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) PluginState() plugincontract.PluginStateService {
+func (s *runtimeParamAuthTestCapabilities) PluginState() plugincontract.PluginStateService {
 	return nil
 }
 
 // Route returns no route service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) Route() plugincontract.RouteService { return nil }
+func (s *runtimeParamAuthTestCapabilities) Route() plugincontract.RouteService { return nil }
 
 // Session returns no session service for auth runtime-parameter tests.
-func (s *runtimeParamAuthTestHostServices) Session() plugincontract.SessionService { return nil }
+func (s *runtimeParamAuthTestCapabilities) Session() plugincontract.SessionService { return nil }
 
 // TenantFilter returns the tenant-filter service used by auth hooks.
-func (s *runtimeParamAuthTestHostServices) TenantFilter() plugincontract.TenantFilterService {
+func (s *runtimeParamAuthTestCapabilities) TenantFilter() plugincontract.TenantFilterService {
 	if s == nil {
 		return nil
 	}
 	return s.tenantFilter
+}
+
+// Tenant returns the default tenant capability fallback service.
+func (s *runtimeParamAuthTestCapabilities) Tenant() tenantcap.Service {
+	return tenantcap.New(nil, nil)
 }
 
 // runtimeParamAuthTestI18n adapts internal i18n to the source-plugin contract

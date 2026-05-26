@@ -9,16 +9,49 @@ import (
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/runtime"
-	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
 )
 
-type (
-	// SourceUpgradeStatus aliases the stable source-plugin upgrade status contract.
-	SourceUpgradeStatus = sourceupgradecontract.SourcePluginStatus
+// SourceUpgradeStatus describes one source plugin's effective version,
+// discovered source version, and pending-upgrade state.
+type SourceUpgradeStatus struct {
+	// PluginID is the immutable plugin identifier.
+	PluginID string
+	// Name is the human-readable plugin display name.
+	Name string
+	// EffectiveVersion is the current effective version stored in sys_plugin.
+	EffectiveVersion string
+	// DiscoveredVersion is the version currently discovered from plugin.yaml.
+	DiscoveredVersion string
+	// Installed reports whether the plugin is already installed.
+	Installed int
+	// Enabled reports whether the plugin is currently enabled.
+	Enabled int
+	// NeedsUpgrade reports whether an installed plugin discovered a newer source version.
+	NeedsUpgrade bool
+	// DowngradeDetected reports whether the discovered source version is lower
+	// than the current effective version, which is unsupported in this iteration.
+	DowngradeDetected bool
+}
 
-	// SourceUpgradeResult aliases the stable explicit source-plugin upgrade result contract.
-	SourceUpgradeResult = sourceupgradecontract.SourcePluginUpgradeResult
-)
+// SourceUpgradeResult describes the outcome of one explicit source-plugin upgrade request.
+type SourceUpgradeResult struct {
+	// PluginID is the immutable plugin identifier.
+	PluginID string
+	// Name is the human-readable plugin display name.
+	Name string
+	// FromVersion is the effective version before the request ran.
+	FromVersion string
+	// ToVersion is the discovered version targeted by the request.
+	ToVersion string
+	// Executed reports whether upgrade work actually ran.
+	Executed bool
+	// Message explains the no-op or successful outcome in the effective locale.
+	Message string
+	// MessageKey is the runtime i18n key used to render Message.
+	MessageKey string
+	// MessageParams stores runtime i18n named parameters for MessageKey.
+	MessageParams map[string]any
+}
 
 // Service defines the host-side source-plugin upgrade governance contract.
 type Service interface {

@@ -1,6 +1,6 @@
 ## Context
 
-`linactl`是仓库默认跨平台开发命令入口。当前`linactl ctrl`和`linactl dao`位于`hack/tools/linactl`中，但实际流程仍依赖外部`gf`可执行文件：先检查本机`gf -v`，缺失时从 GitHub release 的`latest`地址下载并安装，再在`apps/lina-core`目录执行`gf gen ctrl`或`gf gen dao`。
+`linactl`是仓库默认跨平台开发命令入口。当前`linactl ctrl`和`linactl dao`位于`hack/tools/linactl`中，但实际流程仍依赖外部`gf`可执行文件：先检查本机`gf -v`，缺失时从 GitHub release 的`latest`地址下载并安装，再在`apps/lina-core`目录执行`make ctrl`或`make dao`。
 
 这个流程有三个问题：
 

@@ -9,18 +9,54 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
-// SetTenantCapability wires the runtime-owned tenant capability used by startup
-// consistency checks that span plugin and tenant governance.
-func (s *serviceImpl) SetTenantCapability(service tenantcapsvc.Service) {
+// pluginTenantStartupCapability is the tenant slice needed by plugin startup
+// consistency checks. It excludes request resolution, data-scope, membership
+// writes, and provisioning.
+type pluginTenantStartupCapability interface {
+	// Available reports whether an active tenant provider can serve framework calls.
+	Available(ctx context.Context) bool
+	// ValidateUserMembershipStartupConsistency returns startup consistency failures detected by the provider.
+	ValidateUserMembershipStartupConsistency(ctx context.Context) ([]string, error)
+}
+
+// SetTenantStartupCapability wires tenant provider availability and startup
+// consistency checks.
+func (s *serviceImpl) SetTenantStartupCapability(service pluginTenantStartupCapability) {
 	if s == nil {
 		return
 	}
-	s.tenantSvc = service
+	s.tenantStartup = service
+}
+
+// SetTenantProvisioningCapability wires tenant plugin auto-provisioning.
+func (s *serviceImpl) SetTenantProvisioningCapability(service tenantcapsvc.PluginProvisioningService) {
+	if s == nil {
+		return
+	}
+	s.tenantProvisioning = service
+}
+
+// SetTenantPlatformGovernanceCapability wires platform plugin-governance checks.
+func (s *serviceImpl) SetTenantPlatformGovernanceCapability(service platformGovernanceTenantCapability) {
+	if s == nil {
+		return
+	}
+	s.tenantGovernance = service
+}
+
+// SetOrganizationCapability wires the runtime-owned organization capability
+// used by plugin-owned resource data-scope filtering.
+func (s *serviceImpl) SetOrganizationCapability(service orgcapsvc.Service) {
+	if s == nil || s.integrationSvc == nil {
+		return
+	}
+	s.integrationSvc.SetOrganizationCapability(service)
 }
 
 // ValidateStartupConsistency verifies persisted startup state that must be
@@ -36,7 +72,7 @@ func (s *serviceImpl) ValidateStartupConsistency(ctx context.Context) error {
 		return err
 	}
 	details = append(details, pluginDetails...)
-	providerDetails, err := s.validateTenantProviderStartupConsistency(ctx)
+	providerDetails, err := s.validateProviderStartupConsistency(ctx)
 	if err != nil {
 		return err
 	}
@@ -83,24 +119,24 @@ func (s *serviceImpl) validatePluginStartupConsistency(ctx context.Context) ([]s
 	return details, nil
 }
 
-// validateTenantProviderStartupConsistency verifies the tenant capability
-// provider is registered when the linapro-tenant-core plugin is enabled.
-func (s *serviceImpl) validateTenantProviderStartupConsistency(ctx context.Context) ([]string, error) {
-	enabled := s.IsEnabled(ctx, pkgtenantcap.ProviderPluginID)
-	if !enabled || pkgtenantcap.HasProvider() {
+// validateProviderStartupConsistency verifies the tenant capability provider
+// is active when the linapro-tenant-core plugin is enabled.
+func (s *serviceImpl) validateProviderStartupConsistency(ctx context.Context) ([]string, error) {
+	enabled := s.IsEnabled(ctx, tenantcap.ProviderPluginID)
+	if !enabled || (s.tenantStartup != nil && s.tenantStartup.Available(ctx)) {
 		return nil, nil
 	}
-	return []string{"linapro-tenant-core plugin is enabled but tenantcap provider is not registered"}, nil
+	return []string{"linapro-tenant-core plugin is enabled but capability tenant provider is not active"}, nil
 }
 
 // validateTenantMembershipStartupConsistency delegates tenant membership
 // checks to the startup-owned tenant capability instance.
 func (s *serviceImpl) validateTenantMembershipStartupConsistency(ctx context.Context) ([]string, error) {
-	if s == nil || s.tenantSvc == nil {
+	if s == nil || s.tenantStartup == nil {
 		return nil, bizerr.NewCode(
 			CodePluginStartupConsistencyFailed,
 			bizerr.P("details", "plugin startup consistency requires injected tenant capability service"),
 		)
 	}
-	return s.tenantSvc.ValidateUserMembershipStartupConsistency(ctx)
+	return s.tenantStartup.ValidateUserMembershipStartupConsistency(ctx)
 }

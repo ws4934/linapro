@@ -293,12 +293,6 @@ var (
 		"Plugin {pluginId} dependency check failed: {blockers}",
 		gcode.CodeInvalidParameter,
 	)
-	// CodePluginDependencyAutoInstallFailed reports that automatic dependency installation stopped.
-	CodePluginDependencyAutoInstallFailed = bizerr.MustDefine(
-		"PLUGIN_DEPENDENCY_AUTO_INSTALL_FAILED",
-		"Plugin {pluginId} automatic dependency installation failed at {failedPluginId}; installed dependencies: {installedDependencies}",
-		gcode.CodeInternalError,
-	)
 	// CodePluginReverseDependencyBlocked reports that installed downstream plugins depend on the target plugin.
 	CodePluginReverseDependencyBlocked = bizerr.MustDefine(
 		"PLUGIN_REVERSE_DEPENDENCY_BLOCKED",

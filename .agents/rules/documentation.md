@@ -4,15 +4,6 @@
 
 本规则约束仓库内技术文档、目录级说明文档、OpenSpec 文档、Markdown 格式、链接、表格、代码块、图示以及中英文镜像文档的维护方式。
 
-## 强制遵守场景
-
-以下任一场景命中时，必须先读取并遵守本规则：
-
-- 新增或修改仓库内技术文档、目录级说明文档、`README.md`或`README.zh-CN.md`
-- 新增目录说明文档、变更 Markdown 格式、链接、表格、代码块或图示
-- 修改 OpenSpec 文档语言、说明文档镜像关系或文档治理规则
-- 调整`.agents/instructions/markdown-format.instructions.md`或其他文档格式规范入口
-
 ## 基础要求
 
 - `README.md`等技术文档编写必须遵循`.agents/instructions/markdown-format.instructions.md`。

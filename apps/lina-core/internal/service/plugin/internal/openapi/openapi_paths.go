@@ -8,8 +8,8 @@ import (
 
 	"github.com/gogf/gf/v2/net/goai"
 
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // BuildRoutePublicPath returns the full public URL path for one dynamic plugin route.
@@ -33,6 +33,6 @@ func NormalizeDynamicRoutePath(path string) string {
 }
 
 // BuildRouteOpenAPIOperation is the exported form of buildRouteOpenAPIOperation for cross-package access.
-func BuildRouteOpenAPIOperation(pluginID string, route *pluginbridge.RouteContract, bridgeSpec *pluginbridge.BridgeSpec) *goai.Operation {
+func BuildRouteOpenAPIOperation(pluginID string, route *protocol.RouteContract, bridgeSpec *protocol.BridgeSpec) *goai.Operation {
 	return buildRouteOpenAPIOperation(pluginID, route, bridgeSpec)
 }

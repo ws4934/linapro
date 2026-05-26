@@ -14,7 +14,7 @@ import (
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // applyUpgrade moves an installed plugin to a new semantic version. Unlike

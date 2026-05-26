@@ -11,7 +11,7 @@ import (
 	bizctxsvc "lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // ConfigProvider provides host OpenAPI metadata configuration.

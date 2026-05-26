@@ -48,7 +48,7 @@ func newRuntimeCacheRevisionController(
 		clusterEnabled,
 		cacheCoordSvc,
 		pluginRuntimeCacheObservedRevision,
-		func(ctx context.Context) error {
+		func(ctx context.Context, revision int64) error {
 			if integrationSvc != nil {
 				if err := integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
 					return err
@@ -112,24 +112,25 @@ func (s *serviceImpl) ensureRuntimeCacheFreshBestEffort(ctx context.Context, ope
 // MarkRuntimeCacheChanged publishes one successful runtime cache mutation to
 // other cluster nodes. It implements the dynamic runtime cache-change notifier.
 func (s *serviceImpl) MarkRuntimeCacheChanged(ctx context.Context, reason string) error {
-	return s.markRuntimeCacheChanged(ctx, reason)
+	_, err := s.markRuntimeCacheChanged(ctx, reason)
+	return err
 }
 
 // markRuntimeCacheChanged bumps the shared plugin runtime cache revision in
 // cluster mode and is a no-op in single-node deployments.
-func (s *serviceImpl) markRuntimeCacheChanged(ctx context.Context, reason string) error {
+func (s *serviceImpl) markRuntimeCacheChanged(ctx context.Context, reason string) (int64, error) {
 	if s == nil || s.runtimeCacheRevisionCtrl == nil {
-		return nil
+		return 0, nil
 	}
 	s.InvalidateManagementListCache(ctx, reason)
 	revision, err := s.runtimeCacheRevisionCtrl.MarkChanged(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if revision > 0 {
 		logger.Debugf(ctx, "plugin runtime cache revision bumped reason=%s revision=%d", reason, revision)
 	}
-	return nil
+	return revision, nil
 }
 
 // invalidateRuntimeUpgradeCaches clears this node's plugin-scoped derived

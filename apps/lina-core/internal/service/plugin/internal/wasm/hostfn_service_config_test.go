@@ -11,8 +11,8 @@ import (
 	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginservice/contract"
+	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // trackingConfigFactory records plugin scopes requested by the wasm dispatcher.
@@ -116,7 +116,7 @@ func TestHandleHostServiceInvokeConfigReadsValues(t *testing.T) {
 	getResponse := invokeConfigHostService(
 		t,
 		configHostCallContext(),
-		pluginbridge.HostServiceMethodConfigGet,
+		protocol.HostServiceMethodConfigGet,
 		"monitor.interval",
 	)
 	getPayload := decodeConfigResponse(t, getResponse)
@@ -130,7 +130,7 @@ func TestHandleHostServiceInvokeConfigReadsValues(t *testing.T) {
 	boolResponse := invokeConfigHostService(
 		t,
 		configHostCallContext(),
-		pluginbridge.HostServiceMethodConfigGet,
+		protocol.HostServiceMethodConfigGet,
 		"feature.enabled",
 	)
 	boolPayload := decodeConfigResponse(t, boolResponse)
@@ -141,7 +141,7 @@ func TestHandleHostServiceInvokeConfigReadsValues(t *testing.T) {
 	intResponse := invokeConfigHostService(
 		t,
 		configHostCallContext(),
-		pluginbridge.HostServiceMethodConfigGet,
+		protocol.HostServiceMethodConfigGet,
 		"feature.retries",
 	)
 	intPayload := decodeConfigResponse(t, intResponse)
@@ -163,10 +163,10 @@ func TestHandleHostServiceInvokeConfigRejectsRootRead(t *testing.T) {
 	response := invokeConfigHostService(
 		t,
 		configHostCallContext(),
-		pluginbridge.HostServiceMethodConfigGet,
+		protocol.HostServiceMethodConfigGet,
 		"",
 	)
-	if response.Status != pluginbridge.HostCallStatusInternalError {
+	if response.Status != protocol.HostCallStatusInternalError {
 		t.Fatalf("expected root config read to be rejected, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -180,7 +180,7 @@ func TestHandleHostServiceInvokeConfigMissingKey(t *testing.T) {
 	response := invokeConfigHostService(
 		t,
 		configHostCallContext(),
-		pluginbridge.HostServiceMethodConfigGet,
+		protocol.HostServiceMethodConfigGet,
 		"custom.missing",
 	)
 	payload := decodeConfigResponse(t, response)
@@ -202,7 +202,7 @@ func TestHandleHostServiceInvokeConfigBindsArtifactDefaultConfig(t *testing.T) {
 	response := invokeConfigHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodConfigGet,
+		protocol.HostServiceMethodConfigGet,
 		"feature.name",
 	)
 	payload := decodeConfigResponse(t, response)
@@ -224,10 +224,10 @@ func TestHandleHostServiceInvokeConfigRejectsTypedMethod(t *testing.T) {
 	response := invokeConfigHostService(
 		t,
 		configHostCallContext(),
-		pluginbridge.HostServiceMethodConfigString,
+		protocol.HostServiceMethodConfigString,
 		"feature.name",
 	)
-	if response.Status != pluginbridge.HostCallStatusNotFound {
+	if response.Status != protocol.HostCallStatusNotFound {
 		t.Fatalf(
 			"expected typed config method to be rejected, got status=%d payload=%s",
 			response.Status,
@@ -249,7 +249,7 @@ func TestHandleHostServiceInvokeConfigRejectsUnsupportedMethod(t *testing.T) {
 		"set",
 		"custom.name",
 	)
-	if response.Status != pluginbridge.HostCallStatusNotFound {
+	if response.Status != protocol.HostCallStatusNotFound {
 		t.Fatalf(
 			"expected unsupported config method to be rejected, got status=%d payload=%s",
 			response.Status,
@@ -271,11 +271,11 @@ func configHostCallContext() *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-plugin-config",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityConfig: {},
+			protocol.CapabilityConfig: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceConfig,
+				Service: protocol.HostServiceConfig,
 			},
 		},
 	}
@@ -287,30 +287,30 @@ func invokeConfigHostService(
 	hcc *hostCallContext,
 	method string,
 	key string,
-) *pluginbridge.HostCallResponseEnvelope {
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service: pluginbridge.HostServiceConfig,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service: protocol.HostServiceConfig,
 		Method:  method,
-		Payload: pluginbridge.MarshalHostServiceConfigKeyRequest(&pluginbridge.HostServiceConfigKeyRequest{
+		Payload: protocol.MarshalHostServiceConfigKeyRequest(&protocol.HostServiceConfigKeyRequest{
 			Key: key,
 		}),
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // decodeConfigResponse verifies success and decodes one config host service response.
 func decodeConfigResponse(
 	t *testing.T,
-	response *pluginbridge.HostCallResponseEnvelope,
-) *pluginbridge.HostServiceConfigValueResponse {
+	response *protocol.HostCallResponseEnvelope,
+) *protocol.HostServiceConfigValueResponse {
 	t.Helper()
 
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected config host service success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	payload, err := pluginbridge.UnmarshalHostServiceConfigValueResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceConfigValueResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("expected config response decode to succeed, got error: %v", err)
 	}

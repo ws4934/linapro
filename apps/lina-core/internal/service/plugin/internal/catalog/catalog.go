@@ -7,7 +7,7 @@ import (
 
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // ConfigProvider abstracts the configuration dependency needed for manifest scanning.

@@ -37,7 +37,7 @@ func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
+	if _, err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
 		return err
 	}
 	s.managementListCache.store(s.managementListCacheKey(ctx), out)
@@ -55,7 +55,7 @@ func (s *serviceImpl) SyncSourcePluginsStrict(ctx context.Context) (*ListOutput,
 	if err != nil {
 		return nil, err
 	}
-	if err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
+	if _, err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
 		return nil, err
 	}
 	s.managementListCache.store(s.managementListCacheKey(ctx), out)
@@ -72,7 +72,7 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = s.markRuntimeCacheChanged(ctx, "plugins_synced_and_listed"); err != nil {
+	if _, err = s.markRuntimeCacheChanged(ctx, "plugins_synced_and_listed"); err != nil {
 		return nil, err
 	}
 	s.managementListCache.store(s.managementListCacheKey(ctx), out)

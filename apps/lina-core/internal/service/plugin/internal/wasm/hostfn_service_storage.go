@@ -18,9 +18,9 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/internal/service/config"
-	bridgehostcall "lina-core/pkg/pluginbridge"
-	bridgehostservice "lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginfs"
+	"lina-core/internal/service/plugin/internal/resourcefs"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // Local directory layout and pagination limits for the governed storage service.
@@ -381,7 +381,7 @@ func (resourceConfig *storageResourceConfig) resolveObjectPath(objectPath string
 
 // normalizeStorageObjectPath canonicalizes one logical object path.
 func normalizeStorageObjectPath(rawPath string) (string, error) {
-	return pluginfs.NormalizeRelativePath(rawPath)
+	return resourcefs.NormalizeRelativePath(rawPath)
 }
 
 // normalizeStorageListPrefix canonicalizes one required list prefix.
@@ -390,7 +390,7 @@ func normalizeStorageListPrefix(rawPrefix string) (string, error) {
 	if trimmed == "" {
 		return "", gerror.New("storage list prefix is required")
 	}
-	return pluginfs.NormalizeRelativePath(trimmed)
+	return resourcefs.NormalizeRelativePath(trimmed)
 }
 
 // normalizeStorageAuthorizedPath canonicalizes one authorized storage target or prefix.
@@ -404,7 +404,7 @@ func normalizeStorageAuthorizedPath(rawPath string) (string, error) {
 	if base == "" {
 		return "", gerror.New("storage target path is required")
 	}
-	normalized, err := pluginfs.NormalizeRelativePath(base)
+	normalized, err := resourcefs.NormalizeRelativePath(base)
 	if err != nil {
 		return "", err
 	}

@@ -23,5 +23,5 @@ type InstallRes struct {
 	Id              string                       `json:"id" dc:"Plugin unique identifier" eg:"linapro-demo-source"`
 	Installed       statusflag.Installation      `json:"installed" dc:"Installation status: 1=Installed 0=Not installed" eg:"1"`
 	Enabled         statusflag.Enabled           `json:"enabled" dc:"Enabled status: 1=enabled 0=disabled" eg:"0"`
-	DependencyCheck *PluginDependencyCheckResult `json:"dependencyCheck,omitempty" dc:"Dependency plan and automatic install result produced during the install request" eg:"{}"`
+	DependencyCheck *PluginDependencyCheckResult `json:"dependencyCheck,omitempty" dc:"Dependency check result produced during the install request; plugin dependencies are hard blockers and are not installed automatically from manifest policy" eg:"{}"`
 }

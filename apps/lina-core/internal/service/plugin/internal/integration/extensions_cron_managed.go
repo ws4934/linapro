@@ -13,8 +13,8 @@ import (
 
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 const (
@@ -24,9 +24,9 @@ const (
 // managedCronCollector captures plugin-owned cron registrations instead of
 // registering them directly into gcron.
 type managedCronCollector struct {
-	pluginID     string
-	hostServices pluginhost.HostServices
-	items        []ManagedCronJob
+	pluginID string
+	services pluginhost.Services
+	items    []ManagedCronJob
 }
 
 // Ensure managedCronCollector satisfies the published registrar contract.
@@ -85,7 +85,7 @@ func (c *managedCronCollector) AddWithMetadata(
 		DisplayName:    trimmedDisplayName,
 		Description:    trimmedDescription,
 		Pattern:        trimmedPattern,
-		Timezone:       pluginbridge.DefaultCronContractTimezone,
+		Timezone:       protocol.DefaultCronContractTimezone,
 		Scope:          "", // Legacy RegisterCron callbacks do not expose scope metadata.
 		Concurrency:    "",
 		MaxConcurrency: 1,
@@ -101,12 +101,12 @@ func (c *managedCronCollector) IsPrimaryNode() bool {
 	return true
 }
 
-// HostServices returns the host-published service directory for source-plugin construction.
-func (c *managedCronCollector) HostServices() pluginhost.HostServices {
+// Services returns the host-published runtime services for source-plugin construction.
+func (c *managedCronCollector) Services() pluginhost.Services {
 	if c == nil {
 		return nil
 	}
-	return c.hostServices
+	return c.services
 }
 
 // collectManagedCronJobs gathers plugin-owned cron definitions from matching
@@ -199,9 +199,9 @@ func (s *serviceImpl) collectSourceManagedCronJobs(
 	}
 
 	collector := &managedCronCollector{
-		pluginID:     manifest.ID,
-		hostServices: pluginhost.HostServicesForPlugin(s.hostServices, manifest.ID),
-		items:        make([]ManagedCronJob, 0),
+		pluginID: manifest.ID,
+		services: s.sourceServicesForPlugin(manifest.ID),
+		items:    make([]ManagedCronJob, 0),
 	}
 	for _, registration := range sourcePlugin.GetCronRegistrars() {
 		if registration == nil || registration.Handler == nil {
@@ -294,7 +294,7 @@ func manifestDeclaresCronHostService(manifest *catalog.Manifest) bool {
 		if service == nil {
 			continue
 		}
-		if strings.TrimSpace(service.Service) == pluginbridge.HostServiceCron {
+		if strings.TrimSpace(service.Service) == protocol.HostServiceCron {
 			return true
 		}
 	}

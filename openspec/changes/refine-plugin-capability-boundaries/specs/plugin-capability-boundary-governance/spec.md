@@ -12,7 +12,7 @@
 
 #### Scenario: 开发者定位插件消费能力
 
-- **WHEN** 源码插件或动态插件需要访问配置、数据、缓存、通知、鉴权、i18n 或 framework capability
+- **WHEN** 源码插件或动态插件需要访问配置、数据、缓存、通知、鉴权、i18n 或 pluginservice capability
 - **THEN** 插件通过`pkg/pluginservice`公开的能力目录或动态 guest client 使用能力
 - **AND** 插件不得把`pluginbridge`低层协议包当作业务能力 owner
 
@@ -34,12 +34,12 @@
 
 ### Requirement: 插件间运行时调用必须经过稳定能力接缝
 
-系统 SHALL 禁止插件直接调用其他插件的内部实现。插件间协作 MUST 通过 framework capability、`pluginservice`能力目录、事件、hook、版本化 host service、HTTP API 或其他受治理稳定契约完成；插件不得直接 import 其他插件的`backend/internal/**`、provider adapter、DAO、DO、Entity 或缓存实现。
+系统 SHALL 禁止插件直接调用其他插件的内部实现。插件间协作 MUST 通过`pluginservice`能力目录、事件、hook、版本化 host service、HTTP API 或其他受治理稳定契约完成；插件不得直接 import 其他插件的`backend/internal/**`、provider adapter、DAO、DO、Entity 或缓存实现。
 
 #### Scenario: 插件消费另一个插件提供的租户能力
 
 - **WHEN** 插件`plugin-b`需要使用由`plugin-a`提供的租户能力
-- **THEN** `plugin-b`声明对`framework.tenant.v1`的依赖并通过 framework capability 消费 service 调用
+- **THEN** `plugin-b`声明对 provider 插件的硬依赖或按可选能力降级，并通过`pluginservice.Services.Tenant()`或等价`tenantcap.Service`调用
 - **AND** `plugin-b`不得 import `plugin-a/backend/internal/provider/tenantadapter`
 
 #### Scenario: 静态治理发现跨插件内部导入
@@ -50,19 +50,19 @@
 
 ### Requirement: 插件能力公开面必须有治理验证
 
-系统 SHALL 提供静态检索、Go 编译门禁或治理扫描来验证插件能力公开面。验证 MUST 覆盖公共包导入边界、provider adapter 目录归属、低层实现 internal 化、旧公共路径使用和源码/动态插件统一能力消费路径。
+系统 SHALL 提供静态检索、Go 编译门禁或审查记录来验证插件能力公开面。验证 MUST 覆盖公共包导入边界、provider adapter 导入边界、低层实现 internal 化和源码/动态插件统一能力消费路径。
 
-#### Scenario: Provider Adapter 位于公开目录时被拒绝
+#### Scenario: Provider Adapter 被作为公开契约导入时被拒绝
 
-- **WHEN** 官方插件新增`backend/provider/<capability>adapter/`或其他公开 provider adapter 目录
-- **THEN** 治理验证报告该 provider adapter 应迁移到`backend/internal/provider/<capability>adapter/`
+- **WHEN** 生产代码 import 其他插件的`backend/provider/**`provider adapter
+- **THEN** 静态检索或审查记录必须指出该调用方应改为依赖`pluginservice`稳定能力契约
 - **AND** 该变更不得通过审查，除非规范明确批准该 adapter 成为稳定公共契约
 
-#### Scenario: 旧能力路径新增使用被拒绝
+#### Scenario: 非目标能力契约导入被拒绝
 
-- **WHEN** 新增生产代码继续 import 已迁移的`pkg/orgcap`或`pkg/tenantcap`旧路径
-- **THEN** 治理验证失败
-- **AND** 代码必须改为使用`pkg/frameworkcap`根包中的`Org()`或`Tenant()`入口
+- **WHEN** 新增生产代码继续 import 已迁移的`pkg/frameworkcap`、`pkg/orgcap`、`pkg/tenantcap`或宿主`internal/service/orgcap`、`internal/service/tenantcap`旧路径
+- **THEN** 静态检索、Go 编译门禁或审查记录必须指出该代码不符合目标能力契约
+- **AND** 代码必须改为使用`pkg/pluginservice/orgcap`或`pkg/pluginservice/tenantcap`能力组件
 
 ### Requirement: 插件能力边界不得诱导重复适配和分叉协议
 
@@ -77,5 +77,5 @@
 #### Scenario: 同一框架能力对两类插件语义一致
 
 - **WHEN** 源码插件和动态插件分别消费`framework.org.v1`
-- **THEN** 二者最终调用同一个 framework capability 消费 service
+- **THEN** 二者最终调用同一个`orgcap.Service`
 - **AND** 结果 DTO、降级语义、数据权限边界和错误码保持一致

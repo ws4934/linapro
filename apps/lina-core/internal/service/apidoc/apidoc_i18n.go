@@ -11,7 +11,7 @@ import (
 
 	"github.com/gogf/gf/v2/net/goai"
 
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // localizeDocument applies request-locale translations to all user-visible

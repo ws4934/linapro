@@ -8,16 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/net/ghttp"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 const (
@@ -64,14 +60,12 @@ func TestCreateWritesTenantOwnershipAndRoleMenuTenant(t *testing.T) {
 func TestAssignUsersWritesCurrentTenantRelation(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62011)
 	svc := newDefaultRoleTestService()
-	svc.tenantSvc = tenantcapsvc.New(roleTenantBoundaryEnablementReader{}, nil)
 	roleID := insertRoleTenantBoundaryRole(t, ctx, "tenant-assign", 62011)
 	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-assign-operator", 62011, roleDataScopeTenant)
 	userID := insertRoleTenantBoundaryUser(t, ctx, "tenant-assign-user", 62011)
 	ensureRoleTenantBoundaryMembershipTable(t, ctx)
-	pkgtenantcap.RegisterProvider(roleTenantBoundaryProvider{})
+	svc.tenantSvc = activateRoleTenantBoundaryProvider(t)
 	t.Cleanup(func() {
-		pkgtenantcap.RegisterProvider(nil)
 		cleanupRoleTestRows(t, ctx, []int{roleID, operatorRoleID}, []int{userID}, nil)
 		cleanupRoleTenantBoundaryMembershipRows(t, ctx, []int{userID})
 	})
@@ -153,7 +147,6 @@ func TestTenantRoleRejectsPlatformPrimaryUser(t *testing.T) {
 func TestTenantRoleRequiresActiveMembershipWhenTableExists(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62024)
 	svc := newDefaultRoleTestService()
-	svc.tenantSvc = tenantcapsvc.New(roleTenantBoundaryEnablementReader{}, nil)
 	ensureRoleTenantBoundaryMembershipTable(t, ctx)
 	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-deny", 62024, roleDataScopeTenant)
 	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-operator", 62024, roleDataScopeTenant)
@@ -165,8 +158,7 @@ func TestTenantRoleRequiresActiveMembershipWhenTableExists(t *testing.T) {
 	})
 	insertRoleTenantBoundaryUserRole(t, ctx, operatorUserID, operatorRoleID, 62024)
 	insertRoleTenantBoundaryMembership(t, ctx, operatorUserID, 62024, 1)
-	pkgtenantcap.RegisterProvider(roleTenantBoundaryProvider{})
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
+	svc.tenantSvc = activateRoleTenantBoundaryProvider(t)
 	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{UserId: operatorUserID, TenantId: 62024}})
 
 	err := svc.AssignUsers(ctx, roleID, []int{targetUserID})
@@ -249,89 +241,33 @@ func TestImpersonationAccessUsesPlatformRoles(t *testing.T) {
 	}
 }
 
-// roleTenantBoundaryEnablementReader marks multi-tenancy enabled in role tests.
-type roleTenantBoundaryEnablementReader struct{}
-
-// IsEnabled reports linapro-tenant-core as enabled.
-func (roleTenantBoundaryEnablementReader) IsEnabled(_ context.Context, pluginID string) bool {
-	return pluginID == pkgtenantcap.ProviderPluginID
+// activateRoleTenantBoundaryProvider returns the narrow tenant governance fake
+// used by role assignment tests.
+func activateRoleTenantBoundaryProvider(t *testing.T) roleTenantGovernanceService {
+	t.Helper()
+	return roleTenantBoundaryProvider{}
 }
 
-// roleTenantBoundaryProvider simulates the plugin-owned membership provider.
+// roleTenantBoundaryProvider simulates the plugin-owned membership governance provider.
 type roleTenantBoundaryProvider struct{}
 
-// ResolveTenant returns platform for provider interface completeness.
-func (roleTenantBoundaryProvider) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+// Available reports active tenant governance for role assignment tests.
+func (roleTenantBoundaryProvider) Available(context.Context) bool {
+	return true
 }
 
-// ValidateUserInTenant accepts all users for provider interface completeness.
-func (roleTenantBoundaryProvider) ValidateUserInTenant(context.Context, int, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ListUserTenants returns no tenant rows for provider interface completeness.
-func (roleTenantBoundaryProvider) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return nil, nil
-}
-
-// SwitchTenant accepts all switches for provider interface completeness.
-func (roleTenantBoundaryProvider) SwitchTenant(context.Context, int, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ApplyUserTenantScope is unused by role tests.
-func (roleTenantBoundaryProvider) ApplyUserTenantScope(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ApplyUserTenantFilter is unused by role tests.
-func (roleTenantBoundaryProvider) ApplyUserTenantFilter(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-	_ pkgtenantcap.TenantID,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenantProjections is unused by role tests.
-func (roleTenantBoundaryProvider) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment is unused by role tests.
-func (roleTenantBoundaryProvider) ResolveUserTenantAssignment(
-	context.Context,
-	[]pkgtenantcap.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is unused by role tests.
-func (roleTenantBoundaryProvider) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
+// PlatformBypass reports platform context from the test data-scope tenant.
+func (roleTenantBoundaryProvider) PlatformBypass(ctx context.Context) bool {
+	return datascope.CurrentTenantID(ctx) == datascope.PlatformTenantID
 }
 
 // EnsureUsersInTenant verifies role assignment targets are active tenant members.
 func (roleTenantBoundaryProvider) EnsureUsersInTenant(
 	ctx context.Context,
 	userIDs []int,
-	tenantID pkgtenantcap.TenantID,
+	tenantID tenantcap.TenantID,
 ) error {
-	if len(userIDs) == 0 || tenantID <= pkgtenantcap.PLATFORM {
+	if len(userIDs) == 0 || tenantID <= tenantcap.PLATFORM {
 		return nil
 	}
 	count, err := dao.SysUser.DB().Model("plugin_linapro_tenant_core_user_membership").Safe().Ctx(ctx).
@@ -343,14 +279,9 @@ func (roleTenantBoundaryProvider) EnsureUsersInTenant(
 		return err
 	}
 	if count != len(userIDs) {
-		return bizerr.NewCode(pkgtenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
+		return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
 	}
 	return nil
-}
-
-// ValidateStartupConsistency is unused by role tests.
-func (roleTenantBoundaryProvider) ValidateStartupConsistency(context.Context) ([]string, error) {
-	return nil, nil
 }
 
 // uniqueRoleTenantBoundaryName builds a stable unique test label.

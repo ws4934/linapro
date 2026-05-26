@@ -128,7 +128,7 @@
 #### Scenario:插件后端维护独立的代码生成配置
 - **当** 团队创建或维护官方源码插件后端时
 - **则** 插件 `backend/` 目录包含 `hack/config.yaml`
-- **且** 开发者可直接在插件的 `backend/` 目录执行 `gf gen dao`
+- **且** 开发者可直接在插件的 `backend/` 目录执行 `make dao`
 - **且** 生成结果落入插件本地的 `internal/dao`、`internal/model/do` 和 `internal/model/entity`
 
 #### Scenario:插件服务访问插件自有表或共享读表
@@ -141,7 +141,7 @@
 #### Scenario:当前版本不直接访问数据库的源码插件
 - **当** 官方源码插件当前版本仅通过宿主稳定能力完成业务处理时
 - **则** 插件仍保留本地 `backend/hack/config.yaml`
-- **且** 未来新增数据库访问时继续使用插件本地的 `gf gen dao` 和 `dao/do/entity` 结构
+- **且** 未来新增数据库访问时继续使用插件本地的 `make dao` 和 `dao/do/entity` 结构
 
 ### Requirement:源码插件有独立的存储生命周期和命名空间
 

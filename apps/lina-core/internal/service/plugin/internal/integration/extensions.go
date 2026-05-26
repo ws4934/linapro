@@ -14,7 +14,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
@@ -44,7 +44,7 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 			manifest.ID,
 			checker,
 			middlewares,
-			pluginhost.HostServicesForPlugin(s.hostServices, manifest.ID),
+			s.sourceServicesForPlugin(manifest.ID),
 		)
 		for _, handler := range sourcePlugin.GetRouteRegistrars() {
 			if handler == nil || handler.Handler == nil {
@@ -82,7 +82,7 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 			manifest.ID,
 			checker,
 			s.buildPrimaryNodeChecker(),
-			pluginhost.HostServicesForPlugin(s.hostServices, manifest.ID),
+			s.sourceServicesForPlugin(manifest.ID),
 		)
 		for _, handler := range sourcePlugin.GetCronRegistrars() {
 			if handler == nil || handler.Handler == nil {
@@ -629,8 +629,8 @@ func (s *serviceImpl) executeSourcePluginHookHandler(
 
 	execute := func(executeCtx context.Context, values map[string]interface{}, async bool) {
 		startedAt := gtime.Now()
-		hostServices := pluginhost.HostServicesForPlugin(s.hostServices, pluginID)
-		if err := item.Handler(executeCtx, pluginhost.NewHookPayloadWithServices(item.Point, values, hostServices)); err != nil {
+		services := s.sourceServicesForPlugin(pluginID)
+		if err := item.Handler(executeCtx, pluginhost.NewHookPayloadWithServices(item.Point, values, services)); err != nil {
 			if async {
 				logger.Warningf(executeCtx, "plugin async callback hook failed plugin=%s event=%s cost=%s err=%v", pluginID, item.Point, gtime.Now().Sub(startedAt), err)
 				return

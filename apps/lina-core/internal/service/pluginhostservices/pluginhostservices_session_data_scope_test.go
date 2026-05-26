@@ -12,9 +12,10 @@ import (
 
 	"lina-core/internal/service/datascope"
 	internalsession "lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestSessionListPageAndRevokeApplyDataScope verifies online-user operations are scope-bound.
@@ -75,7 +76,7 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 	}
 }
 
-// sessionDataScopeStore is an in-memory session store for pluginservice tests.
+// sessionDataScopeStore is an in-memory session store for capability tests.
 type sessionDataScopeStore struct {
 	sessions       []*internalsession.Session
 	deletedTokenID string
@@ -123,16 +124,18 @@ func (s *sessionDataScopeStore) ListPageScoped(
 	filter *internalsession.ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.Service,
+	tenantSvc tenantcapsvc.ScopeService,
 ) (*internalsession.ListResult, error) {
 	items := make([]*internalsession.Session, 0, len(s.sessions))
 	for _, sessionItem := range s.sessions {
 		if sessionItem == nil {
 			continue
 		}
-		if tenantSvc != nil {
-			if err := tenantSvc.EnsureTenantVisible(ctx, tenantcapsvc.TenantID(sessionItem.TenantId)); err != nil {
-				if bizerr.Is(err, pkgtenantcap.CodeTenantForbidden) {
+		if tenantVisibility, ok := tenantSvc.(interface {
+			EnsureTenantVisible(context.Context, tenantcapsvc.TenantID) error
+		}); ok && tenantVisibility != nil {
+			if err := tenantVisibility.EnsureTenantVisible(ctx, tenantcapsvc.TenantID(sessionItem.TenantId)); err != nil {
+				if bizerr.Is(err, tenantcap.CodeTenantForbidden) {
 					continue
 				}
 				return nil, err
@@ -204,15 +207,20 @@ type sessionTenantScopeService struct {
 	visibleTenantIDs map[int]bool
 }
 
-// Enabled reports multi-tenancy as enabled for tenant visibility tests.
-func (s sessionTenantScopeService) Enabled(context.Context) bool { return true }
+// Available reports an active tenant provider for tenant visibility tests.
+func (s sessionTenantScopeService) Available(context.Context) bool { return true }
+
+// Status returns an available tenant capability status.
+func (s sessionTenantScopeService) Status(context.Context) contract.CapabilityStatus {
+	return contract.CapabilityStatus{Available: true, ActiveProvider: tenantcap.ProviderPluginID}
+}
 
 // Current returns the first configured tenant ID.
 func (s sessionTenantScopeService) Current(context.Context) tenantcapsvc.TenantID {
 	for tenantID := range s.visibleTenantIDs {
 		return tenantcapsvc.TenantID(tenantID)
 	}
-	return pkgtenantcap.PLATFORM
+	return tenantcap.PLATFORM
 }
 
 // Apply is unused by pluginhostservices data-scope tests.
@@ -228,12 +236,17 @@ func (s sessionTenantScopeService) EnsureTenantVisible(_ context.Context, tenant
 	if s.visibleTenantIDs[int(tenantID)] {
 		return nil
 	}
-	return bizerr.NewCode(pkgtenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
+	return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
+}
+
+// ValidateUserInTenant is unused by pluginhostservices data-scope tests.
+func (s sessionTenantScopeService) ValidateUserInTenant(context.Context, int, tenantcapsvc.TenantID) error {
+	return nil
 }
 
 // ResolveTenant is unused by pluginhostservices data-scope tests.
-func (s sessionTenantScopeService) ResolveTenant(ctx context.Context, _ *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: s.Current(ctx), Matched: true}, nil
+func (s sessionTenantScopeService) ResolveTenant(ctx context.Context, _ *ghttp.Request) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: s.Current(ctx), Matched: true}, nil
 }
 
 // ApplyUserTenantScope is unused by pluginhostservices data-scope tests.
@@ -242,8 +255,13 @@ func (s sessionTenantScopeService) ApplyUserTenantScope(_ context.Context, model
 }
 
 // ListUserTenants is unused by pluginhostservices data-scope tests.
-func (s sessionTenantScopeService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return []pkgtenantcap.TenantInfo{}, nil
+func (s sessionTenantScopeService) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
+	return []tenantcap.TenantInfo{}, nil
+}
+
+// SwitchTenant is unused by pluginhostservices data-scope tests.
+func (s sessionTenantScopeService) SwitchTenant(context.Context, int, tenantcapsvc.TenantID) error {
+	return nil
 }
 
 // ApplyUserTenantFilter is unused by pluginhostservices data-scope tests.
@@ -260,24 +278,24 @@ func (s sessionTenantScopeService) ApplyUserTenantFilter(
 func (s sessionTenantScopeService) ListUserTenantProjections(
 	context.Context,
 	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
+) (map[int]*tenantcap.UserTenantProjection, error) {
+	return map[int]*tenantcap.UserTenantProjection{}, nil
 }
 
 // ResolveUserTenantAssignment is unused by pluginhostservices data-scope tests.
 func (s sessionTenantScopeService) ResolveUserTenantAssignment(
 	context.Context,
 	[]tenantcapsvc.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
+	tenantcap.UserTenantAssignmentMode,
+) (*tenantcap.UserTenantAssignmentPlan, error) {
+	return &tenantcap.UserTenantAssignmentPlan{}, nil
 }
 
 // ReplaceUserTenantAssignments is unused by pluginhostservices data-scope tests.
 func (s sessionTenantScopeService) ReplaceUserTenantAssignments(
 	context.Context,
 	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
+	*tenantcap.UserTenantAssignmentPlan,
 ) error {
 	return nil
 }
@@ -292,5 +310,10 @@ func (s sessionTenantScopeService) ValidateUserMembershipStartupConsistency(cont
 	return nil, nil
 }
 
+// ProvisionAutoEnabledTenantPlugins is unused by pluginhostservices data-scope tests.
+func (s sessionTenantScopeService) ProvisionAutoEnabledTenantPlugins(context.Context) error {
+	return nil
+}
+
 // Interface guard keeps the fake aligned with the tenantcap dependency.
-var _ tenantcapsvc.Service = sessionTenantScopeService{}
+var _ tenantcapsvc.ScopeService = sessionTenantScopeService{}

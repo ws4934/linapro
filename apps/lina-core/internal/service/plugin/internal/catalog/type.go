@@ -19,13 +19,14 @@ const (
 func (t PluginType) String() string { return string(t) }
 
 // NormalizeType converts a raw type string to the canonical PluginType.
-// Unknown values default to TypeSource for backward compatibility.
 func NormalizeType(value string) PluginType {
 	switch strings.TrimSpace(strings.ToLower(value)) {
+	case TypeSource.String():
+		return TypeSource
 	case TypeDynamic.String():
 		return TypeDynamic
 	default:
-		return TypeSource
+		return PluginType(strings.TrimSpace(strings.ToLower(value)))
 	}
 }
 

@@ -95,6 +95,8 @@ const installDependencyBlocked = computed(() => {
   return (
     currentMode.value === 'install' &&
     ((dependencyCheck.value?.blockers ?? []).length > 0 ||
+      (dependencyCheck.value?.cycle ?? []).length > 0 ||
+      dependencyCheck.value?.framework?.status === 'unsatisfied' ||
       dependencyLoading.value)
   );
 });
@@ -106,10 +108,6 @@ const showDependencySection = computed(() => {
   return (
     dependencyLoading.value ||
     (dependencyCheck.value?.blockers ?? []).length > 0 ||
-    (dependencyCheck.value?.autoInstallPlan ?? []).length > 0 ||
-    (dependencyCheck.value?.autoInstalled ?? []).length > 0 ||
-    (dependencyCheck.value?.manualInstallRequired ?? []).length > 0 ||
-    (dependencyCheck.value?.softUnsatisfied ?? []).length > 0 ||
     (dependencyCheck.value?.cycle ?? []).length > 0 ||
     dependencyCheck.value?.framework?.status === 'unsatisfied'
   );
@@ -270,7 +268,6 @@ async function handleSubmit(action: SubmitAction) {
           silentErrorMessage: true,
         });
         dependencyCheck.value = installResult?.dependencyCheck ?? dependencyCheck.value;
-        showAutoInstalledMessage(installResult?.dependencyCheck);
       } catch (error) {
         // Mock-data failure does NOT undo the install: the plugin is fully
         // registered, only the mock data was rolled back. Surface a precise
@@ -354,23 +351,6 @@ async function refreshDependencyCheck() {
     dependencyLoading.value = false;
     updateConfirmDisabled();
   }
-}
-
-function showAutoInstalledMessage(
-  check?: null | PluginDependencyCheckResult,
-) {
-  const installed = check?.autoInstalled ?? [];
-  if (installed.length === 0) {
-    return;
-  }
-  message.success(
-    $t('pages.system.plugin.dependency.autoInstalledToast', {
-      plugins: installed
-        .map((item) => item.name || item.pluginId)
-        .filter(Boolean)
-        .join(', '),
-    }),
-  );
 }
 
 function updateConfirmDisabled() {

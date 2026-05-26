@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
@@ -34,7 +36,7 @@ func prepareGeneratedWasmDispatcher(
 	pluginDir string,
 	pluginID string,
 	routes []*routeContractSource,
-	lifecycleSpecs []*lifecycleSpec,
+	lifecycleSpecs []*protocol.LifecycleContract,
 ) (func() error, error) {
 	spec, err := buildWasmDispatcherSpec(pluginDir, pluginID, routes, lifecycleSpecs)
 	if err != nil {
@@ -66,7 +68,7 @@ func buildWasmDispatcherSpec(
 	pluginDir string,
 	pluginID string,
 	routeSources []*routeContractSource,
-	lifecycleSpecs []*lifecycleSpec,
+	lifecycleSpecs []*protocol.LifecycleContract,
 ) (*wasmDispatcherSpec, error) {
 	modulePath, err := readGoModulePath(pluginDir)
 	if err != nil {
@@ -76,12 +78,25 @@ func buildWasmDispatcherSpec(
 	if err != nil {
 		return nil, err
 	}
-	lifecycleHandlers := buildWasmLifecycleDispatcherSpecs(lifecycleSpecs)
-	envelopeHandlers := discoverWasmEnvelopeDispatcherSpecs(pluginDir)
+	dtoPackages, err := collectWasmDTOPackages(pluginDir)
+	if err != nil {
+		return nil, err
+	}
+	lifecycleHandlers := buildWasmLifecycleDispatcherSpecs(lifecycleSpecs, apiControllers, dtoPackages)
+	cronHandlers, err := discoverWasmCallbackDispatcherSpecs(
+		pluginDir,
+		apiControllers,
+		routeHandlers,
+		lifecycleHandlers,
+		dtoPackages,
+	)
+	if err != nil {
+		return nil, err
+	}
 	if len(apiControllers) == 0 {
 		return nil, nil
 	}
-	if len(apiControllers) == 0 && len(routeHandlers) == 0 && len(lifecycleHandlers) == 0 && len(envelopeHandlers) == 0 {
+	if len(apiControllers) == 0 && len(routeHandlers) == 0 && len(lifecycleHandlers) == 0 && len(cronHandlers) == 0 {
 		return nil, nil
 	}
 	return &wasmDispatcherSpec{
@@ -89,7 +104,7 @@ func buildWasmDispatcherSpec(
 		APIControllers:  apiControllers,
 		Routes:          routeHandlers,
 		LifecycleRoutes: lifecycleHandlers,
-		EnvelopeRoutes:  envelopeHandlers,
+		CronRoutes:      cronHandlers,
 	}, nil
 }
 
@@ -311,6 +326,53 @@ func collectWasmDTOFields(pluginDir string) (map[string][]*wasmDTOFieldSpec, err
 	return result, nil
 }
 
+// collectWasmDTOPackages maps request DTO type names to backend/api-relative
+// packages so non-route callbacks can still use typed request contracts.
+func collectWasmDTOPackages(pluginDir string) (map[string]string, error) {
+	apiDir := filepath.Join(pluginDir, "backend", "api")
+	result := make(map[string]string)
+	err := filepath.WalkDir(apiDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fileNode, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+		if parseErr != nil {
+			return fmt.Errorf("failed to parse backend api dto file %s: %w", path, parseErr)
+		}
+		apiPackage, relErr := backendAPIPackageForDir(apiDir, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
+		}
+		for _, decl := range fileNode.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range genDecl.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || typeSpec.Name == nil {
+					continue
+				}
+				requestType := strings.TrimSpace(typeSpec.Name.Name)
+				if strings.HasSuffix(requestType, "Req") {
+					result[requestType] = apiPackage
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if os.IsNotExist(err) {
+			return result, nil
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
 // extractWasmDTOBindableFields returns JSON-tagged fields that may require a
 // request body or can be populated from path/query values by generated code.
 func extractWasmDTOBindableFields(structType *ast.StructType) []*wasmDTOFieldSpec {
@@ -439,6 +501,7 @@ func buildWasmAPIControllerSpec(
 		interfacePackage += "/" + normalizedPackage
 	}
 	return &wasmAPIControllerSpec{
+		APIPackage:        normalizeAPIPackagePath(apiPackage),
 		ImportAlias:       importAlias,
 		PackagePath:       controllerPackage,
 		InterfaceAlias:    interfaceAlias,
@@ -499,8 +562,12 @@ func sanitizeIdentifierTitle(value string) string {
 }
 
 // buildWasmLifecycleDispatcherSpecs converts lifecycle contracts to generated
-// envelope-handler dispatch entries.
-func buildWasmLifecycleDispatcherSpecs(lifecycleSpecs []*lifecycleSpec) []*wasmLifecycleHandlerSpec {
+// typed dispatch entries.
+func buildWasmLifecycleDispatcherSpecs(
+	lifecycleSpecs []*protocol.LifecycleContract,
+	apiControllers []*wasmAPIControllerSpec,
+	dtoPackages map[string]string,
+) []*wasmLifecycleHandlerSpec {
 	items := make([]*wasmLifecycleHandlerSpec, 0, len(lifecycleSpecs))
 	for _, spec := range lifecycleSpecs {
 		if spec == nil {
@@ -511,9 +578,17 @@ func buildWasmLifecycleDispatcherSpecs(lifecycleSpecs []*lifecycleSpec) []*wasmL
 		if methodName == "" || requestType == "" {
 			continue
 		}
+		controller, apiPackage, ok := resolveWasmControllerForRequestType(apiControllers, dtoPackages, requestType)
+		if !ok {
+			continue
+		}
 		items = append(items, &wasmLifecycleHandlerSpec{
-			RequestType: requestType,
-			MethodName:  methodName,
+			RequestType:     requestType,
+			MethodName:      methodName,
+			APIPackage:      apiPackage,
+			ControllerAlias: controller.ImportAlias,
+			DTOImportAlias:  buildWasmDTOImportAlias(apiPackage),
+			RequestTypeExpr: buildWasmDTOTypeExpr(apiPackage, requestType),
 		})
 	}
 	sort.Slice(items, func(left int, right int) bool {
@@ -522,50 +597,125 @@ func buildWasmLifecycleDispatcherSpecs(lifecycleSpecs []*lifecycleSpec) []*wasmL
 	return items
 }
 
-// discoverWasmEnvelopeDispatcherSpecs discovers envelope handlers that are not
-// represented by API DTO routes or lifecycle contracts, such as cron helpers.
-func discoverWasmEnvelopeDispatcherSpecs(pluginDir string) []*wasmEnvelopeHandlerSpec {
+// discoverWasmCallbackDispatcherSpecs discovers typed callback handlers that
+// are not represented by public API routes or lifecycle contracts.
+func discoverWasmCallbackDispatcherSpecs(
+	pluginDir string,
+	apiControllers []*wasmAPIControllerSpec,
+	routeHandlers []*wasmRouteHandlerSpec,
+	lifecycleHandlers []*wasmLifecycleHandlerSpec,
+	dtoPackages map[string]string,
+) ([]*wasmCallbackHandlerSpec, error) {
 	backendDir := filepath.Join(pluginDir, "backend")
 	controllerDir := filepath.Join(backendDir, "internal", "controller")
-	items := make([]*wasmEnvelopeHandlerSpec, 0)
-	_ = filepath.WalkDir(controllerDir, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+	knownRequestTypes := make(map[string]struct{})
+	for _, route := range routeHandlers {
+		if route != nil {
+			knownRequestTypes[route.RequestType] = struct{}{}
+		}
+	}
+	for _, route := range lifecycleHandlers {
+		if route != nil {
+			knownRequestTypes[route.RequestType] = struct{}{}
+		}
+	}
+	items := make([]*wasmCallbackHandlerSpec, 0)
+	err := filepath.WalkDir(controllerDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		fileNode, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
 		if parseErr != nil {
-			return nil
+			return fmt.Errorf("failed to parse backend controller file %s: %w", path, parseErr)
 		}
 		for _, decl := range fileNode.Decls {
 			funcDecl, ok := decl.(*ast.FuncDecl)
 			if !ok || funcDecl == nil || funcDecl.Recv == nil || funcDecl.Name == nil {
 				continue
 			}
-			methodName := strings.TrimSpace(funcDecl.Name.Name)
-			if methodName == "" || !funcDecl.Name.IsExported() || !isWasmEnvelopeHandlerFunc(funcDecl) {
+			methodName, requestType, ok := extractTypedControllerMethod(funcDecl)
+			if !ok {
 				continue
 			}
-			if strings.HasPrefix(methodName, "Before") || strings.HasPrefix(methodName, "After") ||
-				methodName == "Upgrade" || methodName == "Uninstall" {
+			if _, exists := knownRequestTypes[requestType]; exists {
 				continue
 			}
-			item := &wasmEnvelopeHandlerSpec{
-				RequestType:  methodName + "Req",
-				InternalPath: buildWasmEnvelopeInternalPath(methodName),
-				MethodName:   methodName,
+			controller, apiPackage, ok := resolveWasmControllerForRequestType(apiControllers, dtoPackages, requestType)
+			if !ok {
+				continue
 			}
-			if methodName == "RegisterCrons" {
-				item.RequestType = "RegisterCronsReq"
-				item.InternalPath = "/register-crons"
+			if _, exists := knownRequestTypes[requestType]; exists {
+				return fmt.Errorf("dynamic callback request type is duplicated: %s", requestType)
+			}
+			knownRequestTypes[requestType] = struct{}{}
+			item := &wasmCallbackHandlerSpec{
+				RequestType:     requestType,
+				MethodName:      methodName,
+				APIPackage:      apiPackage,
+				ControllerAlias: controller.ImportAlias,
+				DTOImportAlias:  buildWasmDTOImportAlias(apiPackage),
+				RequestTypeExpr: buildWasmDTOTypeExpr(apiPackage, requestType),
 			}
 			items = append(items, item)
 		}
 		return nil
 	})
+	if err != nil {
+		if os.IsNotExist(err) {
+			return items, nil
+		}
+		return nil, err
+	}
 	sort.Slice(items, func(left int, right int) bool {
 		return items[left].RequestType < items[right].RequestType
 	})
-	return items
+	return items, nil
+}
+
+// extractTypedControllerMethod reports one exported typed controller method and
+// its request DTO.
+func extractTypedControllerMethod(decl *ast.FuncDecl) (string, string, bool) {
+	if decl == nil || decl.Name == nil || !decl.Name.IsExported() {
+		return "", "", false
+	}
+	params := flattenFieldTypes(decl.Type.Params)
+	results := flattenFieldTypes(decl.Type.Results)
+	if len(params) != 2 || len(results) != 2 || !isContextType(params[0]) || !isErrorType(results[1]) {
+		return "", "", false
+	}
+	if !isPointerToNamedType(params[1]) || !isPointerToNamedType(results[0]) {
+		return "", "", false
+	}
+	return strings.TrimSpace(decl.Name.Name), pointerTypeName(params[1]), true
+}
+
+func resolveWasmControllerForRequestType(
+	apiControllers []*wasmAPIControllerSpec,
+	dtoPackages map[string]string,
+	requestType string,
+) (*wasmAPIControllerSpec, string, bool) {
+	apiPackage, ok := dtoPackages[strings.TrimSpace(requestType)]
+	if !ok {
+		return nil, "", false
+	}
+	normalizedPackage := normalizeAPIPackagePath(apiPackage)
+	for _, controller := range apiControllers {
+		if controller == nil {
+			continue
+		}
+		if normalizeAPIPackagePath(controller.APIPackage) == normalizedPackage {
+			return controller, normalizedPackage, true
+		}
+	}
+	for _, controller := range apiControllers {
+		if controller != nil {
+			return controller, normalizedPackage, true
+		}
+	}
+	return nil, "", false
 }
 
 // readGoModulePath returns the plugin module path used by generated imports.
@@ -589,39 +739,6 @@ func readGoModulePath(pluginDir string) (string, error) {
 	return "", fmt.Errorf("go.mod in %s does not declare a module path", pluginDir)
 }
 
-// isWasmEnvelopeHandlerFunc reports whether one method has the raw bridge
-// envelope handler signature.
-func isWasmEnvelopeHandlerFunc(decl *ast.FuncDecl) bool {
-	params := flattenFieldTypes(decl.Type.Params)
-	results := flattenFieldTypes(decl.Type.Results)
-	return len(params) == 1 &&
-		isPointerToTypeName(params[0], "BridgeRequestEnvelopeV1") &&
-		len(results) == 2 &&
-		isPointerToTypeName(results[0], "BridgeResponseEnvelopeV1") &&
-		isErrorType(results[1])
-}
-
-// buildWasmEnvelopeInternalPath mirrors the guest dispatcher method-name path
-// fallback for non-API envelope callbacks.
-func buildWasmEnvelopeInternalPath(methodName string) string {
-	if strings.TrimSpace(methodName) == "" {
-		return "/"
-	}
-	var builder strings.Builder
-	builder.WriteByte('/')
-	for index, r := range methodName {
-		if 'A' <= r && r <= 'Z' {
-			if index > 0 {
-				builder.WriteByte('-')
-			}
-			builder.WriteByte(byte(r + ('a' - 'A')))
-			continue
-		}
-		builder.WriteRune(r)
-	}
-	return builder.String()
-}
-
 // renderWasmDispatcher renders and formats one generated dispatcher source file.
 func renderWasmDispatcher(spec *wasmDispatcherSpec) ([]byte, error) {
 	var builder strings.Builder
@@ -633,7 +750,6 @@ func renderWasmDispatcher(spec *wasmDispatcherSpec) ([]byte, error) {
 	writeWasmDispatcherControllerVars(&builder, spec)
 	writeWasmHandleRequest(&builder, spec)
 	writeWasmDispatchByRequestType(&builder, spec)
-	writeWasmDispatchByInternalPath(&builder, spec)
 	writeWasmHandlerFunctions(&builder, spec)
 	writeWasmRouteHelpers(&builder, spec)
 
@@ -647,10 +763,11 @@ func renderWasmDispatcher(spec *wasmDispatcherSpec) ([]byte, error) {
 // writeWasmDispatcherImports renders imports required by the generated dispatcher.
 func writeWasmDispatcherImports(builder *strings.Builder, spec *wasmDispatcherSpec) {
 	imports := map[string]string{
-		"pluginbridge": "lina-core/pkg/pluginbridge",
-		"strconv":      "strconv",
-		"strings":      "strings",
-		"sync":         "sync",
+		"protocol":    "lina-core/pkg/plugin/pluginbridge/protocol",
+		"bridgeguest": "lina-core/pkg/plugin/pluginbridge/guest",
+		"strconv":     "strconv",
+		"strings":     "strings",
+		"sync":        "sync",
 	}
 	for _, controller := range spec.APIControllers {
 		imports[controller.ImportAlias] = controller.PackagePath
@@ -696,6 +813,16 @@ func buildWasmDTOImports(spec *wasmDispatcherSpec) map[string]string {
 			imports[route.DTOImportAlias] = modulePath + "/backend/api/" + normalizeAPIPackagePath(route.APIPackage)
 		}
 	}
+	for _, route := range spec.LifecycleRoutes {
+		if modulePath != "" && route.DTOImportAlias != "" {
+			imports[route.DTOImportAlias] = modulePath + "/backend/api/" + normalizeAPIPackagePath(route.APIPackage)
+		}
+	}
+	for _, route := range spec.CronRoutes {
+		if modulePath != "" && route.DTOImportAlias != "" {
+			imports[route.DTOImportAlias] = modulePath + "/backend/api/" + normalizeAPIPackagePath(route.APIPackage)
+		}
+	}
 	return imports
 }
 
@@ -729,44 +856,31 @@ func writeWasmDispatcherControllerVars(builder *strings.Builder, spec *wasmDispa
 		builder.WriteString(fmt.Sprintf("\treturn generated%sValue\n", upperFirst(controller.ImportAlias)))
 		builder.WriteString("}\n\n")
 	}
-	if len(spec.LifecycleRoutes) > 0 || len(spec.EnvelopeRoutes) > 0 {
-		controller := spec.APIControllers[0]
-		builder.WriteString(fmt.Sprintf(
-			"func generatedEnvelopeController() %s {\n",
-			controller.ConcreteType,
-		))
-		builder.WriteString(fmt.Sprintf("\treturn generated%s()\n", upperFirst(controller.ImportAlias)))
-		builder.WriteString("}\n\n")
-	}
 }
 
 // writeWasmHandleRequest renders the public generated request entrypoint.
 func writeWasmHandleRequest(builder *strings.Builder, spec *wasmDispatcherSpec) {
-	builder.WriteString("func HandleRequest(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n")
+	builder.WriteString("func HandleRequest(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {\n")
 	builder.WriteString("\treturn handleGeneratedWasmBridgeRequest(request)\n")
 	builder.WriteString("}\n\n")
-	builder.WriteString("func handleGeneratedWasmBridgeRequest(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n")
+	builder.WriteString("func handleGeneratedWasmBridgeRequest(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {\n")
 	builder.WriteString("\tif request == nil || request.Route == nil {\n")
-	builder.WriteString("\t\treturn pluginbridge.NewBadRequestResponse(\"Dynamic bridge request is missing route metadata\"), nil\n")
+	builder.WriteString("\t\treturn protocol.NewBadRequestResponse(\"Dynamic bridge request is missing route metadata\"), nil\n")
 	builder.WriteString("\t}\n")
 	builder.WriteString("\trequestType := strings.TrimSpace(request.Route.RequestType)\n")
 	builder.WriteString("\tif response, err, ok := dispatchGeneratedWasmRequestType(requestType, request); ok {\n")
 	builder.WriteString("\t\treturn response, err\n")
 	builder.WriteString("\t}\n")
-	builder.WriteString("\tinternalPath := strings.TrimSpace(request.Route.InternalPath)\n")
-	builder.WriteString("\tif response, err, ok := dispatchGeneratedWasmInternalPath(internalPath, request); ok {\n")
-	builder.WriteString("\t\treturn response, err\n")
+	builder.WriteString("\tif requestType == \"\" {\n")
+	builder.WriteString("\t\treturn protocol.NewBadRequestResponse(\"Dynamic bridge request is missing route request type\"), nil\n")
 	builder.WriteString("\t}\n")
-	builder.WriteString("\tif requestType == \"\" && internalPath == \"\" {\n")
-	builder.WriteString("\t\treturn pluginbridge.NewBadRequestResponse(\"Dynamic bridge request is missing route request type\"), nil\n")
-	builder.WriteString("\t}\n")
-	builder.WriteString("\treturn pluginbridge.NewNotFoundResponse(\"Dynamic bridge route not found\"), nil\n")
+	builder.WriteString("\treturn protocol.NewNotFoundResponse(\"Dynamic bridge route not found\"), nil\n")
 	builder.WriteString("}\n\n")
 }
 
 // writeWasmDispatchByRequestType renders the primary requestType switch.
 func writeWasmDispatchByRequestType(builder *strings.Builder, spec *wasmDispatcherSpec) {
-	builder.WriteString("func dispatchGeneratedWasmRequestType(requestType string, request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error, bool) {\n")
+	builder.WriteString("func dispatchGeneratedWasmRequestType(requestType string, request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error, bool) {\n")
 	builder.WriteString("\tswitch strings.TrimSpace(requestType) {\n")
 	for _, route := range spec.Routes {
 		builder.WriteString(fmt.Sprintf("\tcase %s:\n", strconv.Quote(route.RequestType)))
@@ -775,46 +889,17 @@ func writeWasmDispatchByRequestType(builder *strings.Builder, spec *wasmDispatch
 	}
 	for _, route := range spec.LifecycleRoutes {
 		builder.WriteString(fmt.Sprintf("\tcase %s:\n", strconv.Quote(route.RequestType)))
-		builder.WriteString(fmt.Sprintf("\t\tresponse, err := generatedEnvelopeController().%s(request)\n", route.MethodName))
+		builder.WriteString(fmt.Sprintf("\t\tresponse, err := handleGenerated%s(request)\n", route.RequestType))
 		builder.WriteString("\t\treturn response, err, true\n")
 	}
-	for _, route := range spec.EnvelopeRoutes {
+	for _, route := range spec.CronRoutes {
 		builder.WriteString(fmt.Sprintf("\tcase %s:\n", strconv.Quote(route.RequestType)))
-		builder.WriteString(fmt.Sprintf("\t\tresponse, err := generatedEnvelopeController().%s(request)\n", route.MethodName))
+		builder.WriteString(fmt.Sprintf("\t\tresponse, err := handleGenerated%s(request)\n", route.RequestType))
 		builder.WriteString("\t\treturn response, err, true\n")
 	}
 	builder.WriteString("\tdefault:\n")
 	builder.WriteString("\t\treturn nil, nil, false\n")
 	builder.WriteString("\t}\n")
-	builder.WriteString("}\n\n")
-}
-
-// writeWasmDispatchByInternalPath renders fallback matching by route path.
-func writeWasmDispatchByInternalPath(builder *strings.Builder, spec *wasmDispatcherSpec) {
-	builder.WriteString("func dispatchGeneratedWasmInternalPath(internalPath string, request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error, bool) {\n")
-	if len(spec.Routes) > 0 {
-		builder.WriteString("\tresourcePath := normalizeGeneratedWasmRoutePath(internalPath)\n")
-		builder.WriteString("\tmethod := generatedWasmRequestMethod(request)\n")
-	}
-	for _, route := range spec.Routes {
-		builder.WriteString(fmt.Sprintf("\tif method == %s && matchGeneratedWasmRoute(%s, resourcePath) {\n", strconv.Quote(route.Method), strconv.Quote(route.Path)))
-		builder.WriteString(fmt.Sprintf("\t\tresponse, err := handleGenerated%s(request)\n", route.RequestType))
-		builder.WriteString("\t\treturn response, err, true\n")
-		builder.WriteString("\t}\n")
-	}
-	for _, route := range spec.LifecycleRoutes {
-		builder.WriteString(fmt.Sprintf("\tif normalizeGeneratedWasmRoutePath(internalPath) == %s {\n", strconv.Quote("/__lifecycle"+buildWasmEnvelopeInternalPath(route.MethodName))))
-		builder.WriteString(fmt.Sprintf("\t\tresponse, err := generatedEnvelopeController().%s(request)\n", route.MethodName))
-		builder.WriteString("\t\treturn response, err, true\n")
-		builder.WriteString("\t}\n")
-	}
-	for _, route := range spec.EnvelopeRoutes {
-		builder.WriteString(fmt.Sprintf("\tif normalizeGeneratedWasmRoutePath(internalPath) == %s {\n", strconv.Quote(route.InternalPath)))
-		builder.WriteString(fmt.Sprintf("\t\tresponse, err := generatedEnvelopeController().%s(request)\n", route.MethodName))
-		builder.WriteString("\t\treturn response, err, true\n")
-		builder.WriteString("\t}\n")
-	}
-	builder.WriteString("\treturn nil, nil, false\n")
 	builder.WriteString("}\n\n")
 }
 
@@ -857,33 +942,39 @@ func generatedWasmRouteBodyFieldList(route *wasmRouteHandlerSpec) string {
 // writeWasmHandlerFunctions renders typed route handlers.
 func writeWasmHandlerFunctions(builder *strings.Builder, spec *wasmDispatcherSpec) {
 	for _, route := range spec.Routes {
-		builder.WriteString(fmt.Sprintf("func handleGenerated%s(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n", route.RequestType))
-		builder.WriteString("\tctx := pluginbridge.NewGuestControllerContext(request)\n")
+		builder.WriteString(fmt.Sprintf("func handleGenerated%s(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {\n", route.RequestType))
+		builder.WriteString("\tctx := bridgeguest.NewGuestControllerContext(request)\n")
 		builder.WriteString(fmt.Sprintf("\treq := &%s{}\n", route.RequestTypeExpr))
 		builder.WriteString(fmt.Sprintf("\tif response := bindGeneratedWasmRequest(request, req, %s); response != nil {\n", generatedWasmRouteBodyFieldList(route)))
 		builder.WriteString("\t\treturn response, nil\n")
 		builder.WriteString("\t}\n")
 		builder.WriteString(fmt.Sprintf("\tres, err := generated%s().%s(ctx, req)\n", upperFirst(route.ControllerAlias), route.MethodName))
-		builder.WriteString("\tif response := pluginbridge.ResponseFromError(err); response != nil {\n")
+		builder.WriteString("\tif response := bridgeguest.ResponseFromError(err); response != nil {\n")
 		builder.WriteString("\t\treturn response, nil\n")
 		builder.WriteString("\t}\n")
 		builder.WriteString("\tif err != nil {\n")
 		builder.WriteString("\t\treturn nil, err\n")
 		builder.WriteString("\t}\n")
-		builder.WriteString("\treturn pluginbridge.BuildGuestControllerResponse(ctx, res)\n")
+		builder.WriteString("\treturn bridgeguest.BuildGuestControllerResponse(ctx, res)\n")
 		builder.WriteString("}\n\n")
 	}
-	builder.WriteString("func bindGeneratedWasmRequest[T any](request *pluginbridge.BridgeRequestEnvelopeV1, target *T, bodyFields []string) *pluginbridge.BridgeResponseEnvelopeV1 {\n")
+	for _, route := range spec.LifecycleRoutes {
+		writeWasmCallbackHandlerFunction(builder, route.RequestType, route.RequestTypeExpr, route.ControllerAlias, route.MethodName)
+	}
+	for _, route := range spec.CronRoutes {
+		writeWasmCallbackHandlerFunction(builder, route.RequestType, route.RequestTypeExpr, route.ControllerAlias, route.MethodName)
+	}
+	builder.WriteString("func bindGeneratedWasmRequest[T any](request *protocol.BridgeRequestEnvelopeV1, target *T, bodyFields []string) *protocol.BridgeResponseEnvelopeV1 {\n")
 	builder.WriteString("\tif target == nil {\n")
-	builder.WriteString("\t\treturn pluginbridge.NewBadRequestResponse(\"Dynamic bridge request target is nil\")\n")
+	builder.WriteString("\t\treturn protocol.NewBadRequestResponse(\"Dynamic bridge request target is nil\")\n")
 	builder.WriteString("\t}\n")
 	builder.WriteString("\tif shouldBindGeneratedWasmJSONBody(request, bodyFields) {\n")
-	builder.WriteString("\t\tbound, err := pluginbridge.BindJSON[T](request)\n")
+	builder.WriteString("\t\tbound, err := bridgeguest.BindJSON[T](request)\n")
 	builder.WriteString("\t\tif err != nil {\n")
-	builder.WriteString("\t\t\tif response := pluginbridge.ClassifyBindJSONError(err); response != nil {\n")
+	builder.WriteString("\t\t\tif response := bridgeguest.ClassifyBindJSONError(err); response != nil {\n")
 	builder.WriteString("\t\t\t\treturn response\n")
 	builder.WriteString("\t\t\t}\n")
-	builder.WriteString("\t\t\treturn pluginbridge.NewBadRequestResponse(err.Error())\n")
+	builder.WriteString("\t\t\treturn protocol.NewBadRequestResponse(err.Error())\n")
 	builder.WriteString("\t\t}\n")
 	builder.WriteString("\t\t*target = *bound\n")
 	builder.WriteString("\t}\n")
@@ -892,10 +983,36 @@ func writeWasmHandlerFunctions(builder *strings.Builder, spec *wasmDispatcherSpe
 	builder.WriteString("}\n\n")
 }
 
+// writeWasmCallbackHandlerFunction renders one typed non-route callback
+// handler such as lifecycle or cron callbacks.
+func writeWasmCallbackHandlerFunction(
+	builder *strings.Builder,
+	requestType string,
+	requestTypeExpr string,
+	controllerAlias string,
+	methodName string,
+) {
+	builder.WriteString(fmt.Sprintf("func handleGenerated%s(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {\n", requestType))
+	builder.WriteString("\tctx := bridgeguest.NewGuestControllerContext(request)\n")
+	builder.WriteString(fmt.Sprintf("\treq := &%s{}\n", requestTypeExpr))
+	builder.WriteString("\tif response := bindGeneratedWasmRequest(request, req, nil); response != nil {\n")
+	builder.WriteString("\t\treturn response, nil\n")
+	builder.WriteString("\t}\n")
+	builder.WriteString(fmt.Sprintf("\tres, err := generated%s().%s(ctx, req)\n", upperFirst(controllerAlias), methodName))
+	builder.WriteString("\tif response := bridgeguest.ResponseFromError(err); response != nil {\n")
+	builder.WriteString("\t\treturn response, nil\n")
+	builder.WriteString("\t}\n")
+	builder.WriteString("\tif err != nil {\n")
+	builder.WriteString("\t\treturn nil, err\n")
+	builder.WriteString("\t}\n")
+	builder.WriteString("\treturn bridgeguest.BuildGuestControllerResponse(ctx, res)\n")
+	builder.WriteString("}\n\n")
+}
+
 // writeWasmRouteHelpers renders small non-reflective path, method, and binding
 // helpers used by the generated dispatcher.
 func writeWasmRouteHelpers(builder *strings.Builder, spec *wasmDispatcherSpec) {
-	builder.WriteString(`func shouldBindGeneratedWasmJSONBody(request *pluginbridge.BridgeRequestEnvelopeV1, bodyFields []string) bool {
+	builder.WriteString(`func shouldBindGeneratedWasmJSONBody(request *protocol.BridgeRequestEnvelopeV1, bodyFields []string) bool {
 	if request == nil {
 		return false
 	}
@@ -941,7 +1058,7 @@ func generatedWasmParseBool(value string, isPathParam bool) bool {
 	return false
 }
 
-func applyGeneratedWasmRouteValues(targetRequest *pluginbridge.BridgeRequestEnvelopeV1, target any) {
+func applyGeneratedWasmRouteValues(targetRequest *protocol.BridgeRequestEnvelopeV1, target any) {
 	switch req := target.(type) {
 `)
 	writeWasmRouteValueCases(builder, spec)
@@ -959,7 +1076,7 @@ func normalizeGeneratedWasmRoutePath(value string) string {
 	return strings.TrimRight(trimmed, "/")
 }
 
-func generatedWasmRequestMethod(request *pluginbridge.BridgeRequestEnvelopeV1) string {
+func generatedWasmRequestMethod(request *protocol.BridgeRequestEnvelopeV1) string {
 	if request == nil {
 		return ""
 	}
@@ -974,21 +1091,21 @@ func generatedWasmRequestMethod(request *pluginbridge.BridgeRequestEnvelopeV1) s
 	return ""
 }
 
-func generatedWasmRouteValue(request *pluginbridge.BridgeRequestEnvelopeV1, key string) string {
-	if value := pluginbridge.PathParam(request, key); value != "" {
+func generatedWasmRouteValue(request *protocol.BridgeRequestEnvelopeV1, key string) string {
+	if value := bridgeguest.PathParam(request, key); value != "" {
 		return value
 	}
-	return pluginbridge.QueryValue(request, key)
+	return bridgeguest.QueryValue(request, key)
 }
 
-func generatedWasmPathParams(request *pluginbridge.BridgeRequestEnvelopeV1) map[string]string {
+func generatedWasmPathParams(request *protocol.BridgeRequestEnvelopeV1) map[string]string {
 	if request == nil || request.Route == nil {
 		return nil
 	}
 	return request.Route.PathParams
 }
 
-func generatedWasmQueryValues(request *pluginbridge.BridgeRequestEnvelopeV1) map[string][]string {
+func generatedWasmQueryValues(request *protocol.BridgeRequestEnvelopeV1) map[string][]string {
 	if request == nil || request.Route == nil {
 		return nil
 	}
@@ -1062,9 +1179,9 @@ func writeWasmRouteValueAssignment(builder *strings.Builder, field *wasmDTOField
 	}
 	switch field.GoType {
 	case "string":
-		builder.WriteString(fmt.Sprintf("\t\tif value := pluginbridge.PathParam(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
+		builder.WriteString(fmt.Sprintf("\t\tif value := bridgeguest.PathParam(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
 		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = value\n", goName))
-		builder.WriteString(fmt.Sprintf("\t\t} else if value := pluginbridge.QueryValue(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
+		builder.WriteString(fmt.Sprintf("\t\t} else if value := bridgeguest.QueryValue(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
 		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = value\n", goName))
 		builder.WriteString("\t\t}\n")
 	case "bool":

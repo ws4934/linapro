@@ -10,8 +10,8 @@ import (
 	"path"
 	"strings"
 
-	bridgehostservice "lina-core/pkg/pluginbridge"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // hostCallContextKey is the private context key for host call state.
@@ -113,6 +113,10 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 		}
 		if normalizedService == bridgehostservice.HostServiceData {
 			return normalizedTable != "" && containsString(spec.Tables, normalizedTable)
+		}
+		if normalizedService == bridgehostservice.HostServiceOrg ||
+			normalizedService == bridgehostservice.HostServiceTenant {
+			return normalizedResourceRef == "" && normalizedTable == ""
 		}
 		if normalizedResourceRef == "" {
 			return len(spec.Resources) == 0 && len(spec.Tables) == 0

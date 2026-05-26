@@ -9,8 +9,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	notifysvc "lina-core/internal/service/notify"
-	bridgehostcall "lina-core/pkg/pluginbridge"
-	bridgehostservice "lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // notifyHostService is the shared governed notification backend used by wasm host calls.

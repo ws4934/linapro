@@ -11,7 +11,7 @@ import (
 	"github.com/gogf/gf/v2/net/goai"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // ProjectDynamicRoutesToOpenAPI projects currently enabled dynamic plugin routes into the host OpenAPI paths.
@@ -69,8 +69,8 @@ func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths g
 // OpenAPI operation while reflecting whether the bridge is executable.
 func buildRouteOpenAPIOperation(
 	pluginID string,
-	route *pluginbridge.RouteContract,
-	bridgeSpec *pluginbridge.BridgeSpec,
+	route *protocol.RouteContract,
+	bridgeSpec *protocol.BridgeSpec,
 ) *goai.Operation {
 	if route == nil {
 		return nil
@@ -88,7 +88,7 @@ func buildRouteOpenAPIOperation(
 	} else {
 		operation.Responses["501"] = goai.ResponseRef{Value: &goai.Response{Description: "Dynamic plugin route bridge is not executable"}}
 	}
-	if route.Access == pluginbridge.AccessLogin {
+	if route.Access == protocol.AccessLogin {
 		operation.Security = &goai.SecurityRequirements{{"BearerAuth": {}}}
 	}
 	return operation

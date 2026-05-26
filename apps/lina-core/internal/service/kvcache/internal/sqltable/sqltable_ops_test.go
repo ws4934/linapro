@@ -14,7 +14,7 @@ import (
 
 	"lina-core/internal/model/do"
 	"lina-core/pkg/dialect"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	pkgtenantcap "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // currentSQLTableKVCacheDDL keeps package tests aligned with the delivered
@@ -443,12 +443,12 @@ func TestTenantCacheKeysAreIsolated(t *testing.T) {
 	ctx := context.Background()
 	service := newTestSQLTableBackend(t, ctx)
 	tenantOneKey := BuildCacheKey(
-		pkgtenantcap.CacheKey(1, "dict", "sys"),
+		tenantcap.CacheKey(1, "dict", "sys"),
 		"runtime",
 		"user_status",
 	)
 	tenantTwoKey := BuildCacheKey(
-		pkgtenantcap.CacheKey(2, "dict", "sys"),
+		tenantcap.CacheKey(2, "dict", "sys"),
 		"runtime",
 		"user_status",
 	)

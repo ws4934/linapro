@@ -16,7 +16,7 @@ import (
 	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestSourcePluginDiscoveryKeepsEffectiveVersionAfterHigherSourceVersion verifies

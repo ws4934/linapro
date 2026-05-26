@@ -24,9 +24,10 @@ import (
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestSelectTenantConsumesPreTokenOnce verifies pre-login tokens are single-use
@@ -279,11 +280,10 @@ func TestSwitchTenantRevokesOldToken(t *testing.T) {
 func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
-	svc.tenantSvc = enabledTenantAuthTestService{}
 
 	username := fmt.Sprintf("tenant-flow-%d", time.Now().UnixNano())
 	userID := insertAuthTestUser(t, ctx, username, "admin123")
-	registerTenantAuthTestProvider(t, map[int][]pkgtenantcap.TenantInfo{
+	svc.tenantSvc = registerTenantAuthTestProvider(t, map[int][]tenantcap.TenantInfo{
 		userID: {
 			{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"},
 			{ID: 22, Code: "tenant-b", Name: "Tenant B", Status: "enabled"},
@@ -356,7 +356,6 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 func TestLoginRejectsTenantUserWithoutActiveTenant(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
-	svc.tenantSvc = enabledTenantAuthTestService{}
 
 	username := fmt.Sprintf("tenant-unavailable-%d", time.Now().UnixNano())
 	userID := insertAuthTestUser(t, ctx, username, "admin123")
@@ -366,7 +365,7 @@ func TestLoginRejectsTenantUserWithoutActiveTenant(t *testing.T) {
 		Update(); err != nil {
 		t.Fatalf("set tenant id on auth test user: %v", err)
 	}
-	registerTenantAuthTestProvider(t, map[int][]pkgtenantcap.TenantInfo{userID: {}})
+	svc.tenantSvc = registerTenantAuthTestProvider(t, map[int][]tenantcap.TenantInfo{userID: {}})
 
 	if _, err := svc.Login(ctx, LoginInput{Username: username, Password: "admin123"}); !bizerr.Is(err, CodeAuthTenantUnavailable) {
 		t.Fatalf("expected tenant unavailable login error, got %v", err)
@@ -499,15 +498,14 @@ func TestRefreshRejectsNegativeTenantClaim(t *testing.T) {
 	}
 }
 
-// TestRefreshPreservesSessionOnTenantProviderInfraError verifies that a
+// TestRefreshPreservesSessionOnProviderInfraError verifies that a
 // transient infrastructure failure from the tenant provider (e.g., DB
 // outage) causes refresh to fail without tearing down the online session.
 // Access tokens are short-lived; once infra recovers the next refresh will
 // re-evaluate membership and revoke if the eviction turns out to be real.
-func TestRefreshPreservesSessionOnTenantProviderInfraError(t *testing.T) {
+func TestRefreshPreservesSessionOnProviderInfraError(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
-	svc.tenantSvc = enabledTenantAuthTestService{}
 
 	username := fmt.Sprintf("tenant-infra-%d", time.Now().UnixNano())
 	userID := insertAuthTestUser(t, ctx, username, "admin123")
@@ -515,14 +513,12 @@ func TestRefreshPreservesSessionOnTenantProviderInfraError(t *testing.T) {
 
 	infraErr := errors.New("simulated tenant provider infra failure")
 	provider := &tenantAuthTestProvider{
-		tenantsByUser: map[int][]pkgtenantcap.TenantInfo{
+		tenantsByUser: map[int][]tenantcap.TenantInfo{
 			userID: {{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"}},
 		},
 		validateErr: infraErr,
 	}
-	previous := pkgtenantcap.CurrentProvider()
-	pkgtenantcap.RegisterProvider(provider)
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(previous) })
+	svc.tenantSvc = registerTenantAuthProviderInstance(t, provider)
 
 	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11)
 	if err != nil {
@@ -554,18 +550,15 @@ func TestRefreshPreservesSessionOnTenantProviderInfraError(t *testing.T) {
 func TestRefreshRejectsAfterTenantMembershipRemoved(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
-	svc.tenantSvc = enabledTenantAuthTestService{}
 
 	username := fmt.Sprintf("tenant-evict-%d", time.Now().UnixNano())
 	userID := insertAuthTestUser(t, ctx, username, "admin123")
 	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
 
-	provider := &tenantAuthTestProvider{tenantsByUser: map[int][]pkgtenantcap.TenantInfo{
+	provider := &tenantAuthTestProvider{tenantsByUser: map[int][]tenantcap.TenantInfo{
 		userID: {{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"}},
 	}}
-	previous := pkgtenantcap.CurrentProvider()
-	pkgtenantcap.RegisterProvider(provider)
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(previous) })
+	svc.tenantSvc = registerTenantAuthProviderInstance(t, provider)
 
 	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11)
 	if err != nil {
@@ -857,14 +850,19 @@ type enabledTenantAuthTestService struct{}
 // only need the auth service to satisfy its explicit dependency contract.
 type disabledTenantAuthTestService struct{}
 
-// Enabled reports multi-tenancy as disabled.
-func (disabledTenantAuthTestService) Enabled(context.Context) bool {
+// Available reports no active tenant provider for disabled tenancy tests.
+func (disabledTenantAuthTestService) Available(context.Context) bool {
 	return false
+}
+
+// Status returns an unavailable tenant capability status.
+func (disabledTenantAuthTestService) Status(context.Context) contract.CapabilityStatus {
+	return contract.CapabilityStatus{}
 }
 
 // Current returns platform tenant for disabled tenancy tests.
 func (disabledTenantAuthTestService) Current(context.Context) tenantcapsvc.TenantID {
-	return pkgtenantcap.PLATFORM
+	return tenantcap.PLATFORM
 }
 
 // Apply returns the input model unchanged when tenancy is disabled.
@@ -882,14 +880,24 @@ func (disabledTenantAuthTestService) EnsureTenantVisible(context.Context, tenant
 	return nil
 }
 
+// ValidateUserInTenant accepts all users when tenancy is disabled.
+func (disabledTenantAuthTestService) ValidateUserInTenant(context.Context, int, tenantcapsvc.TenantID) error {
+	return nil
+}
+
 // ResolveTenant returns platform tenant for disabled tenancy tests.
-func (disabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+func (disabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
 }
 
 // ListUserTenants returns no tenant options when tenancy is disabled.
-func (disabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return []pkgtenantcap.TenantInfo{}, nil
+func (disabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
+	return []tenantcap.TenantInfo{}, nil
+}
+
+// SwitchTenant accepts tenant switches when tenancy is disabled.
+func (disabledTenantAuthTestService) SwitchTenant(context.Context, int, tenantcapsvc.TenantID) error {
+	return nil
 }
 
 // ApplyUserTenantScope returns the model unchanged when tenancy is disabled.
@@ -915,24 +923,24 @@ func (disabledTenantAuthTestService) ApplyUserTenantFilter(
 func (disabledTenantAuthTestService) ListUserTenantProjections(
 	context.Context,
 	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
+) (map[int]*tenantcap.UserTenantProjection, error) {
+	return map[int]*tenantcap.UserTenantProjection{}, nil
 }
 
 // ResolveUserTenantAssignment returns an empty assignment plan when tenancy is disabled.
 func (disabledTenantAuthTestService) ResolveUserTenantAssignment(
 	context.Context,
 	[]tenantcapsvc.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
+	tenantcap.UserTenantAssignmentMode,
+) (*tenantcap.UserTenantAssignmentPlan, error) {
+	return &tenantcap.UserTenantAssignmentPlan{}, nil
 }
 
 // ReplaceUserTenantAssignments is a no-op when tenancy is disabled.
 func (disabledTenantAuthTestService) ReplaceUserTenantAssignments(
 	context.Context,
 	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
+	*tenantcap.UserTenantAssignmentPlan,
 ) error {
 	return nil
 }
@@ -947,14 +955,24 @@ func (disabledTenantAuthTestService) ValidateUserMembershipStartupConsistency(co
 	return nil, nil
 }
 
-// Enabled reports multi-tenancy as enabled.
-func (enabledTenantAuthTestService) Enabled(context.Context) bool {
+// ProvisionAutoEnabledTenantPlugins is a no-op when tenancy is disabled.
+func (disabledTenantAuthTestService) ProvisionAutoEnabledTenantPlugins(context.Context) error {
+	return nil
+}
+
+// Available reports an active tenant provider for enabled tenancy tests.
+func (enabledTenantAuthTestService) Available(context.Context) bool {
 	return true
+}
+
+// Status returns an available tenant capability status.
+func (enabledTenantAuthTestService) Status(context.Context) contract.CapabilityStatus {
+	return contract.CapabilityStatus{Available: true, ActiveProvider: tenantcap.ProviderPluginID}
 }
 
 // Current returns the platform tenant for tests that do not carry request context.
 func (enabledTenantAuthTestService) Current(context.Context) tenantcapsvc.TenantID {
-	return pkgtenantcap.PLATFORM
+	return tenantcap.PLATFORM
 }
 
 // Apply returns the model unchanged in auth tests.
@@ -972,14 +990,24 @@ func (enabledTenantAuthTestService) EnsureTenantVisible(context.Context, tenantc
 	return nil
 }
 
+// ValidateUserInTenant accepts all users in auth tests.
+func (enabledTenantAuthTestService) ValidateUserInTenant(context.Context, int, tenantcapsvc.TenantID) error {
+	return nil
+}
+
 // ResolveTenant returns no request-derived tenant in auth tests.
-func (enabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+func (enabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
 }
 
 // ListUserTenants returns no tenants in auth tests unless provider lookup is used directly.
-func (enabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return []pkgtenantcap.TenantInfo{}, nil
+func (enabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
+	return []tenantcap.TenantInfo{}, nil
+}
+
+// SwitchTenant accepts tenant switches in auth tests.
+func (enabledTenantAuthTestService) SwitchTenant(context.Context, int, tenantcapsvc.TenantID) error {
+	return nil
 }
 
 // ApplyUserTenantScope returns the model unchanged in auth tests.
@@ -1005,24 +1033,24 @@ func (enabledTenantAuthTestService) ApplyUserTenantFilter(
 func (enabledTenantAuthTestService) ListUserTenantProjections(
 	context.Context,
 	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
+) (map[int]*tenantcap.UserTenantProjection, error) {
+	return map[int]*tenantcap.UserTenantProjection{}, nil
 }
 
 // ResolveUserTenantAssignment returns an empty plan in auth tests.
 func (enabledTenantAuthTestService) ResolveUserTenantAssignment(
 	context.Context,
 	[]tenantcapsvc.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
+	tenantcap.UserTenantAssignmentMode,
+) (*tenantcap.UserTenantAssignmentPlan, error) {
+	return &tenantcap.UserTenantAssignmentPlan{}, nil
 }
 
 // ReplaceUserTenantAssignments is a no-op in auth tests.
 func (enabledTenantAuthTestService) ReplaceUserTenantAssignments(
 	context.Context,
 	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
+	*tenantcap.UserTenantAssignmentPlan,
 ) error {
 	return nil
 }
@@ -1037,9 +1065,14 @@ func (enabledTenantAuthTestService) ValidateUserMembershipStartupConsistency(con
 	return nil, nil
 }
 
+// ProvisionAutoEnabledTenantPlugins is a no-op in auth tests.
+func (enabledTenantAuthTestService) ProvisionAutoEnabledTenantPlugins(context.Context) error {
+	return nil
+}
+
 // tenantAuthTestProvider provides deterministic tenant memberships for auth tests.
 type tenantAuthTestProvider struct {
-	tenantsByUser map[int][]pkgtenantcap.TenantInfo
+	tenantsByUser map[int][]tenantcap.TenantInfo
 	// validateErr, when non-nil, is returned by ValidateUserInTenant verbatim
 	// before the membership lookup. Used to simulate provider infrastructure
 	// failures (e.g., DB timeout) that surface as non-bizerr errors.
@@ -1047,12 +1080,12 @@ type tenantAuthTestProvider struct {
 }
 
 // ResolveTenant returns no request-derived tenant in auth tests.
-func (p *tenantAuthTestProvider) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+func (p *tenantAuthTestProvider) ResolveTenant(context.Context, *ghttp.Request) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
 }
 
 // ValidateUserInTenant verifies the user is a member of the requested tenant.
-func (p *tenantAuthTestProvider) ValidateUserInTenant(_ context.Context, userID int, tenantID pkgtenantcap.TenantID) error {
+func (p *tenantAuthTestProvider) ValidateUserInTenant(_ context.Context, userID int, tenantID tenantcap.TenantID) error {
 	if p.validateErr != nil {
 		return p.validateErr
 	}
@@ -1065,27 +1098,50 @@ func (p *tenantAuthTestProvider) ValidateUserInTenant(_ context.Context, userID 
 }
 
 // ListUserTenants returns the configured user tenants.
-func (p *tenantAuthTestProvider) ListUserTenants(_ context.Context, userID int) ([]pkgtenantcap.TenantInfo, error) {
+func (p *tenantAuthTestProvider) ListUserTenants(_ context.Context, userID int) ([]tenantcap.TenantInfo, error) {
 	tenants := p.tenantsByUser[userID]
-	result := make([]pkgtenantcap.TenantInfo, len(tenants))
+	result := make([]tenantcap.TenantInfo, len(tenants))
 	copy(result, tenants)
 	return result, nil
 }
 
 // SwitchTenant verifies the target tenant membership.
-func (p *tenantAuthTestProvider) SwitchTenant(ctx context.Context, userID int, target pkgtenantcap.TenantID) error {
+func (p *tenantAuthTestProvider) SwitchTenant(ctx context.Context, userID int, target tenantcap.TenantID) error {
 	return p.ValidateUserInTenant(ctx, userID, target)
 }
 
 // registerTenantAuthTestProvider installs a temporary tenant provider.
-func registerTenantAuthTestProvider(t *testing.T, tenantsByUser map[int][]pkgtenantcap.TenantInfo) {
+func registerTenantAuthTestProvider(t *testing.T, tenantsByUser map[int][]tenantcap.TenantInfo) tenantcap.Service {
 	t.Helper()
+	return registerTenantAuthProviderInstance(t, &tenantAuthTestProvider{tenantsByUser: tenantsByUser})
+}
 
-	previous := pkgtenantcap.CurrentProvider()
-	pkgtenantcap.RegisterProvider(&tenantAuthTestProvider{tenantsByUser: tenantsByUser})
-	t.Cleanup(func() {
-		pkgtenantcap.RegisterProvider(previous)
-	})
+// registerTenantAuthProviderInstance installs a temporary tenant provider
+// through the pluginservice lifecycle-style registry.
+func registerTenantAuthProviderInstance(t *testing.T, provider *tenantAuthTestProvider) tenantcap.Service {
+	t.Helper()
+	providerPluginID := fmt.Sprintf("plugin-test-auth-tenant-provider-%d", time.Now().UnixNano())
+	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+		return provider, nil
+	}); err != nil {
+		t.Fatalf("register auth tenant provider: %v", err)
+	}
+	return tenantcap.New(tenantAuthProviderRuntime{pluginID: providerPluginID}, nil)
+}
+
+// tenantAuthProviderRuntime marks exactly one test provider plugin enabled.
+type tenantAuthProviderRuntime struct {
+	pluginID string
+}
+
+// IsProviderEnabled reports whether the given test provider plugin is enabled.
+func (r tenantAuthProviderRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return pluginID == r.pluginID
+}
+
+// TenantProviderEnv returns an empty typed provider environment in auth tests.
+func (tenantAuthProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
+	return tenantcap.ProviderEnv{}
 }
 
 // insertAuthTestUser inserts one enabled user and cleans it up after the test.
@@ -1347,7 +1403,7 @@ func (s *memorySessionStore) ListPageScoped(
 	int,
 	int,
 	datascope.Service,
-	tenantcapsvc.Service,
+	tenantcapsvc.ScopeService,
 ) (*session.ListResult, error) {
 	items, err := s.List(context.Background(), nil)
 	if err != nil {
@@ -1383,9 +1439,9 @@ var (
 		PrimeTokenAccessContext(context.Context, string, int) (*role.UserAccessContext, error)
 		InvalidateTokenAccessContext(context.Context, string)
 	} = roleTestService{}
-	_ session.Store         = (*memorySessionStore)(nil)
-	_ kvcache.Service       = (*sharedMemoryKVCache)(nil)
-	_ jwt.Claims            = (*Claims)(nil)
-	_ tenantcapsvc.Service  = enabledTenantAuthTestService{}
-	_ pkgtenantcap.Provider = (*tenantAuthTestProvider)(nil)
+	_ session.Store        = (*memorySessionStore)(nil)
+	_ kvcache.Service      = (*sharedMemoryKVCache)(nil)
+	_ jwt.Claims           = (*Claims)(nil)
+	_ tenantcapsvc.Service = enabledTenantAuthTestService{}
+	_ tenantcap.Provider   = (*tenantAuthTestProvider)(nil)
 )

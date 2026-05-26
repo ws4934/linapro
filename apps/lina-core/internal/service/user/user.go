@@ -10,9 +10,9 @@ import (
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/orgcap"
 	"lina-core/internal/service/role"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // Status represents user account status.
@@ -31,10 +31,6 @@ const (
 type Service interface {
 	// List queries user list with pagination and filters.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
-	// GetUserIdsByDeptId returns user IDs associated with a dept and all its descendants.
-	GetUserIdsByDeptId(ctx context.Context, deptId int) ([]int, error)
-	// GetAllAssignedUserIds returns all user IDs that have a dept association.
-	GetAllAssignedUserIds(ctx context.Context) ([]int, error)
 	// GetUserDeptInfo returns the dept ID and name for a user.
 	GetUserDeptInfo(ctx context.Context, userId int) (int, string, error)
 	// Create creates a new user with transaction support.
@@ -78,26 +74,59 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	authSvc   auth.Service
-	bizCtxSvc bizctx.Service
-	i18nSvc   userI18nTranslator
-	orgCapSvc orgcap.Service
-	roleSvc   role.Service // Role service
-	scopeSvc  datascope.Service
-	tenantSvc tenantcapsvc.Service
+	authSvc       auth.Service
+	bizCtxSvc     bizctx.Service
+	i18nSvc       userI18nTranslator
+	orgCapSvc     orgcap.Service
+	orgScope      orgcap.ScopeService
+	orgAssignment orgcap.AssignmentService
+	roleSvc       role.Service // Role service
+	scopeSvc      datascope.Service
+	tenantScope   tenantcapsvc.ScopeService
+	tenantMembers tenantcapsvc.UserMembershipService
+	tenantAccess  userTenantAccessService
 }
 
 // New creates and returns a new user service from explicit runtime-owned dependencies.
-func New(authSvc auth.Service, bizCtxSvc bizctx.Service, i18nSvc userI18nTranslator, orgCapSvc orgcap.Service, roleSvc role.Service, scopeSvc datascope.Service, tenantSvc tenantcapsvc.Service) Service {
+func New(
+	authSvc auth.Service,
+	bizCtxSvc bizctx.Service,
+	i18nSvc userI18nTranslator,
+	orgCapSvc orgcap.Service,
+	orgScope orgcap.ScopeService,
+	orgAssignment orgcap.AssignmentService,
+	roleSvc role.Service,
+	scopeSvc datascope.Service,
+	tenantScope tenantcapsvc.ScopeService,
+	tenantMembers tenantcapsvc.UserMembershipService,
+	tenantAccess userTenantAccessService,
+) Service {
 	return &serviceImpl{
-		authSvc:   authSvc,
-		bizCtxSvc: bizCtxSvc,
-		i18nSvc:   i18nSvc,
-		orgCapSvc: orgCapSvc,
-		roleSvc:   roleSvc,
-		scopeSvc:  scopeSvc,
-		tenantSvc: tenantSvc,
+		authSvc:       authSvc,
+		bizCtxSvc:     bizCtxSvc,
+		i18nSvc:       i18nSvc,
+		orgCapSvc:     orgCapSvc,
+		orgScope:      orgScope,
+		orgAssignment: orgAssignment,
+		roleSvc:       roleSvc,
+		scopeSvc:      scopeSvc,
+		tenantScope:   tenantScope,
+		tenantMembers: tenantMembers,
+		tenantAccess:  tenantAccess,
 	}
+}
+
+// userTenantAccessService is the read-only tenant governance slice required by
+// user management. Membership writes and database-scope builders are injected
+// separately through their own tenantcap interfaces.
+type userTenantAccessService interface {
+	// Available reports whether tenant-aware user management should run.
+	Available(ctx context.Context) bool
+	// PlatformBypass reports whether current context can administer membership
+	// across tenants from platform scope.
+	PlatformBypass(ctx context.Context) bool
+	// ListUserTenants returns active tenant memberships visible to one user.
+	ListUserTenants(ctx context.Context, userID int) ([]tenantcapsvc.TenantInfo, error)
 }
 
 // ListInput defines input for List function.

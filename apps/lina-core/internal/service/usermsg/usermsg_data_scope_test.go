@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/util/gconv"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/notify"
-	"lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestUserMessagesRemainSelfIsolatedForAllDataScope verifies all-data role
@@ -87,7 +87,6 @@ func (s userMsgScopeStaticBizCtx) SetTenant(context.Context, int) {}
 
 // SetImpersonation is unused by user-message tests.
 func (s userMsgScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
-
 
 // SetUserAccess is unused by user-message tests.
 func (s userMsgScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}

@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import type {
-  PluginDependencyAutoInstallItem,
   PluginDependencyBlocker,
   PluginDependencyCheckResult,
-  PluginDependencyItem,
   PluginDependencyReverseDependent,
 } from '#/api/system/plugin/model';
 
@@ -25,12 +23,10 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const blockers = computed(() => props.check?.blockers ?? []);
-const autoInstallPlan = computed(() => props.check?.autoInstallPlan ?? []);
-const autoInstalled = computed(() => props.check?.autoInstalled ?? []);
-const manualInstallRequired = computed(() => {
-  return props.check?.manualInstallRequired ?? [];
+const framework = computed(() => props.check?.framework);
+const frameworkUnsatisfied = computed(() => {
+  return framework.value?.status === 'unsatisfied';
 });
-const softUnsatisfied = computed(() => props.check?.softUnsatisfied ?? []);
 const reverseDependents = computed(() => props.check?.reverseDependents ?? []);
 const reverseBlockers = computed(() => props.check?.reverseBlockers ?? []);
 const cycle = computed(() => props.check?.cycle ?? []);
@@ -39,12 +35,8 @@ const hasInstallContent = computed(() => {
   return (
     props.loading ||
     blockers.value.length > 0 ||
-    autoInstallPlan.value.length > 0 ||
-    autoInstalled.value.length > 0 ||
-    manualInstallRequired.value.length > 0 ||
-    softUnsatisfied.value.length > 0 ||
     cycle.value.length > 0 ||
-    props.check?.framework?.status === 'unsatisfied'
+    frameworkUnsatisfied.value
   );
 });
 
@@ -62,19 +54,16 @@ const shouldRender = computed(() => {
     : hasUninstallContent.value;
 });
 
-function formatAutoInstallItem(item: PluginDependencyAutoInstallItem) {
-  const name = item.name || item.pluginId;
-  return item.version ? `${name}@${item.version}` : name;
-}
-
-function formatDependencyItem(item: PluginDependencyItem) {
-  const name = item.dependencyName || item.dependencyId;
-  return item.requiredVersion ? `${name} ${item.requiredVersion}` : name;
-}
-
 function formatReverseDependent(item: PluginDependencyReverseDependent) {
   const name = item.name || item.pluginId;
   return item.requiredVersion ? `${name} ${item.requiredVersion}` : name;
+}
+
+function formatFrameworkMismatch() {
+  return $t('pages.system.plugin.dependency.frameworkUnsatisfiedDescription', {
+    current: framework.value?.currentVersion || '-',
+    required: framework.value?.requiredVersion || '-',
+  });
 }
 
 function formatBlocker(blocker: PluginDependencyBlocker) {
@@ -123,83 +112,13 @@ function formatBlocker(blocker: PluginDependencyBlocker) {
     </Alert>
 
     <Alert
-      v-if="props.mode === 'install' && autoInstallPlan.length > 0"
-      data-testid="plugin-dependency-auto-install-plan"
+      v-if="props.mode === 'install' && frameworkUnsatisfied && blockers.length === 0"
+      data-testid="plugin-dependency-framework-blocker"
       show-icon
-      type="info"
-      :message="$t('pages.system.plugin.dependency.autoInstallPlan')"
-    >
-      <template #description>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <Tag
-            v-for="item in autoInstallPlan"
-            :key="`${item.pluginId}-${item.requiredBy}`"
-            color="blue"
-          >
-            {{ formatAutoInstallItem(item) }}
-          </Tag>
-        </div>
-      </template>
-    </Alert>
-
-    <Alert
-      v-if="props.mode === 'install' && autoInstalled.length > 0"
-      data-testid="plugin-dependency-auto-installed"
-      show-icon
-      type="success"
-      :message="$t('pages.system.plugin.dependency.autoInstalled')"
-    >
-      <template #description>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <Tag
-            v-for="item in autoInstalled"
-            :key="`${item.pluginId}-${item.version}`"
-            color="green"
-          >
-            {{ formatAutoInstallItem(item) }}
-          </Tag>
-        </div>
-      </template>
-    </Alert>
-
-    <Alert
-      v-if="props.mode === 'install' && manualInstallRequired.length > 0"
-      data-testid="plugin-dependency-manual-required"
-      show-icon
-      type="warning"
-      :message="$t('pages.system.plugin.dependency.manualRequired')"
-    >
-      <template #description>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <Tag
-            v-for="item in manualInstallRequired"
-            :key="`${item.ownerId}-${item.dependencyId}`"
-            color="gold"
-          >
-            {{ formatDependencyItem(item) }}
-          </Tag>
-        </div>
-      </template>
-    </Alert>
-
-    <Alert
-      v-if="props.mode === 'install' && softUnsatisfied.length > 0"
-      data-testid="plugin-dependency-soft-unsatisfied"
-      show-icon
-      type="info"
-      :message="$t('pages.system.plugin.dependency.softUnsatisfied')"
-    >
-      <template #description>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <Tag
-            v-for="item in softUnsatisfied"
-            :key="`${item.ownerId}-${item.dependencyId}`"
-          >
-            {{ formatDependencyItem(item) }}
-          </Tag>
-        </div>
-      </template>
-    </Alert>
+      type="error"
+      :message="$t('pages.system.plugin.dependency.frameworkUnsatisfied')"
+      :description="formatFrameworkMismatch()"
+    />
 
     <Alert
       v-if="props.mode === 'install' && cycle.length > 0"

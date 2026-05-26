@@ -15,7 +15,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/dialect"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // GetRegistry returns the sys_plugin row for the given plugin ID, or nil if not found.

@@ -8,7 +8,7 @@
 
 - [x] 2.1 重构`hack/tools/linactl/internal/goframecli`，拆分父进程分发和隐藏子进程执行边界。
 - [x] 2.2 实现隐藏入口参数白名单，只允许`gen ctrl`和`gen dao`。
-- [x] 2.3 在隐藏入口中通过`gfcmd.GetCommand(ctx)`和`RunWithSpecificArgs`执行等价`gf gen ctrl`或`gf gen dao`参数。
+- [x] 2.3 在隐藏入口中通过`gfcmd.GetCommand(ctx)`和`RunWithSpecificArgs`执行等价`make ctrl`或`make dao`参数。
 - [x] 2.4 确保隐藏入口执行 GoFrame CLI 前使用`apps/lina-core`作为工作目录。
 - [x] 2.5 确保隐藏入口返回清晰错误，拒绝除`gen ctrl`和`gen dao`以外的 GoFrame CLI 子命令。
 

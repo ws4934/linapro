@@ -3,6 +3,8 @@
 package middleware
 
 import (
+	"context"
+
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/service/auth"
@@ -12,8 +14,8 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
-	"lina-core/pkg/pluginhost"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Service defines the complete middleware service contract by composing
@@ -69,7 +71,7 @@ type serviceImpl struct {
 	i18nSvc   middlewareI18nService // i18nSvc resolves request locale and translation context.
 	pluginSvc pluginsvc.Service     // Plugin service
 	roleSvc   role.Service          // Role and permission service
-	tenantSvc tenantcapsvc.Service  // Tenant capability service
+	tenantSvc tenantMiddlewareService
 }
 
 // middlewareI18nService defines the locale and error localization capabilities middleware needs.
@@ -78,8 +80,20 @@ type middlewareI18nService interface {
 	i18nsvc.Translator
 }
 
+// tenantMiddlewareService is the host-internal tenant slice needed by request
+// middleware. It deliberately avoids tenant query-scope and membership write
+// methods because middleware only resolves request context and platform bypass.
+type tenantMiddlewareService interface {
+	// Available reports whether tenant resolution is active.
+	Available(ctx context.Context) bool
+	// PlatformBypass reports whether the request may operate in platform scope.
+	PlatformBypass(ctx context.Context) bool
+	// ResolveTenant resolves tenant identity from one HTTP request.
+	ResolveTenant(ctx context.Context, r *ghttp.Request) (*tenantcapsvc.ResolverResult, error)
+}
+
 // New creates a middleware service from explicit runtime-owned dependencies.
-func New(authSvc auth.Service, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc middlewareI18nService, pluginSvc pluginsvc.Service, roleSvc role.Service, tenantSvc tenantcapsvc.Service) Service {
+func New(authSvc auth.Service, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc middlewareI18nService, pluginSvc pluginsvc.Service, roleSvc role.Service, tenantSvc tenantMiddlewareService) Service {
 	return &serviceImpl{
 		authSvc:   authSvc,
 		bizCtxSvc: bizCtxSvc,

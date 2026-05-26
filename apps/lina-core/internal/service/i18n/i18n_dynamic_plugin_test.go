@@ -6,10 +6,11 @@ package i18n
 import (
 	"context"
 	"encoding/json"
-	"github.com/gogf/gf/v2/os/gctx"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
@@ -17,7 +18,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const testDynamicPluginI18NVersion = "v0.1.0"
@@ -46,7 +47,7 @@ func TestBuildRuntimeMessagesIncludesEnabledDynamicPluginAssets(t *testing.T) {
 		PluginId:       pluginID,
 		ReleaseVersion: testDynamicPluginI18NVersion,
 		Type:           dynamicPluginType,
-		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		RuntimeKind:    protocol.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    artifactPath,
 		Checksum:       "dynamic-plugin-i18n-test-checksum",
@@ -120,7 +121,7 @@ func TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable(t *test
 		PluginId:       pluginID,
 		ReleaseVersion: testDynamicPluginI18NVersion,
 		Type:           dynamicPluginType,
-		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		RuntimeKind:    protocol.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    artifactPath,
 		Checksum:       "dynamic-plugin-dev-source-text-test-checksum",
@@ -164,7 +165,7 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 		PluginId:       pluginID,
 		ReleaseVersion: "v0.1.0",
 		Type:           dynamicPluginType,
-		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		RuntimeKind:    protocol.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    firstArtifactPath,
 		Checksum:       "dynamic-plugin-dev-source-text-reload-test-checksum-1",
@@ -189,7 +190,7 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 		PluginId:       pluginID,
 		ReleaseVersion: "v0.2.0",
 		Type:           dynamicPluginType,
-		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		RuntimeKind:    protocol.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    secondArtifactPath,
 		Checksum:       "dynamic-plugin-dev-source-text-reload-test-checksum-2",
@@ -236,7 +237,7 @@ func TestTranslateDynamicPluginSourceTextFallsBackToStagingArtifact(t *testing.T
 		PluginId:       pluginID,
 		ReleaseVersion: testDynamicPluginI18NVersion,
 		Type:           dynamicPluginType,
-		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		RuntimeKind:    protocol.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    stalePackage,
 		Checksum:       "dynamic-plugin-dev-source-text-staging-stale-checksum",
@@ -285,7 +286,7 @@ func writeDynamicPluginI18NArtifactAtPathForTest(t *testing.T, artifactPath stri
 	}
 
 	content := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
-	content = appendTestWasmCustomSection(content, pluginbridge.WasmSectionI18NAssets, payload)
+	content = appendTestWasmCustomSection(content, protocol.WasmSectionI18NAssets, payload)
 
 	if err = os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
 		t.Fatalf("create dynamic plugin i18n artifact dir: %v", err)

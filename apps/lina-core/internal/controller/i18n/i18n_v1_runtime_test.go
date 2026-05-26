@@ -23,11 +23,11 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	middlewaresvc "lina-core/internal/service/middleware"
-	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
@@ -513,7 +513,7 @@ func newRuntimeMessagesTestMiddleware() middlewaresvc.Service {
 	}
 	orgCapSvc := orgcap.New(pluginSvc)
 	tenantSvc := tenantcapsvc.New(pluginSvc, nil)
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
 	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
 	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, session.NewDBStore(), kvcache.New())
 	return middlewaresvc.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)

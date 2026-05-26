@@ -71,7 +71,7 @@
 - 全量 E2E：在重建数据库与 mock 数据后，使用 `E2E_BASE_URL=http://127.0.0.1:5667 E2E_BROWSER_CHANNEL=chrome E2E_RETRIES=1 E2E_PARALLEL_WORKERS=1 pnpm -C hack/tests test:full` 通过；parallel 阶段 34 passed、2 skipped，serial 阶段 512 passed、9 skipped。由于 Playwright Chromium CDN 下载多次卡住，本轮按用户要求持续重试后改用本机系统 Chrome 作为浏览器通道。
 - OpenSpec 与静态校验：`openspec validate normalize-plugin-ids --strict` 通过；`git diff --check` 与 `git -C apps/lina-plugins diff --check` 均通过；`go run ./hack/tools/linactl i18n.check` 通过，runtime i18n violations 为 0。
 - 旧 ID 残留扫描：运行 `rg --pcre2 "(?<!linapro-)(content-notice|monitor-loginlog|monitor-operlog|monitor-online|monitor-server|multi-tenant|org-center|plugin-demo-dynamic|plugin-demo-source|demo-control)" ...`。反馈修正后生产运行时代码不再保留 `legacyOfficialPluginIDs` 拒绝表；剩余旧官方 ID 命中应仅为本变更映射说明、移除场景、测试命名或负向资源一致性场景，配置、manifest、前端正向路径或 E2E 正向路径不得继续依赖旧官方 ID。
-- GoFrame DAO 说明：`gf gen dao` 在 `linapro-demo-source` 当前数据库未安装插件自有表 `plugin_linapro_demo_source_record` 时无法直接生成；本轮按新表名手工同步插件本地 DAO/DO/Entity 生成产物，并通过官方插件后端包测试、源码插件生命周期 E2E 和 SQL/旧 ID 扫描验证。
+- GoFrame DAO 说明：`make dao` 在 `linapro-demo-source` 当前数据库未安装插件自有表 `plugin_linapro_demo_source_record` 时无法直接生成；本轮按新表名手工同步插件本地 DAO/DO/Entity 生成产物，并通过官方插件后端包测试、源码插件生命周期 E2E 和 SQL/旧 ID 扫描验证。
 - 缓存一致性结论：本变更不新增缓存类型；插件状态、菜单、路由、cron、i18n、apidoc 与动态运行时刷新继续使用插件 ID scope 精确失效。单机模式沿用本地失效/刷新，集群模式沿用既有广播、共享修订号和共享后端机制，不引入清空所有语言、所有扇区或所有插件缓存的普通业务路径。
 - 数据权限结论：本变更不新增业务数据访问接口；官方插件改名后的列表、详情、导出、写操作、插件 host service data 访问和租户治理路径继续复用既有租户隔离与角色数据权限边界。全量 E2E 中已覆盖在线用户、文件、用户、任务、租户、通知、审计日志等数据权限场景。
 - i18n 影响结论：本变更涉及插件 manifest/i18n、前端运行时语言包、apidoc i18n、菜单/job/error key 和文档示例，已同步更新并通过 runtime i18n 扫描、前端类型检查、全量 i18n E2E 与旧 apidoc namespace 扫描。

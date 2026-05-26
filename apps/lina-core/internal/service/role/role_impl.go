@@ -12,11 +12,11 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/apitime"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/orgcap"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
@@ -46,11 +46,9 @@ func organizationCapabilityStateFromPermissionFilter(permissionFilter Permission
 	return nil
 }
 
-// Enabled reports whether linapro-org-core is enabled and the orgcap provider exists.
-func (s pluginBackedOrganizationCapabilityState) Enabled(ctx context.Context) bool {
-	return s.pluginState != nil &&
-		s.pluginState.IsEnabled(ctx, orgcap.ProviderPluginID) &&
-		orgcap.HasProvider()
+// Available reports whether linapro-org-core is enabled and the orgcap provider exists.
+func (s pluginBackedOrganizationCapabilityState) Available(ctx context.Context) bool {
+	return s.pluginState != nil && orgcapsvc.New(s.pluginState).Available(ctx)
 }
 
 // List queries role list with pagination.
@@ -346,7 +344,7 @@ func (s *serviceImpl) ensureRoleDataScopeAllowed(ctx context.Context, dataScope 
 	if dataScope != roleDataScopeDept {
 		return nil
 	}
-	if s != nil && s.orgCapabilityState != nil && s.orgCapabilityState.Enabled(ctx) {
+	if s != nil && s.orgCapabilityState != nil && s.orgCapabilityState.Available(ctx) {
 		return nil
 	}
 	return bizerr.NewCode(CodeRoleDataScopeDeptUnavailable)
@@ -742,7 +740,7 @@ func (s *serviceImpl) ensureRoleAssignmentUsersMatchRoleBoundary(ctx context.Con
 		return nil
 	}
 	if err := s.tenantSvc.EnsureUsersInTenant(ctx, userIDs, tenantcapsvc.TenantID(role.TenantId)); err != nil {
-		if bizerr.Is(err, pkgtenantcap.CodeTenantForbidden) {
+		if bizerr.Is(err, tenantcap.CodeTenantForbidden) {
 			return bizerr.NewCode(CodeTenantRoleAssignmentForbidden)
 		}
 		return err

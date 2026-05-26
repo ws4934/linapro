@@ -13,7 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"lina-core/pkg/pluginbridge"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets verifies that the
@@ -54,7 +55,7 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 		t.Fatalf("expected dynamic demo plugin type %s, got %s", pluginTypeDynamic, manifest.Type)
 	}
 
-	metadata := &dynamicArtifactMetadata{}
+	metadata := &protocol.RuntimeArtifactMetadata{}
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionDynamic], metadata); err != nil {
 		t.Fatalf("expected runtime metadata section json to unmarshal, got error: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 	}
 	assertSQLAssetsMatchSource(t, expectedMockSQLAssets, mockSQLAssets)
 
-	var lifecycleContracts []*lifecycleSpec
+	var lifecycleContracts []*protocol.LifecycleContract
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendLifecycle], &lifecycleContracts); err != nil {
 		t.Fatalf("expected lifecycle section json to unmarshal, got error: %v", err)
 	}
@@ -134,14 +135,41 @@ func TestPluginDemoDynamicGeneratedDispatcherIsZeroReflection(t *testing.T) {
 		t.Fatalf("expected generated dispatcher to exist, got error: %v", err)
 	}
 	generated := string(content)
+	if !strings.Contains(generated, `"lina-core/pkg/plugin/pluginbridge/protocol"`) ||
+		!strings.Contains(generated, `bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"`) {
+		t.Fatalf("generated dispatcher must use protocol and guest imports:\n%s", generated)
+	}
 	for _, forbidden := range []string{
 		`"reflect"`,
 		"NewGuestControllerRouteDispatcher",
 		"MustNewGuestControllerRouteDispatcher",
 		"reflect.",
+		`"lina-core/pkg/pluginbridge"`,
+		`"lina-core/pkg/plugin/capability/guest"`,
+		"capabilityguest",
 	} {
 		if strings.Contains(generated, forbidden) {
 			t.Fatalf("generated dispatcher must not contain %q:\n%s", forbidden, generated)
+		}
+	}
+	for _, forbidden := range []string{
+		"protocol.Runtime(",
+		"protocol.Storage(",
+		"protocol.HTTP(",
+		"protocol.Network(",
+		"protocol.Data(",
+		"protocol.Cache(",
+		"protocol.Lock(",
+		"protocol.Config(",
+		"protocol.Notify(",
+		"protocol.Cron(",
+		"protocol.HostConfig(",
+		"protocol.Manifest(",
+		"protocol.Org(",
+		"protocol.Tenant(",
+	} {
+		if strings.Contains(generated, forbidden) {
+			t.Fatalf("generated dispatcher must not call root business client %q:\n%s", forbidden, generated)
 		}
 	}
 	if !strings.Contains(generated, "func HandleRequest(") {
@@ -150,8 +178,7 @@ func TestPluginDemoDynamicGeneratedDispatcherIsZeroReflection(t *testing.T) {
 	if !strings.Contains(generated, "generatedController1().BackendSummary") {
 		t.Fatalf("generated dispatcher must directly call typed controllers:\n%s", generated)
 	}
-	if strings.Contains(generated, "var generatedController1 ") ||
-		strings.Contains(generated, "generatedEnvelopeController = controller1.New()") {
+	if strings.Contains(generated, "var generatedController1 ") {
 		t.Fatalf("generated dispatcher must not initialize controllers at package init:\n%s", generated)
 	}
 	if !strings.Contains(generated, "sync.Once") ||
@@ -477,32 +504,32 @@ func assertSQLAssetsMatchSource(t *testing.T, expected []*sqlAsset, actual []*sq
 
 // assertPluginDemoDynamicLifecycleContracts verifies the official dynamic demo
 // relies on controller auto-discovery while preserving the reviewed lifecycle surface.
-func assertPluginDemoDynamicLifecycleContracts(t *testing.T, actual []*lifecycleSpec) {
+func assertPluginDemoDynamicLifecycleContracts(t *testing.T, actual []*protocol.LifecycleContract) {
 	t.Helper()
 
-	expected := []pluginbridge.LifecycleOperation{
-		pluginbridge.LifecycleOperationBeforeInstall,
-		pluginbridge.LifecycleOperationAfterInstall,
-		pluginbridge.LifecycleOperationBeforeUpgrade,
-		pluginbridge.LifecycleOperationUpgrade,
-		pluginbridge.LifecycleOperationAfterUpgrade,
-		pluginbridge.LifecycleOperationBeforeDisable,
-		pluginbridge.LifecycleOperationAfterDisable,
-		pluginbridge.LifecycleOperationBeforeUninstall,
-		pluginbridge.LifecycleOperationUninstall,
-		pluginbridge.LifecycleOperationAfterUninstall,
-		pluginbridge.LifecycleOperationBeforeTenantDisable,
-		pluginbridge.LifecycleOperationAfterTenantDisable,
-		pluginbridge.LifecycleOperationBeforeTenantDelete,
-		pluginbridge.LifecycleOperationAfterTenantDelete,
-		pluginbridge.LifecycleOperationBeforeInstallModeChange,
-		pluginbridge.LifecycleOperationAfterInstallModeChange,
+	expected := []protocol.LifecycleOperation{
+		protocol.LifecycleOperationBeforeInstall,
+		protocol.LifecycleOperationAfterInstall,
+		protocol.LifecycleOperationBeforeUpgrade,
+		protocol.LifecycleOperationUpgrade,
+		protocol.LifecycleOperationAfterUpgrade,
+		protocol.LifecycleOperationBeforeDisable,
+		protocol.LifecycleOperationAfterDisable,
+		protocol.LifecycleOperationBeforeUninstall,
+		protocol.LifecycleOperationUninstall,
+		protocol.LifecycleOperationAfterUninstall,
+		protocol.LifecycleOperationBeforeTenantDisable,
+		protocol.LifecycleOperationAfterTenantDisable,
+		protocol.LifecycleOperationBeforeTenantDelete,
+		protocol.LifecycleOperationAfterTenantDelete,
+		protocol.LifecycleOperationBeforeInstallModeChange,
+		protocol.LifecycleOperationAfterInstallModeChange,
 	}
 	if len(actual) != len(expected) {
 		t.Fatalf("expected %d lifecycle contracts, got %#v", len(expected), actual)
 	}
 
-	byOperation := make(map[pluginbridge.LifecycleOperation]*lifecycleSpec, len(actual))
+	byOperation := make(map[protocol.LifecycleOperation]*protocol.LifecycleContract, len(actual))
 	for _, contract := range actual {
 		byOperation[contract.Operation] = contract
 	}
@@ -512,7 +539,7 @@ func assertPluginDemoDynamicLifecycleContracts(t *testing.T, actual []*lifecycle
 			t.Fatalf("expected lifecycle operation %s, got %#v", operation, actual)
 		}
 		expectedRequestType := operation.String() + "Req"
-		expectedInternalPath := "/__lifecycle" + pluginbridge.BuildGuestControllerInternalPath(operation.String())
+		expectedInternalPath := "/__lifecycle" + bridgeguest.BuildGuestControllerInternalPath(operation.String())
 		if contract.RequestType != expectedRequestType || contract.InternalPath != expectedInternalPath {
 			t.Fatalf("unexpected lifecycle contract for %s: %#v", operation, contract)
 		}

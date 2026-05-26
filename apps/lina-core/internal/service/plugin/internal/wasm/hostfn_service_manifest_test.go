@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginservice/contract"
+	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // trackingManifestFactory records plugin scopes requested by the wasm dispatcher.
@@ -86,7 +86,7 @@ func TestHandleHostServiceInvokeManifestRejectsUnauthorizedPath(t *testing.T) {
 	}})
 
 	response := invokeManifestHostService(t, manifestHostCallContext([]string{"metadata.yaml"}), "resources/policy.yaml")
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected unauthorized manifest path to be denied, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -139,42 +139,42 @@ func manifestHostCallContext(paths []string) *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-plugin-manifest",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityManifest: {},
+			protocol.CapabilityManifest: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceManifest,
-			Methods: []string{pluginbridge.HostServiceMethodManifestGet},
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceManifest,
+			Methods: []string{protocol.HostServiceMethodManifestGet},
 			Paths:   append([]string(nil), paths...),
 		}},
 	}
 }
 
 // invokeManifestHostService dispatches one manifest.get request.
-func invokeManifestHostService(t *testing.T, hcc *hostCallContext, path string) *pluginbridge.HostCallResponseEnvelope {
+func invokeManifestHostService(t *testing.T, hcc *hostCallContext, path string) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceManifest,
-		Method:      pluginbridge.HostServiceMethodManifestGet,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceManifest,
+		Method:      protocol.HostServiceMethodManifestGet,
 		ResourceRef: path,
-		Payload: pluginbridge.MarshalHostServiceManifestGetRequest(&pluginbridge.HostServiceManifestGetRequest{
+		Payload: protocol.MarshalHostServiceManifestGetRequest(&protocol.HostServiceManifestGetRequest{
 			Path: path,
 		}),
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // decodeManifestResponse verifies success and decodes one manifest response.
 func decodeManifestResponse(
 	t *testing.T,
-	response *pluginbridge.HostCallResponseEnvelope,
-) *pluginbridge.HostServiceManifestGetResponse {
+	response *protocol.HostCallResponseEnvelope,
+) *protocol.HostServiceManifestGetResponse {
 	t.Helper()
 
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected manifest host service success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	payload, err := pluginbridge.UnmarshalHostServiceManifestGetResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceManifestGetResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("expected manifest response decode to succeed, got error: %v", err)
 	}

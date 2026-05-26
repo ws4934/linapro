@@ -1,5 +1,5 @@
 // This file adapts runtime-owned host services to source-plugin service
-// contracts without making public pluginservice packages depend on internals.
+// contracts without making public capability packages depend on internals.
 
 package pluginhostservices
 
@@ -18,9 +18,9 @@ import (
 	internalnotify "lina-core/internal/service/notify"
 	internalplugin "lina-core/internal/service/plugin"
 	internalsession "lina-core/internal/service/session"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	plugincontract "lina-core/pkg/pluginservice/contract"
+	plugincontract "lina-core/pkg/plugin/capability/contract"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // apiDocAdapter bridges the internal apidoc service into the published plugin contract.
@@ -228,7 +228,7 @@ func (s *i18nAdapter) FindMessageKeys(ctx context.Context, prefix string, keywor
 	normalizedKeyword := strings.ToLower(trimmedKeyword)
 	trimmedPrefix := strings.TrimSpace(prefix)
 
-	messages := s.service.ExportMessages(ctx, s.service.GetLocale(ctx), false).Messages
+	messages := s.service.ExportMessages(ctx, s.service.GetLocale(ctx)).Messages
 	keys := make([]string, 0)
 	for key, value := range messages {
 		if trimmedPrefix != "" && !strings.HasPrefix(key, trimmedPrefix) {
@@ -312,7 +312,7 @@ type sessionAdapter struct {
 	authSvc      internalauth.Service
 	scopeSvc     datascope.Service
 	sessionStore internalsession.Store
-	tenantSvc    tenantcapsvc.Service
+	tenantSvc    tenantcapsvc.RuntimeService
 }
 
 // newSessionAdapter creates the source-plugin session service adapter.
@@ -320,7 +320,7 @@ func newSessionAdapter(
 	authSvc internalauth.Service,
 	scopeSvc datascope.Service,
 	sessionStore internalsession.Store,
-	tenantSvc tenantcapsvc.Service,
+	tenantSvc tenantcapsvc.RuntimeService,
 ) plugincontract.SessionService {
 	return &sessionAdapter{
 		authSvc:      authSvc,
@@ -387,7 +387,7 @@ func (s *sessionAdapter) currentScopeSvc() datascope.Service {
 }
 
 // currentTenantSvc returns the shared tenant capability service for plugin-facing session operations.
-func (s *sessionAdapter) currentTenantSvc() tenantcapsvc.Service {
+func (s *sessionAdapter) currentTenantSvc() tenantcapsvc.RuntimeService {
 	if s.tenantSvc != nil {
 		return s.tenantSvc
 	}

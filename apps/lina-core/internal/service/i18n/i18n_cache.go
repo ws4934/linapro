@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Sector identifies one logical contributor to the merged runtime translation

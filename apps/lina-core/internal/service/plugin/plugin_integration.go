@@ -9,7 +9,11 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/integration"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/contract"
+	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
@@ -27,12 +31,48 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 	return s.integrationSvc.RegisterCrons(ctx)
 }
 
-// SetHostServices wires the host-published service directory used by source plugins.
-func (s *serviceImpl) SetHostServices(services pluginhost.HostServices) {
+// SetCapabilities wires the host-published capability services used by plugins.
+func (s *serviceImpl) SetCapabilities(capabilities capability.Services) {
 	if s == nil || s.integrationSvc == nil {
 		return
 	}
-	s.integrationSvc.SetHostServices(services)
+	s.capabilities = capabilities
+	s.integrationSvc.SetCapabilities(capabilities)
+}
+
+// OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
+func (s *serviceImpl) OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv {
+	env := orgcapsvc.ProviderEnv{PluginID: pluginID}
+	if s == nil || s.capabilities == nil {
+		return env
+	}
+	services := capability.ServicesForPlugin(s.capabilities, pluginID)
+	if services == nil {
+		return env
+	}
+	sourceServices, ok := services.(interface {
+		TenantFilter() contract.TenantFilterService
+	})
+	if !ok {
+		return env
+	}
+	env.TenantFilter = sourceServices.TenantFilter()
+	return env
+}
+
+// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
+func (s *serviceImpl) TenantProviderEnv(pluginID string) tenantcapsvc.ProviderEnv {
+	env := tenantcapsvc.ProviderEnv{PluginID: pluginID}
+	if s == nil || s.capabilities == nil {
+		return env
+	}
+	services := capability.ServicesForPlugin(s.capabilities, pluginID)
+	if services == nil {
+		return env
+	}
+	env.BizCtx = services.BizCtx()
+	env.PluginLifecycle = services.PluginLifecycle()
+	return env
 }
 
 // ListExecutableCronJobs returns plugin-owned cron definitions whose handlers

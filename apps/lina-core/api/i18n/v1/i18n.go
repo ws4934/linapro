@@ -22,8 +22,6 @@ const (
 type ExportMode string
 
 const (
-	// ExportModeEffective returns effective results with default-language fallback.
+	// ExportModeEffective returns the resource-backed merged catalog.
 	ExportModeEffective ExportMode = "effective"
-	// ExportModeRaw returns current-language raw resource values.
-	ExportModeRaw ExportMode = "raw"
 )

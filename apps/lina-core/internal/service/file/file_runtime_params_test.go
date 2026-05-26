@@ -15,8 +15,8 @@ import (
 	"lina-core/internal/service/bizctx"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/orgcap"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/orgcap"
 )
 
 // TestUploadRejectsFileExceedingRuntimeMaxSize verifies managed upload size

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // BuildRuntimeWasmArtifactFromSource builds one dynamic wasm artifact from a clear-text plugin directory.
@@ -81,7 +81,7 @@ func buildRuntimeWasmArtifactFromSource(pluginDir string, outputDir string) (*Ru
 		return nil, err
 	}
 	bridgeSpec := buildBridgeSpec(runtimePath)
-	if err = pluginbridge.ValidateBridgeSpec(bridgeSpec); err != nil {
+	if err = protocol.ValidateBridgeSpec(bridgeSpec); err != nil {
 		return nil, err
 	}
 

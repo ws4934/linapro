@@ -18,8 +18,8 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/internal/service/session"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
-	"lina-core/pkg/pluginhost"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TopologyProvider abstracts cluster topology information needed by the reconciler.

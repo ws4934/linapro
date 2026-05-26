@@ -145,25 +145,25 @@
 
 ### Requirement: 软依赖不得阻断插件生命周期
 
-**REMOVED:** 插件清单不再支持`required: false`软依赖字段。可选 framework capability 通过`frameworkcap`运行时可用性和降级表达；可选插件集成不得通过`dependencies.plugins`声明。
+**REMOVED:** 插件清单不再支持`required: false`软依赖字段。可选 pluginservice capability 通过`orgcap.Service`、`tenantcap.Service`等能力服务的运行时可用性和降级表达；可选插件集成不得通过`dependencies.plugins`声明。
 
 ## ADDED Requirements
 
-### Requirement: Framework Capability 消费不得新增依赖配置块
+### Requirement: Pluginservice Capability 消费不得新增依赖配置块
 
-系统 SHALL 复用既有`dependencies`模型表达插件间依赖和 LinaPro 框架版本约束。Framework capability 消费 MUST NOT 新增与`dependencies`并列的`capabilities`顶层配置块，也 MUST NOT 在`dependencies`下新增`capabilities`或等价 capability 依赖子字段。能力是否可用 SHALL 由`frameworkcap`运行时状态、provider 激活状态和消费 service 的`Available(ctx)`或等价状态表达。
+系统 SHALL 复用既有`dependencies`模型表达插件间依赖和 LinaPro 框架版本约束。Pluginservice capability 消费 MUST NOT 定义、读取或消费与`dependencies`并列的`capabilities`顶层配置块，也 MUST NOT 在`dependencies`下定义、读取或消费`capabilities`或等价 capability 依赖子字段。能力是否可用 SHALL 由对应能力组件的 provider 激活状态和消费 service 的`Available(ctx)`或等价状态表达。
 
-#### Scenario: 拒绝新增能力依赖字段
+#### Scenario: 能力依赖不进入插件清单模型
 
-- **WHEN** 插件清单声明顶层`capabilities`或`dependencies.capabilities`
-- **THEN** 清单校验失败
-- **AND** 错误提示 framework capability 消费不通过独立依赖字段声明
+- **WHEN** 系统解析插件清单或动态插件构建器生成运行时产物
+- **THEN** 清单模型不得包含顶层`capabilities`、`dependencies.capabilities`或等价字段
+- **AND** 构建器不得把 capability 依赖字段写入运行时产物或运行时依赖快照
 
 #### Scenario: 未声明能力依赖的插件仍可消费可用能力
 
 - **WHEN** 插件未声明任何 capability 依赖字段
 - **AND** 运行时存在 active provider 或 fallback
-- **THEN** 插件可通过`pluginservice.Services.Framework().Org()`、`frameworkcap.Org()`或等价消费 service 使用该能力
+- **THEN** 插件可通过`pluginservice.Services.Org()`或等价注入的`orgcap.Service`使用该能力
 - **AND** 依赖检查结果不得要求存在 capability 依赖声明
 
 ### Requirement: 硬 Provider 依赖必须使用既有插件依赖声明
@@ -184,9 +184,9 @@
 - **THEN** 升级或禁用请求失败
 - **AND** 错误包含下游插件 ID、provider 插件 ID 和版本要求
 
-### Requirement: 可选 Framework Capability 必须通过运行时可用性降级
+### Requirement: 可选 Pluginservice Capability 必须通过运行时可用性降级
 
-当插件只是可选使用 framework capability 时，系统 SHALL 允许插件不声明 provider 插件硬依赖。消费方 MUST 通过`frameworkcap`消费 service 的`Available(ctx)`或等价能力状态判断能力是否可用，并在不可用时执行规范定义的隐藏、零值、跳过或降级行为；能力不可用不得由独立 manifest capability 依赖字段表达。
+当插件只是可选使用 pluginservice capability 时，系统 SHALL 允许插件不声明 provider 插件硬依赖。消费方 MUST 通过`orgcap.Service`、`tenantcap.Service`等能力服务的`Available(ctx)`或等价能力状态判断能力是否可用，并在不可用时执行规范定义的隐藏、零值、跳过或降级行为；能力不可用不得由独立 manifest capability 依赖字段表达。
 
 #### Scenario: 可选组织能力缺失时继续启用
 
@@ -194,7 +194,7 @@
 - **AND** 插件未在`dependencies.plugins`中硬依赖 provider 插件
 - **AND** 当前环境没有可用`framework.org.v1`provider 或 fallback
 - **THEN** 插件安装和启用继续执行
-- **AND** 插件运行时通过`frameworkcap.Org().Available(ctx)`或等价状态执行降级
+- **AND** 插件运行时通过`pluginservice.Services.Org().Available(ctx)`、注入的`orgcap.Service.Available(ctx)`或等价状态执行降级
 
 #### Scenario: 动态插件消费能力
 

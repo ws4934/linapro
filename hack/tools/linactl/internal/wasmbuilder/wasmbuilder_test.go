@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
@@ -18,7 +18,7 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dev-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ndescription: standalone builder test\ndependencies:\n  framework:\n    version: \">=0.1.0 <1.0.0\"\n  plugins:\n    - id: linapro-tenant-core\n      version: \">=0.1.0\"\n      install: auto\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n",
+		"id: plugin-dev-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ndescription: standalone builder test\ndependencies:\n  framework:\n    version: \">=0.1.0 <1.0.0\"\n  plugins:\n    - id: linapro-tenant-core\n      version: \">=0.1.0\"\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n",
 	)
 	mustWriteFile(
 		t,
@@ -98,12 +98,12 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "plugin.go"),
-		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\nfunc RegisterRoutes(registrar pluginbridge.DynamicRouteRegistrar) error {\n\treturn registrar.Group(\"/api/v1\", \"dynamic/v1\")\n}\n",
+		"package backend\n\nimport bridgeguest \"lina-core/pkg/plugin/pluginbridge/guest\"\n\nfunc RegisterRoutes(registrar bridgeguest.DynamicRouteRegistrar) error {\n\treturn registrar.Group(\"/api/v1\", \"dynamic/v1\")\n}\n",
 	)
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "controller.go"),
-		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+		lifecycleControllerSourceForTest("BeforeInstall"),
 	)
 	mustWriteFile(
 		t,
@@ -159,14 +159,12 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if len(manifest.Dependencies.Plugins) != 1 {
 		t.Fatalf("expected one embedded plugin dependency, got %#v", manifest.Dependencies.Plugins)
 	}
-	if manifest.Dependencies.Plugins[0].ID != "linapro-tenant-core" || manifest.Dependencies.Plugins[0].Install != "auto" {
+	if manifest.Dependencies.Plugins[0].ID != "linapro-tenant-core" ||
+		manifest.Dependencies.Plugins[0].Version != ">=0.1.0" {
 		t.Fatalf("unexpected embedded plugin dependency: %#v", manifest.Dependencies.Plugins[0])
 	}
-	if manifest.Dependencies.Plugins[0].Required == nil || !*manifest.Dependencies.Plugins[0].Required {
-		t.Fatalf("expected dependency required default true, got %#v", manifest.Dependencies.Plugins[0].Required)
-	}
 
-	metadata := &dynamicArtifactMetadata{}
+	metadata := &protocol.RuntimeArtifactMetadata{}
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionDynamic], metadata); err != nil {
 		t.Fatalf("expected dynamic section json to unmarshal, got error: %v", err)
 	}
@@ -229,12 +227,12 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 		t.Fatalf("unexpected embedded hook specs: %#v", hooks)
 	}
 
-	var lifecycle []*lifecycleSpec
+	var lifecycle []*protocol.LifecycleContract
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendLifecycle], &lifecycle); err != nil {
 		t.Fatalf("expected lifecycle section json to unmarshal, got error: %v", err)
 	}
 	if len(lifecycle) != 1 ||
-		lifecycle[0].Operation != pluginbridge.LifecycleOperationBeforeInstall ||
+		lifecycle[0].Operation != protocol.LifecycleOperationBeforeInstall ||
 		lifecycle[0].RequestType != "BeforeInstallReq" ||
 		lifecycle[0].InternalPath != "/__lifecycle/before-install" {
 		t.Fatalf("unexpected embedded lifecycle specs: %#v", lifecycle)
@@ -254,11 +252,7 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 		t.Fatalf("unexpected embedded resource governance fields: %#v", resources[0])
 	}
 
-	if _, ok := sections[pluginDynamicWasmSectionBackendCrons]; ok {
-		t.Fatalf("expected legacy cron declaration section to be omitted, got %#v", sections[pluginDynamicWasmSectionBackendCrons])
-	}
-
-	var routes []*pluginbridge.RouteContract
+	var routes []*protocol.RouteContract
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendRoutes], &routes); err != nil {
 		t.Fatalf("expected route section json to unmarshal, got error: %v", err)
 	}
@@ -272,23 +266,19 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 		t.Fatalf("expected custom route metadata to preserve operLog, got %#v", routes[0].Meta)
 	}
 
-	bridgeSpec := &pluginbridge.BridgeSpec{}
+	bridgeSpec := &protocol.BridgeSpec{}
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendBridge], bridgeSpec); err != nil {
 		t.Fatalf("expected bridge section json to unmarshal, got error: %v", err)
 	}
-	if !bridgeSpec.RouteExecution || bridgeSpec.RequestCodec != pluginbridge.CodecProtobuf {
+	if !bridgeSpec.RouteExecution || bridgeSpec.RequestCodec != protocol.CodecProtobuf {
 		t.Fatalf("unexpected embedded bridge spec: %#v", bridgeSpec)
 	}
 
-	if _, ok := sections[pluginbridge.WasmSectionBackendCapabilities]; ok {
-		t.Fatalf("expected deprecated capabilities section to be omitted, got %#v", sections[pluginbridge.WasmSectionBackendCapabilities])
-	}
-
-	var hostServices []*pluginbridge.HostServiceSpec
+	var hostServices []*protocol.HostServiceSpec
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendHostServices], &hostServices); err != nil {
 		t.Fatalf("expected host services section json to unmarshal, got error: %v", err)
 	}
-	if len(hostServices) != 1 || hostServices[0].Service != pluginbridge.HostServiceRuntime {
+	if len(hostServices) != 1 || hostServices[0].Service != protocol.HostServiceRuntime {
 		t.Fatalf("unexpected embedded host services: %#v", hostServices)
 	}
 
@@ -337,7 +327,7 @@ func TestCollectLifecycleSpecsAutoDiscoversBackendHandlers(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "controller.go"),
-		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n\nfunc (c *Controller) AfterInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+		lifecycleControllerSourceForTest("BeforeInstall", "AfterInstall"),
 	)
 
 	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
@@ -347,12 +337,12 @@ func TestCollectLifecycleSpecsAutoDiscoversBackendHandlers(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("expected 2 lifecycle specs, got %#v", items)
 	}
-	if items[0].Operation != pluginbridge.LifecycleOperationBeforeInstall ||
+	if items[0].Operation != protocol.LifecycleOperationBeforeInstall ||
 		items[0].RequestType != "BeforeInstallReq" ||
 		items[0].InternalPath != "/__lifecycle/before-install" {
 		t.Fatalf("unexpected before-install lifecycle spec: %#v", items[0])
 	}
-	if items[1].Operation != pluginbridge.LifecycleOperationAfterInstall ||
+	if items[1].Operation != protocol.LifecycleOperationAfterInstall ||
 		items[1].RequestType != "AfterInstallReq" ||
 		items[1].InternalPath != "/__lifecycle/after-install" {
 		t.Fatalf("unexpected after-install lifecycle spec: %#v", items[1])
@@ -364,12 +354,12 @@ func TestCollectLifecycleSpecsAppliesOverride(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "controller.go"),
-		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+		lifecycleControllerSourceForTest("BeforeInstall"),
 	)
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
-		"operation: BeforeInstall\nrequestType: CustomBeforeInstallReq\ninternalPath: /before-install\ntimeoutMs: 3000\n",
+		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /before-install\ntimeoutMs: 3000\n",
 	)
 
 	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
@@ -377,7 +367,7 @@ func TestCollectLifecycleSpecsAppliesOverride(t *testing.T) {
 		t.Fatalf("expected lifecycle override merge to succeed, got error: %v", err)
 	}
 	if len(items) != 1 ||
-		items[0].RequestType != "CustomBeforeInstallReq" ||
+		items[0].RequestType != "BeforeInstallReq" ||
 		items[0].InternalPath != "/before-install" ||
 		items[0].TimeoutMs != 3000 {
 		t.Fatalf("unexpected lifecycle override result: %#v", items)
@@ -403,7 +393,7 @@ func TestCollectLifecycleSpecsRejectsDuplicateOverride(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "controller.go"),
-		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+		lifecycleControllerSourceForTest("BeforeInstall"),
 	)
 	mustWriteFile(
 		t,
@@ -422,17 +412,20 @@ func TestCollectLifecycleSpecsRejectsDuplicateOverride(t *testing.T) {
 	}
 }
 
-func TestCollectLifecycleSpecsRejectsLegacyCanLifecycleName(t *testing.T) {
+func TestCollectLifecycleSpecsIgnoresNonLifecycleHandlerName(t *testing.T) {
 	pluginDir := t.TempDir()
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "controller.go"),
-		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) CanInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+		lifecycleControllerSourceForTest("CheckInstall"),
 	)
 
-	_, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
-	if err == nil || !strings.Contains(err.Error(), "legacy lifecycle handler CanInstall is not supported") {
-		t.Fatalf("expected legacy lifecycle handler error, got %v", err)
+	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
+	if err != nil {
+		t.Fatalf("expected non-lifecycle handler name to be ignored, got %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected non-lifecycle handler name to be ignored, got %#v", items)
 	}
 }
 
@@ -441,7 +434,7 @@ func TestCollectLifecycleSpecsRejectsUnreachableOverride(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "controller.go"),
-		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+		lifecycleControllerSourceForTest("BeforeInstall"),
 	)
 	mustWriteFile(
 		t,
@@ -460,7 +453,7 @@ func TestCollectLifecycleSpecsIgnoresServiceMethods(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "internal", "service", "dynamic", "dynamic_lifecycle.go"),
-		"package dynamic\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Service struct{}\n\nfunc (s *Service) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+		lifecycleServiceSourceForTest("BeforeInstall"),
 	)
 
 	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
@@ -500,36 +493,54 @@ func TestBuildRuntimeWasmArtifactFromSourceFailsWhenEmbeddedResourcesOmitManifes
 	}
 }
 
-func TestBuildRuntimeWasmArtifactFromSourceRejectsDeprecatedCapabilitiesDeclaration(t *testing.T) {
-	pluginDir := t.TempDir()
-
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dev-dynamic-legacy-db\nname: Dynamic Legacy DB\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\ncapabilities:\n  - host:runtime\n  - host:db:query\nhostServices:\n  - service: runtime\n    methods:\n      - info.uuid\n",
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "frontend", "pages", "standalone.html"),
-		"<!doctype html><html><body>legacy capability</body></html>",
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "main.go"),
-		"package main\n\nfunc main() {}\n",
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "plugin_embed.go"),
-		"package main\n\nimport \"embed\"\n\n//go:embed plugin.yaml frontend\nvar EmbeddedFiles embed.FS\n",
-	)
-
-	_, err := BuildRuntimeWasmArtifactFromSource(pluginDir)
-	if err == nil {
-		t.Fatal("expected deprecated top-level capabilities to be rejected")
+func TestBuildRuntimeWasmArtifactFromSourceRejectsDependencyPolicyFields(t *testing.T) {
+	tests := []struct {
+		name     string
+		fragment string
+		want     string
+	}{
+		{
+			name:     "required",
+			fragment: "required: false\n",
+			want:     "dependencies.plugins[0].required",
+		},
+		{
+			name:     "install",
+			fragment: "install: auto\n",
+			want:     "dependencies.plugins[0].install",
+		},
 	}
-	if !strings.Contains(err.Error(), "host:db:query") || !strings.Contains(err.Error(), "hostServices") {
-		t.Fatalf("expected deprecated capabilities error mentioning hostServices migration, got %v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pluginDir := t.TempDir()
+
+			mustWriteFile(
+				t,
+				filepath.Join(pluginDir, "plugin.yaml"),
+				"id: plugin-dev-dynamic-dependency-policy\nname: Dynamic Dependency Policy\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\ndependencies:\n  plugins:\n    - id: linapro-tenant-core\n      "+tt.fragment,
+			)
+			mustWriteFile(
+				t,
+				filepath.Join(pluginDir, "frontend", "pages", "standalone.html"),
+				"<!doctype html><html><body>dependency policy</body></html>",
+			)
+			mustWriteFile(
+				t,
+				filepath.Join(pluginDir, "main.go"),
+				"package main\n\nfunc main() {}\n",
+			)
+			mustWriteFile(
+				t,
+				filepath.Join(pluginDir, "plugin_embed.go"),
+				"package main\n\nimport \"embed\"\n\n//go:embed plugin.yaml frontend\nvar EmbeddedFiles embed.FS\n",
+			)
+
+			_, err := BuildRuntimeWasmArtifactFromSource(pluginDir)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected dependency schema field error containing %q, got %v", tt.want, err)
+			}
+		})
 	}
 }
 
@@ -804,6 +815,37 @@ func mustWriteFile(t *testing.T, filePath string, content string) {
 	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write file %s: %v", filePath, err)
 	}
+}
+
+func lifecycleControllerSourceForTest(methodNames ...string) string {
+	return lifecycleCallbackSourceForTest("backend", "Controller", "c", methodNames...)
+}
+
+func lifecycleServiceSourceForTest(methodNames ...string) string {
+	return lifecycleCallbackSourceForTest("dynamic", "Service", "s", methodNames...)
+}
+
+func lifecycleCallbackSourceForTest(packageName string, receiverType string, receiverName string, methodNames ...string) string {
+	var builder strings.Builder
+	builder.WriteString("package ")
+	builder.WriteString(packageName)
+	builder.WriteString("\n\nimport \"context\"\n\ntype ")
+	builder.WriteString(receiverType)
+	builder.WriteString(" struct{}\n\ntype LifecycleDecisionRes struct {\n\tOK bool `json:\"ok\"`\n}\n")
+	for _, methodName := range methodNames {
+		builder.WriteString("\ntype ")
+		builder.WriteString(methodName)
+		builder.WriteString("Req struct{}\n\nfunc (")
+		builder.WriteString(receiverName)
+		builder.WriteString(" *")
+		builder.WriteString(receiverType)
+		builder.WriteString(") ")
+		builder.WriteString(methodName)
+		builder.WriteString("(_ context.Context, _ *")
+		builder.WriteString(methodName)
+		builder.WriteString("Req) (*LifecycleDecisionRes, error) {\n\treturn &LifecycleDecisionRes{OK: true}, nil\n}\n")
+	}
+	return builder.String()
 }
 
 func manifestResourcePaths(resources []*manifestResource) []string {

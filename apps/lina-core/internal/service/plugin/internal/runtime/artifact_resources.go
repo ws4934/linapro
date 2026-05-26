@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	pluginserviceconfig "lina-core/pkg/pluginservice/config"
+	capabilityconfig "lina-core/pkg/plugin/capability/config"
 )
 
 // buildArtifactDefaultConfig returns the active-release default config content
@@ -21,7 +21,7 @@ func buildArtifactDefaultConfig(manifest *catalog.Manifest) []byte {
 		if resource == nil {
 			continue
 		}
-		if strings.TrimSpace(resource.Path) == "manifest/config/"+pluginserviceconfig.RuntimeConfigFileName {
+		if strings.TrimSpace(resource.Path) == "manifest/config/"+capabilityconfig.RuntimeConfigFileName {
 			return append([]byte(nil), resource.Content...)
 		}
 	}

@@ -14,8 +14,8 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
-	bridgecodec "lina-core/pkg/pluginbridge"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgecodec "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // cronDiscoveryCollector stores dynamic-plugin cron declarations discovered
@@ -147,7 +147,7 @@ func (s *serviceImpl) ExecuteDeclaredCronJob(
 		PluginID: strings.TrimSpace(manifest.ID),
 		Route: &bridgecontract.RouteMatchSnapshotV1{
 			RoutePath:    bridgecontract.BuildDeclaredCronRoutePath(contract),
-			InternalPath: strings.TrimSpace(contract.InternalPath),
+			InternalPath: bridgecontract.BuildDeclaredCronRoutePath(contract),
 			RequestType:  strings.TrimSpace(contract.RequestType),
 		},
 		RequestID: guid.S(),

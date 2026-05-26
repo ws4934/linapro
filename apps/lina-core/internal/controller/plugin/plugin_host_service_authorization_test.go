@@ -10,7 +10,7 @@ import (
 	jobv1 "lina-core/api/job/v1"
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // fakePluginI18nTranslator provides deterministic translation values for
@@ -73,14 +73,14 @@ func (f fakePluginI18nTranslator) TranslateDynamicPluginSourceText(
 // TestBuildHostServicePermissionItemsIncludesCronItems verifies the cron host
 // service view includes discovered cron declaration summaries.
 func TestBuildHostServicePermissionItemsIncludesCronItems(t *testing.T) {
-	specs := []*pluginbridge.HostServiceSpec{
+	specs := []*protocol.HostServiceSpec{
 		{
-			Service: pluginbridge.HostServiceCron,
-			Methods: []string{pluginbridge.HostServiceMethodCronRegister},
+			Service: protocol.HostServiceCron,
+			Methods: []string{protocol.HostServiceMethodCronRegister},
 		},
 		{
-			Service: pluginbridge.HostServiceData,
-			Methods: []string{pluginbridge.HostServiceMethodDataList},
+			Service: protocol.HostServiceData,
+			Methods: []string{protocol.HostServiceMethodDataList},
 			Tables:  []string{"sys_plugin_node_state"},
 		},
 	}
@@ -108,7 +108,7 @@ func TestBuildHostServicePermissionItemsIncludesCronItems(t *testing.T) {
 	}
 
 	cronItem := items[0]
-	if cronItem.Service != pluginbridge.HostServiceCron {
+	if cronItem.Service != protocol.HostServiceCron {
 		t.Fatalf("expected first service to be cron, got %s", cronItem.Service)
 	}
 	if len(cronItem.CronItems) != 1 {
@@ -128,7 +128,7 @@ func TestBuildHostServicePermissionItemsIncludesCronItems(t *testing.T) {
 	}
 
 	dataItem := items[1]
-	if dataItem.Service != pluginbridge.HostServiceData {
+	if dataItem.Service != protocol.HostServiceData {
 		t.Fatalf("expected second service to be data, got %s", dataItem.Service)
 	}
 	if len(dataItem.CronItems) != 0 {
@@ -145,7 +145,7 @@ func TestBuildHostServicePermissionItemsIncludesCronItems(t *testing.T) {
 // TestLocalizeManagedCronJobsUsesDynamicPluginArtifactKeys verifies install
 // review can use artifact-local translations before a dynamic plugin is enabled.
 func TestLocalizeManagedCronJobsUsesDynamicPluginArtifactKeys(t *testing.T) {
-	handlerRef, err := pluginbridge.BuildPluginCronHandlerRef("linapro-demo-dynamic", "heartbeat")
+	handlerRef, err := protocol.BuildPluginCronHandlerRef("linapro-demo-dynamic", "heartbeat")
 	if err != nil {
 		t.Fatalf("build handler ref failed: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestLocalizeManagedCronJobsUsesDynamicPluginArtifactKeys(t *testing.T) {
 // items stay in a stable alphabetical order for the review UI.
 func TestBuildHostServicePermissionCronItemsSortsByDisplayName(t *testing.T) {
 	cronItems := buildHostServicePermissionCronItems(
-		pluginbridge.HostServiceCron,
+		protocol.HostServiceCron,
 		[]pluginsvc.ManagedCronJob{
 			{
 				Name:        "zeta",
@@ -208,7 +208,7 @@ func TestBuildHostServicePermissionCronItemsSortsByDisplayName(t *testing.T) {
 // TestLocalizeManagedCronJobsUsesSourceTextKeys verifies authorization review
 // cron items use the same runtime i18n keys as scheduled-job management.
 func TestLocalizeManagedCronJobsUsesSourceTextKeys(t *testing.T) {
-	handlerRef, err := pluginbridge.BuildPluginCronHandlerRef("linapro-demo-dynamic", "heartbeat")
+	handlerRef, err := protocol.BuildPluginCronHandlerRef("linapro-demo-dynamic", "heartbeat")
 	if err != nil {
 		t.Fatalf("build handler ref failed: %v", err)
 	}

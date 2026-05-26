@@ -154,7 +154,7 @@ type Maintainer interface {
 	InvalidateRuntimeBundleCache(scope InvalidateScope)
 	// ExportMessages exports flat runtime messages for one locale without
 	// mutating runtime caches.
-	ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
+	ExportMessages(ctx context.Context, locale string) MessageExportOutput
 	// CheckMissingMessages reports translation keys missing from one locale
 	// relative to the configured default/source catalogs.
 	CheckMissingMessages(ctx context.Context, locale string, keyPrefix string) []MissingMessageItem
@@ -192,7 +192,7 @@ func New(bizCtxSvc bizctx.Service, configSvc config.Service, cacheCoordSvc cache
 		configSvc.IsClusterEnabled(context.Background()),
 		cacheCoordSvc,
 		runtimeI18nCacheObservedRevision,
-		func(ctx context.Context) error {
+		func(ctx context.Context, _ int64) error {
 			service.InvalidateRuntimeBundleCache(InvalidateScope{
 				Sectors: []Sector{
 					SectorSourcePlugin,

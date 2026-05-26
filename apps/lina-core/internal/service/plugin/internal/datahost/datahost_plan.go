@@ -1,10 +1,9 @@
-// This file applies typed plugindb query plans to governed data service
+// This file applies typed data capability query plans to governed data service
 // requests.
 
 package datahost
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,65 +11,34 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/plugindb"
+	plugindata "lina-core/pkg/plugin/capability/data"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// decodeDataListPlan restores a typed plugindb list plan or synthesizes one
-// from the legacy list request fields.
-func decodeDataListPlan(table string, request *pluginbridge.HostServiceDataListRequest) (*plugindb.DataQueryPlan, error) {
-	var (
-		requestPlan *plugindb.DataQueryPlan
-		err         error
-	)
-	if request != nil && len(request.PlanJSON) > 0 {
-		requestPlan, err = plugindb.UnmarshalQueryPlanJSON(request.PlanJSON)
-		if err != nil {
-			return nil, err
-		}
+// decodeDataListPlan restores a typed data capability list plan.
+func decodeDataListPlan(table string, request *protocol.HostServiceDataListRequest) (*plugindata.DataQueryPlan, error) {
+	if request == nil || len(request.PlanJSON) == 0 {
+		return nil, gerror.New("data list request requires planJson")
 	}
-	if requestPlan == nil {
-		request = normalizeDataListRequest(request)
-		requestPlan = &plugindb.DataQueryPlan{
-			Table:  strings.TrimSpace(table),
-			Action: plugindb.DataPlanActionList,
-			Page: &plugindb.DataPagination{
-				PageNum:  request.PageNum,
-				PageSize: request.PageSize,
-			},
-		}
-		for field, value := range request.Filters {
-			if strings.TrimSpace(value) == "" {
-				continue
-			}
-			valueJSON, marshalErr := json.Marshal(value)
-			if marshalErr != nil {
-				return nil, marshalErr
-			}
-			filter := &plugindb.DataFilter{
-				Field:     field,
-				Operator:  plugindb.DataFilterOperatorEQ,
-				ValueJSON: valueJSON,
-			}
-			requestPlan.Filters = append(requestPlan.Filters, filter)
-		}
-		return requestPlan, nil
+	requestPlan, err := plugindata.UnmarshalQueryPlanJSON(request.PlanJSON)
+	if err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(requestPlan.Table) == "" {
 		requestPlan.Table = strings.TrimSpace(table)
 	}
 	if strings.TrimSpace(requestPlan.Table) != strings.TrimSpace(table) {
-		return nil, gerror.Newf("plugindb query plan table mismatch: %s != %s", requestPlan.Table, table)
+		return nil, gerror.Newf("data capability query plan table mismatch: %s != %s", requestPlan.Table, table)
 	}
 	if requestPlan.Action == "" {
-		requestPlan.Action = plugindb.DataPlanActionList
+		requestPlan.Action = plugindata.DataPlanActionList
 	}
-	if requestPlan.Action != plugindb.DataPlanActionList && requestPlan.Action != plugindb.DataPlanActionCount {
-		return nil, gerror.Newf("plugindb list request action is invalid: %s", requestPlan.Action)
+	if requestPlan.Action != plugindata.DataPlanActionList && requestPlan.Action != plugindata.DataPlanActionCount {
+		return nil, gerror.Newf("data capability list request action is invalid: %s", requestPlan.Action)
 	}
-	if requestPlan.Action == plugindb.DataPlanActionList {
+	if requestPlan.Action == plugindata.DataPlanActionList {
 		if requestPlan.Page == nil {
-			requestPlan.Page = &plugindb.DataPagination{PageNum: defaultDataListPageNum, PageSize: defaultDataListPageSize}
+			requestPlan.Page = &plugindata.DataPagination{PageNum: defaultDataListPageNum, PageSize: defaultDataListPageSize}
 		}
 		if requestPlan.Page.PageNum <= 0 {
 			requestPlan.Page.PageNum = defaultDataListPageNum
@@ -82,83 +50,73 @@ func decodeDataListPlan(table string, request *pluginbridge.HostServiceDataListR
 			requestPlan.Page.PageSize = maxDataListPageSize
 		}
 	}
-	return requestPlan, plugindb.ValidateDataQueryPlan(requestPlan)
+	return requestPlan, plugindata.ValidateDataQueryPlan(requestPlan)
 }
 
-// decodeDataGetPlan restores a typed plugindb get plan or synthesizes one from
-// the legacy get request key.
-func decodeDataGetPlan(table string, request *pluginbridge.HostServiceDataGetRequest) (*plugindb.DataQueryPlan, error) {
-	var (
-		requestPlan *plugindb.DataQueryPlan
-		err         error
-	)
-	if request != nil && len(request.PlanJSON) > 0 {
-		requestPlan, err = plugindb.UnmarshalQueryPlanJSON(request.PlanJSON)
-		if err != nil {
-			return nil, err
-		}
+// decodeDataGetPlan restores a typed data capability get plan.
+func decodeDataGetPlan(table string, request *protocol.HostServiceDataGetRequest) (*plugindata.DataQueryPlan, error) {
+	if request == nil || len(request.PlanJSON) == 0 {
+		return nil, gerror.New("data get request requires planJson")
 	}
-	if requestPlan == nil {
-		requestPlan = &plugindb.DataQueryPlan{Table: strings.TrimSpace(table), Action: plugindb.DataPlanActionGet}
+	requestPlan, err := plugindata.UnmarshalQueryPlanJSON(request.PlanJSON)
+	if err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(requestPlan.Table) == "" {
 		requestPlan.Table = strings.TrimSpace(table)
 	}
 	if strings.TrimSpace(requestPlan.Table) != strings.TrimSpace(table) {
-		return nil, gerror.Newf("plugindb get request table mismatch: %s != %s", requestPlan.Table, table)
+		return nil, gerror.Newf("data capability get request table mismatch: %s != %s", requestPlan.Table, table)
 	}
 	if requestPlan.Action == "" {
-		requestPlan.Action = plugindb.DataPlanActionGet
+		requestPlan.Action = plugindata.DataPlanActionGet
 	}
-	if requestPlan.Action != plugindb.DataPlanActionGet {
-		return nil, gerror.Newf("plugindb get request action is invalid: %s", requestPlan.Action)
-	}
-	if request != nil && len(requestPlan.KeyJSON) == 0 {
-		requestPlan.KeyJSON = append([]byte(nil), request.KeyJSON...)
+	if requestPlan.Action != plugindata.DataPlanActionGet {
+		return nil, gerror.Newf("data capability get request action is invalid: %s", requestPlan.Action)
 	}
 	if len(requestPlan.KeyJSON) == 0 {
 		return nil, gerror.New("data key cannot be empty")
 	}
-	return requestPlan, plugindb.ValidateDataQueryPlan(requestPlan)
+	return requestPlan, plugindata.ValidateDataQueryPlan(requestPlan)
 }
 
-// applyPlanFilters applies typed plugindb filters against authorized resource fields.
-func applyPlanFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters []*plugindb.DataFilter) (*gdb.Model, error) {
+// applyPlanFilters applies typed data capability filters against authorized resource fields.
+func applyPlanFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters []*plugindata.DataFilter) (*gdb.Model, error) {
 	if model == nil || resource == nil || len(filters) == 0 {
 		return model, nil
 	}
 	for _, filter := range filters {
-		if err := plugindb.ValidateDataFilter(filter); err != nil {
+		if err := plugindata.ValidateDataFilter(filter); err != nil {
 			return nil, err
 		}
 		column := resolveResourceFieldColumn(resource, filter.Field)
 		if column == "" {
-			return nil, gerror.Newf("plugindb filter field is not authorized: %s", filter.Field)
+			return nil, gerror.Newf("data capability filter field is not authorized: %s", filter.Field)
 		}
 		switch filter.Operator {
-		case plugindb.DataFilterOperatorEQ:
-			value, err := plugindb.UnmarshalValueJSON(filter.ValueJSON)
+		case plugindata.DataFilterOperatorEQ:
+			value, err := plugindata.UnmarshalValueJSON(filter.ValueJSON)
 			if err != nil {
 				return nil, err
 			}
 			model = model.Where(column, value)
-		case plugindb.DataFilterOperatorIN:
-			values, err := plugindb.UnmarshalValuesJSON(filter.ValuesJSON)
+		case plugindata.DataFilterOperatorIN:
+			values, err := plugindata.UnmarshalValuesJSON(filter.ValuesJSON)
 			if err != nil {
 				return nil, err
 			}
 			if len(values) == 0 {
-				return nil, gerror.Newf("plugindb filter %s requires at least one value", filter.Operator)
+				return nil, gerror.Newf("data capability filter %s requires at least one value", filter.Operator)
 			}
 			model = model.WhereIn(column, values)
-		case plugindb.DataFilterOperatorLike:
-			value, err := plugindb.UnmarshalValueJSON(filter.ValueJSON)
+		case plugindata.DataFilterOperatorLike:
+			value, err := plugindata.UnmarshalValueJSON(filter.ValueJSON)
 			if err != nil {
 				return nil, err
 			}
 			model = model.WhereLike(column, "%"+fmt.Sprint(value)+"%")
 		default:
-			return nil, gerror.Newf("plugindb filter operator is not supported: %s", filter.Operator)
+			return nil, gerror.Newf("data capability filter operator is not supported: %s", filter.Operator)
 		}
 	}
 	return model, nil
@@ -174,7 +132,7 @@ func buildPlanFieldArgs(resource *catalog.ResourceSpec, selected []string) ([]an
 	for _, fieldName := range selected {
 		normalizedField := strings.TrimSpace(fieldName)
 		if normalizedField == "" {
-			return nil, gerror.New("plugindb selected field cannot be empty")
+			return nil, gerror.New("data capability selected field cannot be empty")
 		}
 		if _, ok := seen[normalizedField]; ok {
 			continue
@@ -182,7 +140,7 @@ func buildPlanFieldArgs(resource *catalog.ResourceSpec, selected []string) ([]an
 		seen[normalizedField] = struct{}{}
 		column := resolveResourceFieldColumn(resource, normalizedField)
 		if column == "" {
-			return nil, gerror.Newf("plugindb selected field is not authorized: %s", normalizedField)
+			return nil, gerror.Newf("data capability selected field is not authorized: %s", normalizedField)
 		}
 		fields = append(fields, fmt.Sprintf("%s AS %s", column, quoteResourceAlias(normalizedField)))
 	}
@@ -190,21 +148,21 @@ func buildPlanFieldArgs(resource *catalog.ResourceSpec, selected []string) ([]an
 }
 
 // buildPlanOrderBy builds the ORDER BY clause for the typed query plan.
-func buildPlanOrderBy(resource *catalog.ResourceSpec, orders []*plugindb.DataOrder) (string, error) {
+func buildPlanOrderBy(resource *catalog.ResourceSpec, orders []*plugindata.DataOrder) (string, error) {
 	if len(orders) == 0 {
 		return buildResourceOrderBy(resource), nil
 	}
 	parts := make([]string, 0, len(orders))
 	for _, order := range orders {
-		if err := plugindb.ValidateDataOrder(order); err != nil {
+		if err := plugindata.ValidateDataOrder(order); err != nil {
 			return "", err
 		}
 		column := resolveResourceFieldColumn(resource, order.Field)
 		if column == "" {
-			return "", gerror.Newf("plugindb order field is not authorized: %s", order.Field)
+			return "", gerror.Newf("data capability order field is not authorized: %s", order.Field)
 		}
 		direction := "ASC"
-		if order.Direction == plugindb.DataOrderDirectionDESC {
+		if order.Direction == plugindata.DataOrderDirectionDESC {
 			direction = "DESC"
 		}
 		parts = append(parts, column+" "+direction)

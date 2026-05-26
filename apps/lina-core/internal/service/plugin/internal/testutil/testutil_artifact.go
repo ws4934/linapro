@@ -11,7 +11,7 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // DefaultTestSupportsMultiTenant is the tenant-governance flag used by runtime artifact fixtures.
@@ -77,8 +77,8 @@ func CreateTestRuntimeStorageArtifactWithFilename(
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(DefaultTestRuntimeFrontendAssets()),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(DefaultTestRuntimeFrontendAssets()),
 			SQLAssetCount:      len(installSQLAssets) + len(uninstallSQLAssets),
 		},
@@ -154,8 +154,8 @@ func CreateTestRuntimeStorageArtifactWithMenus(
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(DefaultTestRuntimeFrontendAssets()),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(DefaultTestRuntimeFrontendAssets()),
 			SQLAssetCount:      len(installSQLAssets) + len(uninstallSQLAssets),
 		},
@@ -178,8 +178,37 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
-	routeContracts []*pluginbridge.RouteContract,
-	bridgeSpec *pluginbridge.BridgeSpec,
+	routeContracts []*protocol.RouteContract,
+	bridgeSpec *protocol.BridgeSpec,
+) string {
+	t.Helper()
+
+	return CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
+		t,
+		pluginID,
+		pluginName,
+		version,
+		frontendAssets,
+		nil,
+		installSQLAssets,
+		uninstallSQLAssets,
+		routeContracts,
+		bridgeSpec,
+	)
+}
+
+// CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts creates one runtime artifact with menu and backend contract sections.
+func CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
+	t *testing.T,
+	pluginID string,
+	pluginName string,
+	version string,
+	frontendAssets []*catalog.ArtifactFrontendAsset,
+	menus []*catalog.MenuSpec,
+	installSQLAssets []*catalog.ArtifactSQLAsset,
+	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
+	routeContracts []*protocol.RouteContract,
+	bridgeSpec *protocol.BridgeSpec,
 ) string {
 	t.Helper()
 
@@ -206,11 +235,12 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
 			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
 			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			Menus:               menus,
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(frontendAssets),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(frontendAssets),
 			SQLAssetCount:      len(installSQLAssets) + len(uninstallSQLAssets),
 			RouteCount:         len(routeContracts),

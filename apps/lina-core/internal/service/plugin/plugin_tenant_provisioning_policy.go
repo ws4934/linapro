@@ -38,7 +38,8 @@ func (s *serviceImpl) UpdateTenantProvisioningPolicy(
 	if err = s.catalogSvc.SetAutoEnableForNewTenants(ctx, normalizedPluginID, autoEnableForNewTenants); err != nil {
 		return err
 	}
-	return s.markRuntimeCacheChanged(ctx, "plugin_tenant_provisioning_policy_updated")
+	_, err = s.markRuntimeCacheChanged(ctx, "plugin_tenant_provisioning_policy_updated")
+	return err
 }
 
 // registrySupportsTenantGovernance resolves the current manifest declaration

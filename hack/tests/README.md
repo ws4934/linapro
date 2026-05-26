@@ -4,13 +4,13 @@ This directory contains the Playwright `E2E` suite for the default LinaPro manag
 
 ## Prerequisites
 
-Before running E2E tests for the first time, install frontend dependencies and the Playwright browser:
+Before running E2E tests for the first time, install frontend dependencies and the Playwright browser shell:
 
 ```bash
-make dev.setup
+make env.setup
 ```
 
-This command runs `pnpm install` for the frontend workspace (if missing) and downloads the Chromium browser binary with required system libraries (`libnss3`, `libatk-bridge2.0-0`, etc. on Linux). On macOS and Windows it only downloads the browser. You only need to run this once (or again after upgrading dependencies).
+This command runs `pnpm install` for the frontend workspace (if missing) and downloads the Chromium headless shell with required system libraries (`libnss3`, `libatk-bridge2.0-0`, etc. on Linux). On macOS and Windows it only downloads the browser shell. You only need to run this once (or again after upgrading dependencies). Headed, UI, or debug runs may require the full Chromium browser; install it explicitly with `pnpm exec playwright install --with-deps chromium` from `hack/tests` when needed.
 
 ## Directory Layout
 

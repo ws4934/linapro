@@ -12,9 +12,9 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/role"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // BatchUpdateInput defines optional patch fields for selected users.
@@ -74,7 +74,7 @@ func (s *serviceImpl) BatchUpdate(ctx context.Context, in BatchUpdateInput) erro
 			}
 		}
 
-		if in.UpdateTenant && tenantPlan != nil && tenantPlan.shouldReplace {
+		if in.UpdateTenant && tenantPlan != nil && tenantPlan.shouldReplace && s.tenantMembers != nil {
 			for _, userID := range normalizedIDs {
 				if _, err := dao.SysUser.Ctx(ctx).
 					Where(do.SysUser{Id: userID}).
@@ -82,7 +82,7 @@ func (s *serviceImpl) BatchUpdate(ctx context.Context, in BatchUpdateInput) erro
 					Update(); err != nil {
 					return err
 				}
-				if err := s.tenantSvc.ReplaceUserTenantAssignments(ctx, userID, tenantPlan.plan); err != nil {
+				if err := s.tenantMembers.ReplaceUserTenantAssignments(ctx, userID, tenantPlan.plan); err != nil {
 					return err
 				}
 			}
@@ -107,7 +107,7 @@ func (s *serviceImpl) BatchUpdate(ctx context.Context, in BatchUpdateInput) erro
 
 // tenantAssignmentBatchPlan carries the host and provider tenant write plan.
 type tenantAssignmentBatchPlan struct {
-	plan            *pkgtenantcap.UserTenantAssignmentPlan
+	plan            *tenantcap.UserTenantAssignmentPlan
 	shouldReplace   bool
 	primaryTenantID int
 }
@@ -211,10 +211,10 @@ func (s *serviceImpl) ensureUsersMatchRoleBoundary(ctx context.Context, item *en
 	if count != len(userIDs) {
 		return bizerr.NewCode(role.CodeTenantRoleAssignmentForbidden)
 	}
-	if s.tenantSvc == nil {
+	if s.tenantMembers == nil {
 		return nil
 	}
-	if err := s.tenantSvc.EnsureUsersInTenant(ctx, userIDs, tenantIDFromRole(item)); err != nil {
+	if err := s.tenantMembers.EnsureUsersInTenant(ctx, userIDs, tenantIDFromRole(item)); err != nil {
 		return mapTenantMembershipRoleError(err)
 	}
 	return nil
@@ -266,7 +266,7 @@ func mapTenantMembershipRoleError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if bizerr.Is(err, pkgtenantcap.CodeTenantForbidden) {
+	if bizerr.Is(err, tenantcap.CodeTenantForbidden) {
 		return bizerr.NewCode(role.CodeTenantRoleAssignmentForbidden)
 	}
 	return bizerr.NewCode(role.CodeTenantRoleAssignmentForbidden)

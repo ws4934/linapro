@@ -8,14 +8,14 @@ import (
 	"context"
 
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // platformGovernanceTenantCapability is the tenant-capability slice required by
 // plugin governance guards.
 type platformGovernanceTenantCapability interface {
-	// Enabled reports whether multi-tenancy governance is active.
-	Enabled(ctx context.Context) bool
+	// Available reports whether multi-tenancy governance is active.
+	Available(ctx context.Context) bool
 	// PlatformBypass reports whether the request is a platform all-data context.
 	PlatformBypass(ctx context.Context) bool
 }
@@ -35,10 +35,10 @@ func ensurePlatformGovernanceContext(ctx context.Context, holder interface {
 		return nil
 	}
 	tenantSvc := holder.platformGovernanceTenantCapability()
-	if tenantSvc == nil || !tenantSvc.Enabled(ctx) || tenantSvc.PlatformBypass(ctx) {
+	if tenantSvc == nil || !tenantSvc.Available(ctx) || tenantSvc.PlatformBypass(ctx) {
 		return nil
 	}
-	return bizerr.NewCode(pkgtenantcap.CodePlatformPermissionRequired)
+	return bizerr.NewCode(tenantcap.CodePlatformPermissionRequired)
 }
 
 // platformGovernanceTenantCapability returns the tenant capability used by the
@@ -47,5 +47,5 @@ func (s *serviceImpl) platformGovernanceTenantCapability() platformGovernanceTen
 	if s == nil {
 		return nil
 	}
-	return s.tenantSvc
+	return s.tenantGovernance
 }

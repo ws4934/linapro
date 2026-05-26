@@ -7,7 +7,6 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/role"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
 
 // Service defines the menu service contract.
@@ -55,13 +54,13 @@ type serviceImpl struct {
 	menuFilter MenuFilter
 	i18nSvc    menuI18nTranslator
 	roleSvc    role.Service
-	tenantSvc  tenantcapsvc.Service
+	tenantSvc  platformMenuTenantService
 }
 
 // New creates and returns a new menu service instance.
 // Pass a non-nil menuFilter when menu listing must respect plugin-driven menu
 // visibility; pass nil to use the default no-op filter.
-func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service, tenantSvc tenantcapsvc.Service) Service {
+func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service, tenantSvc platformMenuTenantService) Service {
 	if menuFilter == nil {
 		menuFilter = noopMenuFilter{}
 	}

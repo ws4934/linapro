@@ -14,7 +14,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets verifies
@@ -148,28 +148,30 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
-	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 		t,
 		pluginID,
 		pluginName,
 		versionOne,
 		buildVersionedRuntimeFrontendAssets("stable-version"),
+		runtimeRoutePermissionMenus(pluginID, pluginName, versionOne),
 		nil,
 		nil,
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
-				Path:       "/api/v1/review-summary",
-				Method:     http.MethodGet,
-				Access:     pluginbridge.AccessLogin,
-				Permission: permissionOne,
+				Path:        "/api/v1/review-summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessLogin,
+				Permission:  permissionOne,
+				RequestType: "ReviewSummaryReq",
 			},
 		},
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 
@@ -188,12 +190,13 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 		t.Fatal("expected registry row before failed upgrade")
 	}
 
-	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 		t,
 		pluginID,
 		pluginName,
 		versionTwo,
 		buildVersionedRuntimeFrontendAssets("broken-version"),
+		runtimeRoutePermissionMenus(pluginID, pluginName, versionTwo),
 		[]*catalog.ArtifactSQLAsset{
 			{
 				Key:     "001-plugin-dev-dynamic-upgrade-failed.sql",
@@ -201,20 +204,21 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 			},
 		},
 		nil,
-		[]*pluginbridge.RouteContract{
+		[]*protocol.RouteContract{
 			{
-				Path:       "/api/v1/review-summary",
-				Method:     http.MethodGet,
-				Access:     pluginbridge.AccessLogin,
-				Permission: permissionTwo,
+				Path:        "/api/v1/review-summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessLogin,
+				Permission:  permissionTwo,
+				RequestType: "ReviewSummaryReq",
 			},
 		},
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 	targetManifest, err := service.loadRuntimePluginManifestFromArtifact(filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm"))
@@ -443,32 +447,34 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
-	initialRoutes := []*pluginbridge.RouteContract{
+	initialRoutes := []*protocol.RouteContract{
 		{
-			Path:       "/api/v1/review-summary",
-			Method:     http.MethodGet,
-			Access:     pluginbridge.AccessLogin,
-			Permission: pluginID + ":review:view",
+			Path:        "/api/v1/review-summary",
+			Method:      http.MethodGet,
+			Access:      protocol.AccessLogin,
+			Permission:  pluginID + ":review:view",
+			RequestType: "ReviewSummaryReq",
 			Meta: map[string]string{
 				"x-route-purpose": "review",
 			},
 		},
 	}
-	initialBridge := &pluginbridge.BridgeSpec{
-		ABIVersion:     pluginbridge.ABIVersionV1,
-		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+	initialBridge := &protocol.BridgeSpec{
+		ABIVersion:     protocol.ABIVersionV1,
+		RuntimeKind:    protocol.RuntimeKindWasm,
 		RouteExecution: true,
-		RequestCodec:   pluginbridge.CodecProtobuf,
-		ResponseCodec:  pluginbridge.CodecProtobuf,
-		AllocExport:    pluginbridge.DefaultGuestAllocExport,
-		ExecuteExport:  pluginbridge.DefaultGuestExecuteExport,
+		RequestCodec:   protocol.CodecProtobuf,
+		ResponseCodec:  protocol.CodecProtobuf,
+		AllocExport:    protocol.DefaultGuestAllocExport,
+		ExecuteExport:  protocol.DefaultGuestExecuteExport,
 	}
-	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 		t,
 		pluginID,
 		pluginName,
 		version,
 		buildVersionedRuntimeFrontendAssets("version-one"),
+		runtimeRoutePermissionMenus(pluginID, pluginName, version),
 		nil,
 		nil,
 		initialRoutes,
@@ -501,23 +507,25 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 		t.Fatal("expected initial same-version release to store an archived package path")
 	}
 
-	refreshedRoutes := []*pluginbridge.RouteContract{
+	refreshedRoutes := []*protocol.RouteContract{
 		{
-			Path:       "/api/v1/review-summary",
-			Method:     http.MethodGet,
-			Access:     pluginbridge.AccessLogin,
-			Permission: pluginID + ":review:inspect",
+			Path:        "/api/v1/review-summary",
+			Method:      http.MethodGet,
+			Access:      protocol.AccessLogin,
+			Permission:  pluginID + ":review:inspect",
+			RequestType: "ReviewSummaryReq",
 			Meta: map[string]string{
 				"x-route-purpose": "review",
 			},
 		},
 	}
-	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 		t,
 		pluginID,
 		pluginName,
 		version,
 		buildVersionedRuntimeFrontendAssets("version-two"),
+		runtimeRoutePermissionMenus(pluginID, pluginName, version),
 		nil,
 		nil,
 		refreshedRoutes,
@@ -580,5 +588,23 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	}
 	if !strings.Contains(string(asset.Content), "version-two") {
 		t.Fatalf("expected refreshed frontend asset to contain version-two marker, got %s", string(asset.Content))
+	}
+}
+
+// runtimeRoutePermissionMenus returns the current plugin entry menu required
+// for artifacts that declare dynamic route permissions.
+func runtimeRoutePermissionMenus(pluginID string, pluginName string, version string) []*catalog.MenuSpec {
+	return []*catalog.MenuSpec{
+		{
+			Key:       "plugin:" + pluginID + ":main-entry",
+			Name:      pluginName,
+			Path:      "/x-assets/" + pluginID + "/" + version + "/mount.js",
+			Perms:     pluginID + ":view",
+			Icon:      "ant-design:deployment-unit-outlined",
+			Type:      catalog.MenuTypePage.String(),
+			Sort:      -1,
+			Component: "system/plugin/dynamic-page",
+			Query:     map[string]interface{}{"pluginAccessMode": "embedded-mount"},
+		},
 	}
 }

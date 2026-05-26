@@ -6,18 +6,19 @@ import (
 	"net/http"
 	"testing"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestBuildRouteOpenAPIOperationUsesBridgeState verifies that projected
 // responses follow the runtime bridge execution flag.
 func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
-	operation := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &pluginbridge.RouteContract{
-		Path:    "/api/v1/review-summary",
-		Method:  http.MethodGet,
-		Access:  pluginbridge.AccessLogin,
-		Summary: "Review Summary",
-	}, &pluginbridge.BridgeSpec{
+	operation := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
+		Path:        "/api/v1/review-summary",
+		Method:      http.MethodGet,
+		Access:      protocol.AccessLogin,
+		RequestType: "ReviewSummaryReq",
+		Summary:     "Review Summary",
+	}, &protocol.BridgeSpec{
 		RouteExecution: true,
 	})
 	if operation == nil || operation.Responses["200"].Value == nil {
@@ -39,11 +40,12 @@ func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 		t.Fatalf("expected dynamic OpenAPI operation to omit i18n extensions, got %#v", operation.XExtensions)
 	}
 
-	placeholder := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &pluginbridge.RouteContract{
-		Path:   "/api/v1/placeholder",
-		Method: http.MethodGet,
-		Access: pluginbridge.AccessPublic,
-	}, &pluginbridge.BridgeSpec{
+	placeholder := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
+		Path:        "/api/v1/placeholder",
+		Method:      http.MethodGet,
+		Access:      protocol.AccessPublic,
+		RequestType: "PlaceholderReq",
+	}, &protocol.BridgeSpec{
 		RouteExecution: false,
 	})
 	if placeholder == nil || placeholder.Responses["501"].Value == nil {

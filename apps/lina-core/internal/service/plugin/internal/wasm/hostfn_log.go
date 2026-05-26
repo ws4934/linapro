@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"lina-core/pkg/logger"
-	bridgehostcall "lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // handleHostLog processes OpcodeLog requests from the guest.

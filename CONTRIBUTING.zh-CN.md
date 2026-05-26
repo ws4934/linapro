@@ -43,8 +43,8 @@ apps/                -> MonoRepo项目目录
     api/             -> 请求/响应DTO（g.Meta路由定义）
     internal/        -> 后端核心代码实现
       cmd/           -> 服务启动与路由注册
-      controller/    -> HTTP控制器（gf gen ctrl自动生成骨架）
-      dao/           -> 数据访问层（gf gen dao自动生成）
+      controller/    -> HTTP控制器（make ctrl自动生成骨架）
+      dao/           -> 数据访问层（make dao自动生成）
       model/         -> 数据模型
         do/          -> 数据操作对象（自动生成）
         entity/      -> 数据库实体（自动生成）
@@ -63,7 +63,7 @@ apps/                -> MonoRepo项目目录
         internal/    -> 插件后端内部实现
           controller/ -> HTTP控制器
           service/    -> 业务逻辑层
-          dao/        -> 数据访问层（gf gen dao自动生成，按需生成）
+          dao/        -> 数据访问层（make dao自动生成，按需生成）
           model/      -> 数据模型（按需生成）
             do/       -> 数据操作对象（自动生成）
             entity/   -> 数据库实体（自动生成）
@@ -345,8 +345,8 @@ make release.tag.check tag=v0.2.0
 - 代码中的时间长度使用`time.Duration`，配置中的时间长度使用带单位字符串，例如`"10s"`和`"5m"`。
 - 多步数据库操作使用`dao.Xxx.Transaction()`闭包。
 - 使用数据库无关的`ORM`构造。不要使用`FIND_IN_SET`、`GROUP_CONCAT`或`ANY(ARRAY[...])`等数据库特定函数。
-- `DAO`、`DO`和`Entity`文件由`gf gen dao`生成，禁止手动修改。
-- 控制器文件由`gf gen ctrl`生成骨架，只填写业务逻辑，不要修改生成骨架。
+- `DAO`、`DO`和`Entity`文件由`make dao`生成，禁止手动修改。
+- 控制器文件由`make ctrl`生成骨架，只填写业务逻辑，不要修改生成骨架。
 
 ## TypeScript / Vue 3
 

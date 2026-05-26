@@ -879,12 +879,7 @@
         }
       },
       "dependency": {
-        "blocked": "Plugin {pluginId} dependency check failed: {blockers}",
-        "auto": {
-          "install": {
-            "failed": "Plugin {pluginId} automatic dependency installation failed at {failedPluginId}; installed dependencies: {installedDependencies}"
-          }
-        }
+        "blocked": "Plugin {pluginId} dependency check failed: {blockers}"
       },
       "reverse": {
         "dependency": {

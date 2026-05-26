@@ -6,13 +6,13 @@ package wasmbuilder
 import (
 	"regexp"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
 	pluginTypeDynamic                = "dynamic"
-	pluginDynamicKindWasm            = pluginbridge.RuntimeKindWasm
-	pluginDynamicSupportedABIVersion = pluginbridge.SupportedABIVersion
+	pluginDynamicKindWasm            = protocol.RuntimeKindWasm
+	pluginDynamicSupportedABIVersion = protocol.SupportedABIVersion
 	pluginInstallModeGlobal          = "global"
 	pluginInstallModeTenantScoped    = "tenant_scoped"
 	pluginScopeNaturePlatformOnly    = "platform_only"
@@ -20,22 +20,21 @@ const (
 	defaultRuntimeOutputDir          = "temp/output"
 	runtimeWorkspaceDirName          = ".runtime"
 
-	pluginDynamicWasmSectionManifest            = pluginbridge.WasmSectionManifest
-	pluginDynamicWasmSectionDynamic             = pluginbridge.WasmSectionRuntime
-	pluginDynamicWasmSectionFrontend            = pluginbridge.WasmSectionFrontendAssets
-	pluginDynamicWasmSectionI18N                = pluginbridge.WasmSectionI18NAssets
-	pluginDynamicWasmSectionAPIDocI18N          = pluginbridge.WasmSectionAPIDocI18NAssets
-	pluginDynamicWasmSectionInstallSQL          = pluginbridge.WasmSectionInstallSQL
-	pluginDynamicWasmSectionUninstallSQL        = pluginbridge.WasmSectionUninstallSQL
-	pluginDynamicWasmSectionMockSQL             = pluginbridge.WasmSectionMockSQL
-	pluginDynamicWasmSectionManifestResources   = pluginbridge.WasmSectionManifestResources
-	pluginDynamicWasmSectionBackendHooks        = pluginbridge.WasmSectionBackendHooks
-	pluginDynamicWasmSectionBackendLifecycle    = pluginbridge.WasmSectionBackendLifecycle
-	pluginDynamicWasmSectionBackendRes          = pluginbridge.WasmSectionBackendResources
-	pluginDynamicWasmSectionBackendCrons        = pluginbridge.WasmSectionBackendCrons
-	pluginDynamicWasmSectionBackendRoutes       = pluginbridge.WasmSectionBackendRoutes
-	pluginDynamicWasmSectionBackendBridge       = pluginbridge.WasmSectionBackendBridge
-	pluginDynamicWasmSectionBackendHostServices = pluginbridge.WasmSectionBackendHostServices
+	pluginDynamicWasmSectionManifest            = protocol.WasmSectionManifest
+	pluginDynamicWasmSectionDynamic             = protocol.WasmSectionRuntime
+	pluginDynamicWasmSectionFrontend            = protocol.WasmSectionFrontendAssets
+	pluginDynamicWasmSectionI18N                = protocol.WasmSectionI18NAssets
+	pluginDynamicWasmSectionAPIDocI18N          = protocol.WasmSectionAPIDocI18NAssets
+	pluginDynamicWasmSectionInstallSQL          = protocol.WasmSectionInstallSQL
+	pluginDynamicWasmSectionUninstallSQL        = protocol.WasmSectionUninstallSQL
+	pluginDynamicWasmSectionMockSQL             = protocol.WasmSectionMockSQL
+	pluginDynamicWasmSectionManifestResources   = protocol.WasmSectionManifestResources
+	pluginDynamicWasmSectionBackendHooks        = protocol.WasmSectionBackendHooks
+	pluginDynamicWasmSectionBackendLifecycle    = protocol.WasmSectionBackendLifecycle
+	pluginDynamicWasmSectionBackendRes          = protocol.WasmSectionBackendResources
+	pluginDynamicWasmSectionBackendRoutes       = protocol.WasmSectionBackendRoutes
+	pluginDynamicWasmSectionBackendBridge       = protocol.WasmSectionBackendBridge
+	pluginDynamicWasmSectionBackendHostServices = protocol.WasmSectionBackendHostServices
 )
 
 var (
@@ -52,20 +51,18 @@ type RuntimeBuildOutput struct {
 }
 
 type pluginManifest struct {
-	ID                  string             `yaml:"id"`
-	Name                string             `yaml:"name"`
-	Version             string             `yaml:"version"`
-	Type                string             `yaml:"type"`
-	ScopeNature         string             `yaml:"scope_nature"`
-	SupportsMultiTenant *bool              `yaml:"supports_multi_tenant"`
-	DefaultInstallMode  string             `yaml:"default_install_mode"`
-	Description         string             `yaml:"description"`
-	Dependencies        *dependencySpec    `yaml:"dependencies"`
-	Menus               []*menuSpec        `yaml:"menus"`
-	PublicAssets        []*publicAssetSpec `yaml:"public_assets"`
-	// Capabilities is kept only to reject deprecated author-side manifest input.
-	Capabilities []string                        `yaml:"capabilities"`
-	HostServices []*pluginbridge.HostServiceSpec `yaml:"hostServices"`
+	ID                  string                      `yaml:"id"`
+	Name                string                      `yaml:"name"`
+	Version             string                      `yaml:"version"`
+	Type                string                      `yaml:"type"`
+	ScopeNature         string                      `yaml:"scope_nature"`
+	SupportsMultiTenant *bool                       `yaml:"supports_multi_tenant"`
+	DefaultInstallMode  string                      `yaml:"default_install_mode"`
+	Description         string                      `yaml:"description"`
+	Dependencies        *dependencySpec             `yaml:"dependencies"`
+	Menus               []*menuSpec                 `yaml:"menus"`
+	PublicAssets        []*publicAssetSpec          `yaml:"public_assets"`
+	HostServices        []*protocol.HostServiceSpec `yaml:"hostServices"`
 }
 
 type dynamicArtifactManifest struct {
@@ -82,8 +79,6 @@ type dynamicArtifactManifest struct {
 	PublicAssets        []*publicAssetSpec `json:"public_assets,omitempty" yaml:"public_assets,omitempty"`
 }
 
-type dynamicArtifactMetadata = pluginbridge.RuntimeArtifactMetadata
-
 type dependencySpec struct {
 	Framework *frameworkDependencySpec `json:"framework,omitempty" yaml:"framework,omitempty"`
 	Plugins   []*pluginDependencySpec  `json:"plugins,omitempty" yaml:"plugins,omitempty"`
@@ -94,10 +89,8 @@ type frameworkDependencySpec struct {
 }
 
 type pluginDependencySpec struct {
-	ID       string `json:"id" yaml:"id"`
-	Version  string `json:"version,omitempty" yaml:"version,omitempty"`
-	Required *bool  `json:"required,omitempty" yaml:"required,omitempty"`
-	Install  string `json:"install,omitempty" yaml:"install,omitempty"`
+	ID      string `json:"id" yaml:"id"`
+	Version string `json:"version,omitempty" yaml:"version,omitempty"`
 }
 
 type embeddedStaticResourceSet struct {
@@ -209,8 +202,6 @@ type hookSpec struct {
 	ErrorMessage string                `json:"errorMessage,omitempty" yaml:"errorMessage,omitempty"`
 }
 
-type lifecycleSpec = pluginbridge.LifecycleContract
-
 // wasmDispatcherSpec describes one generated guest dispatcher file used only
 // while compiling the dynamic plugin runtime module.
 type wasmDispatcherSpec struct {
@@ -218,12 +209,13 @@ type wasmDispatcherSpec struct {
 	APIControllers  []*wasmAPIControllerSpec
 	Routes          []*wasmRouteHandlerSpec
 	LifecycleRoutes []*wasmLifecycleHandlerSpec
-	EnvelopeRoutes  []*wasmEnvelopeHandlerSpec
+	CronRoutes      []*wasmCallbackHandlerSpec
 }
 
 // wasmAPIControllerSpec records one backend API interface/controller pair
 // referenced by generated typed route handlers.
 type wasmAPIControllerSpec struct {
+	APIPackage        string
 	ImportAlias       string
 	PackagePath       string
 	InterfaceAlias    string
@@ -261,16 +253,23 @@ type wasmDTOFieldSpec struct {
 // wasmLifecycleHandlerSpec records one lifecycle callback method discovered
 // from backend controller sources.
 type wasmLifecycleHandlerSpec struct {
-	RequestType string
-	MethodName  string
+	RequestType     string
+	MethodName      string
+	APIPackage      string
+	ControllerAlias string
+	DTOImportAlias  string
+	RequestTypeExpr string
 }
 
-// wasmEnvelopeHandlerSpec records one envelope-style callback that is not
-// declared through API DTO route contracts.
-type wasmEnvelopeHandlerSpec struct {
-	RequestType  string
-	InternalPath string
-	MethodName   string
+// wasmCallbackHandlerSpec records one typed callback that is not declared
+// through public API route contracts.
+type wasmCallbackHandlerSpec struct {
+	RequestType     string
+	MethodName      string
+	APIPackage      string
+	ControllerAlias string
+	DTOImportAlias  string
+	RequestTypeExpr string
 }
 
 type resourceSpec struct {

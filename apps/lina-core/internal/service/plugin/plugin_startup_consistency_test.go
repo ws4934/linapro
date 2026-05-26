@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -16,7 +14,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestValidateStartupConsistencyRequiresInjectedTenantCapability verifies
@@ -26,7 +24,7 @@ func TestValidateStartupConsistencyRequiresInjectedTenantCapability(t *testing.T
 		service = newTestService()
 		ctx     = context.Background()
 	)
-	service.SetTenantCapability(nil)
+	service.SetTenantStartupCapability(nil)
 
 	err := service.ValidateStartupConsistency(ctx)
 	assertStartupConsistencyErrorContains(t, err, "requires injected tenant capability service")
@@ -40,7 +38,7 @@ func TestValidateStartupConsistencyUsesInjectedTenantCapability(t *testing.T) {
 		ctx       = context.Background()
 		tenantSvc = &startupConsistencyTenantCapability{details: []string{"injected tenant capability used"}}
 	)
-	service.SetTenantCapability(tenantSvc)
+	service.SetTenantStartupCapability(tenantSvc)
 
 	err := service.ValidateStartupConsistency(ctx)
 	assertStartupConsistencyErrorContains(t, err, "injected tenant capability used")
@@ -112,15 +110,17 @@ func TestValidateStartupConsistencyRejectsPlatformUserMembership(t *testing.T) {
 		username = "startup-platform-member"
 		tenantID = 19001
 	)
-	cleanupStartupConsistencyPlugin(t, ctx, pkgtenantcap.ProviderPluginID)
+	cleanupStartupConsistencyPlugin(t, ctx, tenantcap.ProviderPluginID)
 	cleanupStartupConsistencyUserMembership(t, ctx, username, tenantID)
-	pkgtenantcap.RegisterProvider(&startupConsistencyTenantProvider{})
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
-	t.Cleanup(func() { cleanupStartupConsistencyPlugin(t, ctx, pkgtenantcap.ProviderPluginID) })
+	service.SetTenantStartupCapability(&startupConsistencyTenantCapability{
+		available:           true,
+		validateMemberships: true,
+	})
+	t.Cleanup(func() { cleanupStartupConsistencyPlugin(t, ctx, tenantcap.ProviderPluginID) })
 	t.Cleanup(func() { cleanupStartupConsistencyUserMembership(t, ctx, username, tenantID) })
 
 	insertStartupConsistencyPlugin(t, ctx, do.SysPlugin{
-		PluginId:    pkgtenantcap.ProviderPluginID,
+		PluginId:    tenantcap.ProviderPluginID,
 		Name:        "Multi Tenant Provider",
 		Version:     "v0.1.0",
 		Type:        catalog.TypeSource.String(),
@@ -129,7 +129,7 @@ func TestValidateStartupConsistencyRejectsPlatformUserMembership(t *testing.T) {
 		ScopeNature: catalog.ScopeNaturePlatformOnly.String(),
 		InstallMode: catalog.InstallModeGlobal.String(),
 	})
-	userID := insertStartupConsistencyUser(t, ctx, username, int(pkgtenantcap.PLATFORM))
+	userID := insertStartupConsistencyUser(t, ctx, username, int(tenantcap.PLATFORM))
 	insertStartupConsistencyTenantMembership(t, ctx, userID, tenantID, 1)
 
 	err := service.ValidateStartupConsistency(ctx)
@@ -142,10 +142,9 @@ func TestValidateStartupConsistencyRejectsEnabledTenantPluginWithoutProvider(t *
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = pkgtenantcap.ProviderPluginID
+		pluginID = tenantcap.ProviderPluginID
 	)
-	pkgtenantcap.RegisterProvider(nil)
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
+	service.SetTenantStartupCapability(&startupConsistencyTenantCapability{})
 	cleanupStartupConsistencyPlugin(t, ctx, pluginID)
 	t.Cleanup(func() { cleanupStartupConsistencyPlugin(t, ctx, pluginID) })
 
@@ -161,7 +160,7 @@ func TestValidateStartupConsistencyRejectsEnabledTenantPluginWithoutProvider(t *
 	})
 
 	err := service.ValidateStartupConsistency(ctx)
-	assertStartupConsistencyErrorContains(t, err, "linapro-tenant-core plugin is enabled but tenantcap provider is not registered")
+	assertStartupConsistencyErrorContains(t, err, "linapro-tenant-core plugin is enabled but capability tenant provider is not active")
 }
 
 // TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider verifies
@@ -170,10 +169,9 @@ func TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider(t *test
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = pkgtenantcap.ProviderPluginID
+		pluginID = tenantcap.ProviderPluginID
 	)
-	pkgtenantcap.RegisterProvider(&startupConsistencyTenantProvider{})
-	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
+	service.SetTenantStartupCapability(&startupConsistencyTenantCapability{available: true})
 	cleanupStartupConsistencyPlugin(t, ctx, pluginID)
 	t.Cleanup(func() { cleanupStartupConsistencyPlugin(t, ctx, pluginID) })
 
@@ -193,178 +191,25 @@ func TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider(t *test
 	}
 }
 
-// startupConsistencyTenantProvider is a no-op tenant provider for startup tests.
-type startupConsistencyTenantProvider struct{}
-
-// ResolveTenant returns a platform match for interface completeness.
-func (startupConsistencyTenantProvider) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
-}
-
-// ValidateUserInTenant accepts all users for interface completeness.
-func (startupConsistencyTenantProvider) ValidateUserInTenant(context.Context, int, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ListUserTenants returns no tenant rows for interface completeness.
-func (startupConsistencyTenantProvider) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return nil, nil
-}
-
-// SwitchTenant accepts all switches for interface completeness.
-func (startupConsistencyTenantProvider) SwitchTenant(context.Context, int, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ApplyUserTenantScope is unused by startup tests.
-func (startupConsistencyTenantProvider) ApplyUserTenantScope(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ApplyUserTenantFilter is unused by startup tests.
-func (startupConsistencyTenantProvider) ApplyUserTenantFilter(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-	_ pkgtenantcap.TenantID,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenantProjections is unused by startup tests.
-func (startupConsistencyTenantProvider) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment is unused by startup tests.
-func (startupConsistencyTenantProvider) ResolveUserTenantAssignment(
-	context.Context,
-	[]pkgtenantcap.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is unused by startup tests.
-func (startupConsistencyTenantProvider) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
-}
-
-// EnsureUsersInTenant is unused by startup tests.
-func (startupConsistencyTenantProvider) EnsureUsersInTenant(context.Context, []int, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ValidateStartupConsistency checks platform-user membership violations.
-func (startupConsistencyTenantProvider) ValidateStartupConsistency(ctx context.Context) ([]string, error) {
-	return validateStartupConsistencyTestMemberships(ctx)
-}
-
 // startupConsistencyTenantCapability records startup membership validation calls.
 type startupConsistencyTenantCapability struct {
-	calls   int
-	details []string
+	available           bool
+	validateMemberships bool
+	calls               int
+	details             []string
 }
 
-// Enabled is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) Enabled(context.Context) bool {
-	return true
-}
-
-// Current is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) Current(context.Context) pkgtenantcap.TenantID {
-	return pkgtenantcap.PLATFORM
-}
-
-// Apply is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) Apply(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, error) {
-	return model, nil
-}
-
-// PlatformBypass is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) PlatformBypass(context.Context) bool {
-	return false
-}
-
-// EnsureTenantVisible is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) EnsureTenantVisible(context.Context, pkgtenantcap.TenantID) error {
-	return nil
-}
-
-// ResolveTenant is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
-}
-
-// ApplyUserTenantScope is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ApplyUserTenantScope(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenants is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
-	return nil, nil
-}
-
-// ApplyUserTenantFilter is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ApplyUserTenantFilter(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-	_ pkgtenantcap.TenantID,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenantProjections is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ResolveUserTenantAssignment(
-	context.Context,
-	[]pkgtenantcap.TenantID,
-	pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*pkgtenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
-}
-
-// EnsureUsersInTenant is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) EnsureUsersInTenant(context.Context, []int, pkgtenantcap.TenantID) error {
-	return nil
+// Available reports an active tenant capability for startup consistency tests.
+func (s *startupConsistencyTenantCapability) Available(context.Context) bool {
+	return s.available
 }
 
 // ValidateUserMembershipStartupConsistency records the injected startup check.
-func (s *startupConsistencyTenantCapability) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
+func (s *startupConsistencyTenantCapability) ValidateUserMembershipStartupConsistency(ctx context.Context) ([]string, error) {
 	s.calls++
+	if s.validateMemberships {
+		return validateStartupConsistencyTestMemberships(ctx)
+	}
 	return s.details, nil
 }
 
@@ -382,7 +227,7 @@ func validateStartupConsistencyTestMemberships(ctx context.Context) ([]string, e
 			"plugin_linapro_tenant_core_user_membership m",
 			"m.user_id = u.id AND m.deleted_at IS NULL AND m.status = 1",
 		).
-		Where("u.tenant_id", int(pkgtenantcap.PLATFORM)).
+		Where("u.tenant_id", int(tenantcap.PLATFORM)).
 		Limit(10).
 		Scan(&rows)
 	if err != nil {

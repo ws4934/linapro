@@ -19,11 +19,11 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/resourcefs"
 	"lina-core/pkg/bizerr"
-	bridgeartifact "lina-core/pkg/pluginbridge"
-	bridgehostservice "lina-core/pkg/pluginbridge"
-	bridgecontract "lina-core/pkg/pluginbridge/contract"
-	"lina-core/pkg/pluginfs"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgeartifact "lina-core/pkg/plugin/pluginbridge/protocol"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // DynamicKindWasm is the only supported runtime artifact kind.
@@ -74,18 +74,13 @@ func buildArtifactRelativePath(pluginID string) string {
 	return filepath.Join("runtime", buildArtifactFileName(pluginID))
 }
 
-// resolveArtifactPath resolves the current or legacy runtime artifact path
-// inside a plugin root and reports a typed missing-artifact error otherwise.
+// resolveArtifactPath resolves the canonical runtime artifact path inside a
+// plugin root and reports a typed missing-artifact error otherwise.
 func resolveArtifactPath(rootDir string, pluginID string) (string, error) {
 	relativePath := filepath.ToSlash(buildArtifactRelativePath(pluginID))
 	candidatePath := filepath.Join(rootDir, buildArtifactRelativePath(pluginID))
 	if gfile.Exists(candidatePath) {
 		return candidatePath, nil
-	}
-
-	legacyPath := filepath.Join(rootDir, "runtime", "plugin.wasm")
-	if gfile.Exists(legacyPath) {
-		return legacyPath, nil
 	}
 
 	return candidatePath, &artifactMissingError{
@@ -124,10 +119,10 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	runtimeSection, ok := sections[bridgeartifact.WasmSectionRuntime]
 	if !ok {
-		runtimeSection, ok = sections[bridgeartifact.WasmSectionLegacyRuntime]
-	}
-	if !ok {
 		return nil, gerror.Newf("Dynamic plugin artifact is missing custom section %s: %s", bridgeartifact.WasmSectionRuntime, filePath)
+	}
+	if err = validateRuntimeManifestDependencySchema(filePath, manifestSection); err != nil {
+		return nil, err
 	}
 
 	embeddedManifest := &catalog.ArtifactManifest{}
@@ -194,9 +189,6 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	bridgeSpec, err := parseRuntimeArtifactBridgeSpec(filePath, sections)
 	if err != nil {
-		return nil, err
-	}
-	if err = rejectDeprecatedRuntimeArtifactCapabilities(filePath, sections); err != nil {
 		return nil, err
 	}
 	hostServices, err := parseRuntimeArtifactHostServices(filePath, sections)
@@ -463,6 +455,57 @@ func unmarshalRuntimeArtifactSection(content []byte, target interface{}) error {
 	return gerror.New("Dynamic plugin custom sections support JSON encoding only")
 }
 
+// validateRuntimeManifestDependencySchema validates current dependency entry
+// fields before JSON decoding drops unsupported plugin policies.
+func validateRuntimeManifestDependencySchema(filePath string, content []byte) error {
+	var manifest map[string]json.RawMessage
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		return gerror.New("Dynamic plugin custom sections support JSON encoding only")
+	}
+	for key, raw := range manifest {
+		if key == "dependencies" {
+			if err := rejectUnsupportedRuntimeDependencyFields(filePath, raw); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// rejectUnsupportedRuntimeDependencyFields rejects removed dependency blocks.
+func rejectUnsupportedRuntimeDependencyFields(filePath string, content json.RawMessage) error {
+	var dependencies map[string]json.RawMessage
+	if err := json.Unmarshal(content, &dependencies); err != nil {
+		return nil
+	}
+	for key, raw := range dependencies {
+		if key == "plugins" {
+			if err := rejectUnsupportedRuntimePluginDependencyFields(filePath, raw); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// rejectUnsupportedRuntimePluginDependencyFields rejects policy fields from
+// dependencies.plugins entries. Dynamic artifacts follow plugin.yaml semantics:
+// each plugin dependency contains only id and optional version.
+func rejectUnsupportedRuntimePluginDependencyFields(filePath string, content json.RawMessage) error {
+	var plugins []map[string]json.RawMessage
+	if err := json.Unmarshal(content, &plugins); err != nil {
+		return nil
+	}
+	for index, dependency := range plugins {
+		for key := range dependency {
+			if key != "id" && key != "version" {
+				return gerror.Newf("Dynamic plugin embedded manifest field dependencies.plugins[%d].%s is not supported; plugin dependencies only support id and version: %s", index, key, filePath)
+			}
+		}
+	}
+	return nil
+}
+
 // maxInt clamps value to the given lower bound.
 func maxInt(value int, lowerBound int) int {
 	if value < lowerBound {
@@ -567,7 +610,7 @@ func parseRuntimeArtifactSQLAssets(
 		if strings.Contains(asset.Key, "/") || strings.Contains(asset.Key, "\\") {
 			return nil, gerror.Newf("Dynamic plugin SQL asset key cannot contain path separators: %s", asset.Key)
 		}
-		if !pluginfs.IsValidSQLFileName(asset.Key) {
+		if !resourcefs.IsValidSQLFileName(asset.Key) {
 			return nil, gerror.Newf("Dynamic plugin SQL asset key does not match the naming rule: %s", asset.Key)
 		}
 	}
@@ -771,36 +814,6 @@ func parseRuntimeArtifactBridgeSpec(
 		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin bridge contract: %s", filePath)
 	}
 	return spec, nil
-}
-
-// rejectDeprecatedRuntimeArtifactCapabilities fails fast when old capability
-// sections are still embedded alongside the structured host-service contract.
-func rejectDeprecatedRuntimeArtifactCapabilities(
-	filePath string,
-	sections map[string][]byte,
-) error {
-	content, ok := sections[bridgeartifact.WasmSectionBackendCapabilities]
-	if !ok {
-		return nil
-	}
-
-	var items []string
-	if err := json.Unmarshal(content, &items); err == nil {
-		normalizedItems := bridgehostservice.NormalizeCapabilities(items)
-		if len(normalizedItems) > 0 {
-			return gerror.Newf(
-				"Dynamic plugin artifact contains deprecated custom section %s; remove the legacy capabilities declaration and rebuild: %s (%s)",
-				bridgeartifact.WasmSectionBackendCapabilities,
-				filePath,
-				strings.Join(normalizedItems, ", "),
-			)
-		}
-	}
-	return gerror.Newf(
-		"Dynamic plugin artifact contains deprecated custom section %s; remove the legacy capabilities declaration and rebuild: %s",
-		bridgeartifact.WasmSectionBackendCapabilities,
-		filePath,
-	)
 }
 
 // parseRuntimeArtifactHostServices restores and validates embedded host-service declarations.

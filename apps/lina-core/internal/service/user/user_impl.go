@@ -11,11 +11,11 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/internal/service/user/accountpolicy"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
@@ -23,13 +23,15 @@ import (
 // List queries user list with pagination and filters.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
 	var (
-		cols       = dao.SysUser.Columns()
-		m          = dao.SysUser.Ctx(ctx)
-		orgEnabled = s.orgCapSvc.Enabled(ctx)
+		cols = dao.SysUser.Columns()
+		m    = dao.SysUser.Ctx(ctx)
 	)
-	m, _, err := s.tenantSvc.ApplyUserTenantScope(ctx, m, qualifiedSysUserIDColumn())
-	if err != nil {
-		return nil, err
+	var err error
+	if s.tenantScope != nil {
+		m, _, err = s.tenantScope.ApplyUserTenantScope(ctx, m, qualifiedSysUserIDColumn())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Apply filters
@@ -52,14 +54,16 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		if err = s.ensureListTenantFilterAllowed(ctx, *in.TenantId); err != nil {
 			return nil, err
 		}
-		m, _, err = s.tenantSvc.ApplyUserTenantFilter(
-			ctx,
-			m,
-			qualifiedSysUserIDColumn(),
-			tenantcapsvc.TenantID(*in.TenantId),
-		)
-		if err != nil {
-			return nil, err
+		if s.tenantScope != nil {
+			m, _, err = s.tenantScope.ApplyUserTenantFilter(
+				ctx,
+				m,
+				qualifiedSysUserIDColumn(),
+				tenantcapsvc.TenantID(*in.TenantId),
+			)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if in.BeginTime != "" {
@@ -70,25 +74,18 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}
 
 	// Filter by dept via association table
-	if orgEnabled && in.DeptId != nil {
+	if in.DeptId != nil && s.orgScope != nil {
 		if *in.DeptId == 0 {
-			// Unassigned means users without any organization-assignment projection.
-			assignedUserIds, err := s.GetAllAssignedUserIds(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if len(assignedUserIds) > 0 {
-				m = m.WhereNotIn(cols.Id, assignedUserIds)
-			}
+			m, _, err = s.orgScope.ApplyUserDeptUnassignedFilter(ctx, m, qualifiedSysUserIDColumn())
 		} else {
-			userIds, err := s.GetUserIdsByDeptId(ctx, *in.DeptId)
-			if err != nil {
-				return nil, err
-			}
-			if len(userIds) == 0 {
+			var deptEmpty bool
+			m, deptEmpty, err = s.orgScope.ApplyUserDeptFilter(ctx, m, qualifiedSysUserIDColumn(), *in.DeptId)
+			if deptEmpty {
 				return &ListOutput{List: []*ListOutputItem{}, Total: 0}, nil
 			}
-			m = m.WhereIn(cols.Id, userIds)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -151,7 +148,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 
 	userDeptMap := make(map[int]int)
 	deptNameMap := make(map[int]string)
-	if orgEnabled {
+	if s.orgCapSvc != nil {
 		assignments, assignmentErr := s.orgCapSvc.ListUserDeptAssignments(ctx, userIds)
 		if assignmentErr != nil {
 			return nil, assignmentErr
@@ -165,9 +162,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		}
 	}
 
-	userTenantMap := make(map[int]*pkgtenantcap.UserTenantProjection)
-	if s.multiTenantEnabled(ctx) {
-		userTenantMap, err = s.tenantSvc.ListUserTenantProjections(ctx, userIds)
+	userTenantMap := make(map[int]*tenantcap.UserTenantProjection)
+	if s.multiTenantEnabled(ctx) && s.tenantMembers != nil {
+		userTenantMap, err = s.tenantMembers.ListUserTenantProjections(ctx, userIds)
 		if err != nil {
 			return nil, err
 		}
@@ -249,16 +246,6 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}, nil
 }
 
-// GetUserIdsByDeptId returns user IDs associated with a dept and all its descendants.
-func (s *serviceImpl) GetUserIdsByDeptId(ctx context.Context, deptId int) ([]int, error) {
-	return s.orgCapSvc.GetUserIDsByDept(ctx, deptId)
-}
-
-// GetAllAssignedUserIds returns all user IDs that have a dept association.
-func (s *serviceImpl) GetAllAssignedUserIds(ctx context.Context) ([]int, error) {
-	return s.orgCapSvc.GetAllAssignedUserIDs(ctx)
-}
-
 // GetUserDeptInfo returns the dept ID and name for a user.
 func (s *serviceImpl) GetUserDeptInfo(ctx context.Context, userId int) (int, string, error) {
 	return s.orgCapSvc.GetUserDeptInfo(ctx, userId)
@@ -317,12 +304,12 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 		userId = int(id)
 		if tenantPlan.ShouldReplace {
-			if err = s.tenantSvc.ReplaceUserTenantAssignments(ctx, userId, tenantPlan); err != nil {
+			if err = s.tenantMembers.ReplaceUserTenantAssignments(ctx, userId, tenantPlan); err != nil {
 				return err
 			}
 		}
 
-		if err = s.orgCapSvc.ReplaceUserAssignments(ctx, userId, in.DeptId, in.PostIds); err != nil {
+		if err = s.replaceUserOrganizationAssignments(ctx, userId, in.DeptId, in.PostIds); err != nil {
 			return err
 		}
 
@@ -338,6 +325,15 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 	}
 
 	return userId, nil
+}
+
+// replaceUserOrganizationAssignments delegates optional organization writes to
+// the host-internal assignment seam when the organization module is available.
+func (s *serviceImpl) replaceUserOrganizationAssignments(ctx context.Context, userID int, deptID *int, postIDs []int) error {
+	if s == nil || s.orgAssignment == nil {
+		return nil
+	}
+	return s.orgAssignment.ReplaceUserAssignments(ctx, userID, deptID, postIDs)
 }
 
 // GetById retrieves user by ID.
@@ -426,13 +422,13 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		}
 
 		if tenantPlan.ShouldReplace {
-			if err = s.tenantSvc.ReplaceUserTenantAssignments(ctx, in.Id, tenantPlan); err != nil {
+			if err = s.tenantMembers.ReplaceUserTenantAssignments(ctx, in.Id, tenantPlan); err != nil {
 				return err
 			}
 		}
 
 		if in.DeptId != nil || in.PostIds != nil {
-			if err = s.orgCapSvc.ReplaceUserAssignments(ctx, in.Id, in.DeptId, in.PostIds); err != nil {
+			if err = s.replaceUserOrganizationAssignments(ctx, in.Id, in.DeptId, in.PostIds); err != nil {
 				return err
 			}
 		}
@@ -513,7 +509,7 @@ func (s *serviceImpl) deleteUserRecordAndAssociations(ctx context.Context, id in
 	if _, err := dao.SysUser.Ctx(ctx).Where(do.SysUser{Id: id}).Delete(); err != nil {
 		return err
 	}
-	if err := s.orgCapSvc.CleanupUserAssignments(ctx, id); err != nil {
+	if err := s.cleanupUserOrganizationAssignments(ctx, id); err != nil {
 		return err
 	}
 	urCols := dao.SysUserRole.Columns()
@@ -521,6 +517,15 @@ func (s *serviceImpl) deleteUserRecordAndAssociations(ctx context.Context, id in
 	deleteModel = datascope.ApplyTenantScope(ctx, deleteModel, datascope.TenantColumn)
 	_, err := deleteModel.Delete()
 	return err
+}
+
+// cleanupUserOrganizationAssignments delegates optional organization cleanup to
+// the host-internal assignment seam when the organization module is available.
+func (s *serviceImpl) cleanupUserOrganizationAssignments(ctx context.Context, userID int) error {
+	if s == nil || s.orgAssignment == nil {
+		return nil
+	}
+	return s.orgAssignment.CleanupUserAssignments(ctx, userID)
 }
 
 // normalizeUserDeleteIDs removes duplicate IDs while preserving request order.

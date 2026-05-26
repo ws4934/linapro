@@ -9,8 +9,8 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	orgcapsvc "lina-core/internal/service/orgcap"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 const (
@@ -47,15 +47,17 @@ type PermissionMenuFilter interface {
 // OrganizationCapabilityState defines the narrow organization-capability
 // dependency role needs to validate organization-dependent data-scope values.
 type OrganizationCapabilityState interface {
-	// Enabled reports whether organization capability is currently usable.
-	Enabled(ctx context.Context) bool
+	// Available reports whether organization capability is currently usable.
+	Available(ctx context.Context) bool
 }
 
 // pluginEnablementState defines the plugin-status reader used to derive
 // organization capability state in production controllers.
 type pluginEnablementState interface {
-	// IsEnabled returns whether the given plugin ID is currently enabled.
-	IsEnabled(ctx context.Context, pluginID string) bool
+	// IsProviderEnabled returns whether the given plugin ID can serve framework provider calls.
+	IsProviderEnabled(ctx context.Context, pluginID string) bool
+	// OrgProviderEnv returns typed, plugin-scoped organization provider construction inputs.
+	OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv
 }
 
 // RoleQueryService defines read-only role management operations.
@@ -182,14 +184,13 @@ type serviceImpl struct {
 	i18nSvc            roleI18nTranslator
 	permissionFilter   PermissionMenuFilter
 	orgCapabilityState OrganizationCapabilityState
-	orgCapSvc          orgcapsvc.Service
-	tenantSvc          tenantcapsvc.Service
+	tenantSvc          roleTenantGovernanceService
 	accessRevisionCtrl accessRevisionController
 	scopeSvc           datascope.Service
 }
 
 // New creates and returns a new role service from explicit runtime-owned dependencies.
-func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc roleI18nTranslator, orgCapabilityState OrganizationCapabilityState, orgCapSvc orgcapsvc.Service, tenantSvc tenantcapsvc.Service) Service {
+func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc roleI18nTranslator, orgCapabilityState OrganizationCapabilityState, tenantSvc roleTenantGovernanceService) Service {
 	if permissionFilter == nil {
 		permissionFilter = noopPermissionMenuFilter{}
 	}
@@ -202,7 +203,6 @@ func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, config
 		i18nSvc:            i18nSvc,
 		permissionFilter:   permissionFilter,
 		orgCapabilityState: orgCapabilityState,
-		orgCapSvc:          orgCapSvc,
 		tenantSvc:          tenantSvc,
 		accessRevisionCtrl: newCacheCoordAccessRevisionController(
 			configSvc.IsClusterEnabled(context.Background()),
@@ -215,6 +215,20 @@ func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, config
 type roleI18nTranslator interface {
 	// Translate returns one runtime translation key with caller-provided fallback text.
 	Translate(ctx context.Context, key string, fallback string) string
+}
+
+// roleTenantGovernanceService is the tenant slice role needs for assignment
+// guards. It deliberately excludes tenant request resolution, query scope, and
+// provisioning methods.
+type roleTenantGovernanceService interface {
+	// Available reports whether tenant governance is active.
+	Available(ctx context.Context) bool
+	// PlatformBypass reports whether current context may mutate platform-wide
+	// permission topology.
+	PlatformBypass(ctx context.Context) bool
+	// EnsureUsersInTenant verifies every user belongs to tenantID before role
+	// assignment writes proceed.
+	EnsureUsersInTenant(ctx context.Context, userIDs []int, tenantID tenantcapsvc.TenantID) error
 }
 
 // noopPermissionMenuFilter keeps permission menus unchanged when no external

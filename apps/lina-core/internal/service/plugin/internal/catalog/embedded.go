@@ -12,8 +12,8 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 	"gopkg.in/yaml.v3"
 
-	"lina-core/pkg/pluginfs"
-	"lina-core/pkg/pluginhost"
+	"lina-core/internal/service/plugin/internal/resourcefs"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // ScanEmbeddedSourceManifests discovers manifests from all registered embedded source plugins.
@@ -38,14 +38,17 @@ func (s *serviceImpl) ScanEmbeddedSourceManifests() ([]*Manifest, error) {
 			return nil, gerror.Newf("source plugin is missing embedded resource declaration: %s", sourcePlugin.ID())
 		}
 
-		manifestContent, err := fs.ReadFile(embeddedFiles, pluginfs.EmbeddedManifestPath)
+		manifestContent, err := fs.ReadFile(embeddedFiles, resourcefs.EmbeddedManifestPath)
 		if err != nil {
 			return nil, gerror.Wrapf(err, "read source plugin embedded manifest failed: %s", sourcePlugin.ID())
 		}
 
 		manifest := &Manifest{
-			ManifestPath: pluginfs.BuildEmbeddedManifestPath(sourcePlugin.ID(), pluginfs.EmbeddedManifestPath),
+			ManifestPath: resourcefs.BuildEmbeddedManifestPath(sourcePlugin.ID(), resourcefs.EmbeddedManifestPath),
 			SourcePlugin: sourcePlugin,
+		}
+		if err = validateManifestDependencySchema(manifestContent, manifest.ManifestPath); err != nil {
+			return nil, gerror.Wrapf(err, "parse source plugin embedded manifest failed: %s", sourcePlugin.ID())
 		}
 		if err = yaml.Unmarshal(manifestContent, manifest); err != nil {
 			return nil, gerror.Wrapf(err, "parse source plugin embedded manifest failed: %s", sourcePlugin.ID())
@@ -81,7 +84,7 @@ func HasSourcePluginEmbeddedFiles(manifest *Manifest) bool {
 // filesystem-backed source plugin.
 func (s *serviceImpl) ReadSourcePluginManifestContent(manifest *Manifest) ([]byte, error) {
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		content, err := fs.ReadFile(embeddedFiles, pluginfs.EmbeddedManifestPath)
+		content, err := fs.ReadFile(embeddedFiles, resourcefs.EmbeddedManifestPath)
 		if err != nil {
 			return nil, gerror.Wrapf(err, "read source plugin embedded manifest failed: %s", manifest.ID)
 		}
@@ -99,7 +102,7 @@ func (s *serviceImpl) ReadSourcePluginManifestContent(manifest *Manifest) ([]byt
 
 // ReadSourcePluginAssetContent reads one asset relative path from an embedded or filesystem source plugin.
 func (s *serviceImpl) ReadSourcePluginAssetContent(manifest *Manifest, relativePath string) (string, error) {
-	normalizedPath, err := pluginfs.NormalizeRelativePath(relativePath)
+	normalizedPath, err := resourcefs.NormalizeRelativePath(relativePath)
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +115,7 @@ func (s *serviceImpl) ReadSourcePluginAssetContent(manifest *Manifest, relativeP
 		return strings.TrimSpace(string(content)), nil
 	}
 
-	sqlPath, err := pluginfs.ResolveResourcePath(manifest.RootDir, normalizedPath)
+	sqlPath, err := resourcefs.ResolveResourcePath(manifest.RootDir, normalizedPath)
 	if err != nil {
 		return "", err
 	}
@@ -122,7 +125,7 @@ func (s *serviceImpl) ReadSourcePluginAssetContent(manifest *Manifest, relativeP
 // ListInstallSQLPaths returns the ordered install SQL file paths for a source plugin manifest.
 func (s *serviceImpl) ListInstallSQLPaths(manifest *Manifest) []string {
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		return pluginfs.DiscoverSQLPathsFromFS(embeddedFiles, false)
+		return resourcefs.DiscoverSQLPathsFromFS(embeddedFiles, false)
 	}
 	if manifest == nil {
 		return []string{}
@@ -133,7 +136,7 @@ func (s *serviceImpl) ListInstallSQLPaths(manifest *Manifest) []string {
 // ListUninstallSQLPaths returns the ordered uninstall SQL file paths for a source plugin manifest.
 func (s *serviceImpl) ListUninstallSQLPaths(manifest *Manifest) []string {
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		return pluginfs.DiscoverSQLPathsFromFS(embeddedFiles, true)
+		return resourcefs.DiscoverSQLPathsFromFS(embeddedFiles, true)
 	}
 	if manifest == nil {
 		return []string{}
@@ -146,7 +149,7 @@ func (s *serviceImpl) ListUninstallSQLPaths(manifest *Manifest) []string {
 // when the operator explicitly opts in at install time.
 func (s *serviceImpl) ListMockSQLPaths(manifest *Manifest) []string {
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		return pluginfs.DiscoverMockSQLPathsFromFS(embeddedFiles)
+		return resourcefs.DiscoverMockSQLPathsFromFS(embeddedFiles)
 	}
 	if manifest == nil {
 		return []string{}
@@ -169,7 +172,7 @@ func (s *serviceImpl) HasMockSQLData(manifest *Manifest) bool {
 // ListFrontendPagePaths returns the frontend page source paths for a source plugin manifest.
 func (s *serviceImpl) ListFrontendPagePaths(manifest *Manifest) []string {
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		return pluginfs.DiscoverVuePathsFromFS(embeddedFiles, "frontend/pages")
+		return resourcefs.DiscoverVuePathsFromFS(embeddedFiles, "frontend/pages")
 	}
 	if manifest == nil {
 		return []string{}
@@ -180,7 +183,7 @@ func (s *serviceImpl) ListFrontendPagePaths(manifest *Manifest) []string {
 // ListFrontendSlotPaths returns the frontend slot source paths for a source plugin manifest.
 func (s *serviceImpl) ListFrontendSlotPaths(manifest *Manifest) []string {
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		return pluginfs.DiscoverVuePathsFromFS(embeddedFiles, "frontend/slots")
+		return resourcefs.DiscoverVuePathsFromFS(embeddedFiles, "frontend/slots")
 	}
 	if manifest == nil {
 		return []string{}

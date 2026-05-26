@@ -16,7 +16,7 @@ import (
 	"lina-core/internal/service/hostlock"
 	"lina-core/internal/service/locker"
 	"lina-core/pkg/dialect"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // trackingLockService records lock operations while returning deterministic
@@ -90,14 +90,14 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	acquireResponse := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		lockName,
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if acquireResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if acquireResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("acquire: expected success, got status=%d payload=%s", acquireResponse.Status, string(acquireResponse.Payload))
 	}
-	acquirePayload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(acquireResponse.Payload)
+	acquirePayload, err := protocol.UnmarshalHostServiceLockAcquireResponse(acquireResponse.Payload)
 	if err != nil {
 		t.Fatalf("acquire payload decode failed: %v", err)
 	}
@@ -108,14 +108,14 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	duplicateAcquireResponse := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		lockName,
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if duplicateAcquireResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if duplicateAcquireResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("duplicate acquire: expected success envelope, got status=%d payload=%s", duplicateAcquireResponse.Status, string(duplicateAcquireResponse.Payload))
 	}
-	duplicateAcquirePayload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(duplicateAcquireResponse.Payload)
+	duplicateAcquirePayload, err := protocol.UnmarshalHostServiceLockAcquireResponse(duplicateAcquireResponse.Payload)
 	if err != nil {
 		t.Fatalf("duplicate acquire payload decode failed: %v", err)
 	}
@@ -126,14 +126,14 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	renewResponse := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockRenew,
+		protocol.HostServiceMethodLockRenew,
 		lockName,
-		pluginbridge.MarshalHostServiceLockRenewRequest(&pluginbridge.HostServiceLockRenewRequest{Ticket: acquirePayload.Ticket}),
+		protocol.MarshalHostServiceLockRenewRequest(&protocol.HostServiceLockRenewRequest{Ticket: acquirePayload.Ticket}),
 	)
-	if renewResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if renewResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("renew: expected success, got status=%d payload=%s", renewResponse.Status, string(renewResponse.Payload))
 	}
-	renewPayload, err := pluginbridge.UnmarshalHostServiceLockRenewResponse(renewResponse.Payload)
+	renewPayload, err := protocol.UnmarshalHostServiceLockRenewResponse(renewResponse.Payload)
 	if err != nil {
 		t.Fatalf("renew payload decode failed: %v", err)
 	}
@@ -144,25 +144,25 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	releaseResponse := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockRelease,
+		protocol.HostServiceMethodLockRelease,
 		lockName,
-		pluginbridge.MarshalHostServiceLockReleaseRequest(&pluginbridge.HostServiceLockReleaseRequest{Ticket: acquirePayload.Ticket}),
+		protocol.MarshalHostServiceLockReleaseRequest(&protocol.HostServiceLockReleaseRequest{Ticket: acquirePayload.Ticket}),
 	)
-	if releaseResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if releaseResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("release: expected success, got status=%d payload=%s", releaseResponse.Status, string(releaseResponse.Payload))
 	}
 
 	reacquireResponse := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		lockName,
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if reacquireResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if reacquireResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("reacquire: expected success, got status=%d payload=%s", reacquireResponse.Status, string(reacquireResponse.Payload))
 	}
-	reacquirePayload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(reacquireResponse.Payload)
+	reacquirePayload, err := protocol.UnmarshalHostServiceLockAcquireResponse(reacquireResponse.Payload)
 	if err != nil {
 		t.Fatalf("reacquire payload decode failed: %v", err)
 	}
@@ -191,14 +191,14 @@ func TestHandleHostServiceInvokeLockRejectsTicketMismatch(t *testing.T) {
 	acquireResponse := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		lockName,
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if acquireResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if acquireResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("acquire: expected success, got status=%d payload=%s", acquireResponse.Status, string(acquireResponse.Payload))
 	}
-	acquirePayload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(acquireResponse.Payload)
+	acquirePayload, err := protocol.UnmarshalHostServiceLockAcquireResponse(acquireResponse.Payload)
 	if err != nil {
 		t.Fatalf("acquire payload decode failed: %v", err)
 	}
@@ -206,11 +206,11 @@ func TestHandleHostServiceInvokeLockRejectsTicketMismatch(t *testing.T) {
 	mismatchResponse := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockRenew,
+		protocol.HostServiceMethodLockRenew,
 		otherLockName,
-		pluginbridge.MarshalHostServiceLockRenewRequest(&pluginbridge.HostServiceLockRenewRequest{Ticket: acquirePayload.Ticket}),
+		protocol.MarshalHostServiceLockRenewRequest(&protocol.HostServiceLockRenewRequest{Ticket: acquirePayload.Ticket}),
 	)
-	if mismatchResponse.Status != pluginbridge.HostCallStatusInvalidRequest {
+	if mismatchResponse.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request for mismatched ticket, got status=%d payload=%s", mismatchResponse.Status, string(mismatchResponse.Payload))
 	}
 }
@@ -221,11 +221,11 @@ func TestHandleHostServiceInvokeLockRejectsUnauthorizedResource(t *testing.T) {
 	response := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		"inventory-sync",
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected capability denied for unauthorized lock name, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -246,14 +246,14 @@ func TestHandleHostServiceInvokeLockUsesConfiguredSharedService(t *testing.T) {
 	response := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		"orders-sync",
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("acquire through shared lock: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	payload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceLockAcquireResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("decode shared lock acquire: %v", err)
 	}
@@ -301,14 +301,14 @@ func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testin
 	duplicateResponse := invokeLockHostService(
 		t,
 		tenantOne,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		lockName,
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if duplicateResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if duplicateResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("duplicate acquire expected success envelope, got status=%d payload=%s", duplicateResponse.Status, string(duplicateResponse.Payload))
 	}
-	duplicatePayload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(duplicateResponse.Payload)
+	duplicatePayload, err := protocol.UnmarshalHostServiceLockAcquireResponse(duplicateResponse.Payload)
 	if err != nil {
 		t.Fatalf("decode duplicate acquire payload: %v", err)
 	}
@@ -319,11 +319,11 @@ func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testin
 	wrongRelease := invokeLockHostService(
 		t,
 		tenantOne,
-		pluginbridge.HostServiceMethodLockRelease,
+		protocol.HostServiceMethodLockRelease,
 		lockName,
-		pluginbridge.MarshalHostServiceLockReleaseRequest(&pluginbridge.HostServiceLockReleaseRequest{Ticket: tenantTwoTicket}),
+		protocol.MarshalHostServiceLockReleaseRequest(&protocol.HostServiceLockReleaseRequest{Ticket: tenantTwoTicket}),
 	)
-	if wrongRelease.Status != pluginbridge.HostCallStatusInvalidRequest {
+	if wrongRelease.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected cross-tenant release to fail, got status=%d payload=%s", wrongRelease.Status, string(wrongRelease.Payload))
 	}
 
@@ -384,21 +384,21 @@ func buildPluginLockName(pluginID string, lockName string) string {
 
 // newLockHostCallContext builds a host call context authorized for the given lock names.
 func newLockHostCallContext(pluginID string, lockNames ...string) *hostCallContext {
-	resources := make([]*pluginbridge.HostServiceResourceSpec, 0, len(lockNames))
+	resources := make([]*protocol.HostServiceResourceSpec, 0, len(lockNames))
 	for _, lockName := range lockNames {
-		resources = append(resources, &pluginbridge.HostServiceResourceSpec{Ref: lockName})
+		resources = append(resources, &protocol.HostServiceResourceSpec{Ref: lockName})
 	}
 	return &hostCallContext{
 		pluginID: pluginID,
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityLock: {},
+			protocol.CapabilityLock: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{{
-			Service: pluginbridge.HostServiceLock,
+		hostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceLock,
 			Methods: []string{
-				pluginbridge.HostServiceMethodLockAcquire,
-				pluginbridge.HostServiceMethodLockRelease,
-				pluginbridge.HostServiceMethodLockRenew,
+				protocol.HostServiceMethodLockAcquire,
+				protocol.HostServiceMethodLockRelease,
+				protocol.HostServiceMethodLockRenew,
 			},
 			Resources: resources,
 		}},
@@ -408,7 +408,7 @@ func newLockHostCallContext(pluginID string, lockNames ...string) *hostCallConte
 // newTenantLockHostCallContext builds a host call context with a tenant identity.
 func newTenantLockHostCallContext(pluginID string, tenantID int32, lockNames ...string) *hostCallContext {
 	hcc := newLockHostCallContext(pluginID, lockNames...)
-	hcc.identity = &pluginbridge.IdentitySnapshotV1{TenantId: tenantID, UserID: 1, Username: "admin"}
+	hcc.identity = &protocol.IdentitySnapshotV1{TenantId: tenantID, UserID: 1, Username: "admin"}
 	return hcc
 }
 
@@ -418,14 +418,14 @@ func acquireLockTicket(t *testing.T, hcc *hostCallContext, lockName string) stri
 	response := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockAcquire,
+		protocol.HostServiceMethodLockAcquire,
 		lockName,
-		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+		protocol.MarshalHostServiceLockAcquireRequest(&protocol.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("acquire coordination lock expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	payload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceLockAcquireResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("decode acquire payload: %v", err)
 	}
@@ -441,11 +441,11 @@ func releaseLockTicket(t *testing.T, hcc *hostCallContext, lockName string, tick
 	response := invokeLockHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodLockRelease,
+		protocol.HostServiceMethodLockRelease,
 		lockName,
-		pluginbridge.MarshalHostServiceLockReleaseRequest(&pluginbridge.HostServiceLockReleaseRequest{Ticket: ticket}),
+		protocol.MarshalHostServiceLockReleaseRequest(&protocol.HostServiceLockReleaseRequest{Ticket: ticket}),
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("release coordination lock expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -457,11 +457,11 @@ func invokeLockHostService(
 	method string,
 	lockName string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceLock,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceLock,
 		Method:      method,
 		ResourceRef: lockName,
 		Payload:     payload,
@@ -469,6 +469,6 @@ func invokeLockHostService(
 	return handleHostServiceInvoke(
 		context.Background(),
 		hcc,
-		pluginbridge.MarshalHostServiceRequestEnvelope(request),
+		protocol.MarshalHostServiceRequestEnvelope(request),
 	)
 }

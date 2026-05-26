@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	v1 "lina-core/api/user/v1"
-	"lina-core/internal/service/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap"
 )
 
 // DeptTree returns user department tree structure

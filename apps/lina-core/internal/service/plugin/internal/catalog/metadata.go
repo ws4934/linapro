@@ -3,7 +3,7 @@
 
 package catalog
 
-import "lina-core/pkg/pluginbridge"
+import "lina-core/pkg/plugin/pluginbridge/protocol"
 
 // MigrationDirection defines the install or uninstall phase persisted in migration records.
 type MigrationDirection string
@@ -60,10 +60,6 @@ type ResourceOperation string
 
 // ResourceAccessMode defines which execution contexts may invoke one resource.
 type ResourceAccessMode string
-
-// DependencyInstallMode defines whether a missing dependency may be installed
-// automatically by the host lifecycle orchestrator.
-type DependencyInstallMode string
 
 // Plugin governance enums and constants persisted across registry, release,
 // migration, and resource-reference tables.
@@ -199,10 +195,6 @@ const (
 	ResourceAccessModeRequest ResourceAccessMode = "request"
 	ResourceAccessModeSystem  ResourceAccessMode = "system"
 	ResourceAccessModeBoth    ResourceAccessMode = "both"
-
-	// DependencyInstallMode values.
-	DependencyInstallModeManual DependencyInstallMode = "manual"
-	DependencyInstallModeAuto   DependencyInstallMode = "auto"
 )
 
 // String returns the canonical migration direction value.
@@ -256,56 +248,53 @@ func (value ResourceOperation) String() string { return string(value) }
 // String returns the canonical resource access-mode value.
 func (value ResourceAccessMode) String() string { return string(value) }
 
-// String returns the canonical dependency install-mode value.
-func (value DependencyInstallMode) String() string { return string(value) }
-
 // ManifestSnapshot stores the review-friendly manifest snapshot persisted in sys_plugin_release.
 type ManifestSnapshot struct {
-	ID                        string                          `yaml:"id"`
-	Name                      string                          `yaml:"name"`
-	Version                   string                          `yaml:"version"`
-	Type                      string                          `yaml:"type"`
-	ScopeNature               string                          `yaml:"scopeNature,omitempty"`
-	SupportsMultiTenant       bool                            `yaml:"supportsMultiTenant,omitempty"`
-	DefaultInstallMode        string                          `yaml:"defaultInstallMode,omitempty"`
-	Description               string                          `yaml:"description,omitempty"`
-	Author                    string                          `yaml:"author,omitempty"`
-	Homepage                  string                          `yaml:"homepage,omitempty"`
-	License                   string                          `yaml:"license,omitempty"`
-	Dependencies              *DependencySpec                 `yaml:"dependencies,omitempty"`
-	RuntimeKind               string                          `yaml:"runtimeKind,omitempty"`
-	RuntimeABIVersion         string                          `yaml:"runtimeAbiVersion,omitempty"`
-	ManifestDeclared          bool                            `yaml:"manifestDeclared"`
-	InstallSQLCount           int                             `yaml:"installSqlCount,omitempty"`
-	UninstallSQLCount         int                             `yaml:"uninstallSqlCount,omitempty"`
-	MockSQLCount              int                             `yaml:"mockSqlCount,omitempty"`
-	FrontendPageCount         int                             `yaml:"frontendPageCount,omitempty"`
-	FrontendSlotCount         int                             `yaml:"frontendSlotCount,omitempty"`
-	MenuCount                 int                             `yaml:"menuCount,omitempty"`
-	BackendHookCount          int                             `yaml:"backendHookCount,omitempty"`
-	LifecycleHandlerCount     int                             `yaml:"lifecycleHandlerCount,omitempty"`
-	ResourceSpecCount         int                             `yaml:"resourceSpecCount,omitempty"`
-	RouteCount                int                             `yaml:"routeCount,omitempty"`
-	RouteExecutionEnabled     bool                            `yaml:"routeExecutionEnabled,omitempty"`
-	RouteRequestCodec         string                          `yaml:"routeRequestCodec,omitempty"`
-	RouteResponseCodec        string                          `yaml:"routeResponseCodec,omitempty"`
-	RuntimeFrontendAssetCount int                             `yaml:"runtimeFrontendAssetCount,omitempty"`
-	RuntimeSQLAssetCount      int                             `yaml:"runtimeSqlAssetCount,omitempty"`
-	PublicAssets              []*PublicAssetSpec              `yaml:"public_assets,omitempty"`
-	RequestedHostServices     []*pluginbridge.HostServiceSpec `yaml:"requestedHostServices,omitempty"`
-	AuthorizedHostServices    []*pluginbridge.HostServiceSpec `yaml:"authorizedHostServices,omitempty"`
-	HostServiceAuthRequired   bool                            `yaml:"hostServiceAuthRequired,omitempty"`
-	HostServiceAuthConfirmed  bool                            `yaml:"hostServiceAuthConfirmed,omitempty"`
-	UninstallPurgeStorageData *bool                           `yaml:"uninstallPurgeStorageData,omitempty"`
+	ID                        string                      `yaml:"id"`
+	Name                      string                      `yaml:"name"`
+	Version                   string                      `yaml:"version"`
+	Type                      string                      `yaml:"type"`
+	ScopeNature               string                      `yaml:"scopeNature,omitempty"`
+	SupportsMultiTenant       bool                        `yaml:"supportsMultiTenant,omitempty"`
+	DefaultInstallMode        string                      `yaml:"defaultInstallMode,omitempty"`
+	Description               string                      `yaml:"description,omitempty"`
+	Author                    string                      `yaml:"author,omitempty"`
+	Homepage                  string                      `yaml:"homepage,omitempty"`
+	License                   string                      `yaml:"license,omitempty"`
+	Dependencies              *DependencySpec             `yaml:"dependencies,omitempty"`
+	RuntimeKind               string                      `yaml:"runtimeKind,omitempty"`
+	RuntimeABIVersion         string                      `yaml:"runtimeAbiVersion,omitempty"`
+	ManifestDeclared          bool                        `yaml:"manifestDeclared"`
+	InstallSQLCount           int                         `yaml:"installSqlCount,omitempty"`
+	UninstallSQLCount         int                         `yaml:"uninstallSqlCount,omitempty"`
+	MockSQLCount              int                         `yaml:"mockSqlCount,omitempty"`
+	FrontendPageCount         int                         `yaml:"frontendPageCount,omitempty"`
+	FrontendSlotCount         int                         `yaml:"frontendSlotCount,omitempty"`
+	MenuCount                 int                         `yaml:"menuCount,omitempty"`
+	BackendHookCount          int                         `yaml:"backendHookCount,omitempty"`
+	LifecycleHandlerCount     int                         `yaml:"lifecycleHandlerCount,omitempty"`
+	ResourceSpecCount         int                         `yaml:"resourceSpecCount,omitempty"`
+	RouteCount                int                         `yaml:"routeCount,omitempty"`
+	RouteExecutionEnabled     bool                        `yaml:"routeExecutionEnabled,omitempty"`
+	RouteRequestCodec         string                      `yaml:"routeRequestCodec,omitempty"`
+	RouteResponseCodec        string                      `yaml:"routeResponseCodec,omitempty"`
+	RuntimeFrontendAssetCount int                         `yaml:"runtimeFrontendAssetCount,omitempty"`
+	RuntimeSQLAssetCount      int                         `yaml:"runtimeSqlAssetCount,omitempty"`
+	PublicAssets              []*PublicAssetSpec          `yaml:"public_assets,omitempty"`
+	RequestedHostServices     []*protocol.HostServiceSpec `yaml:"requestedHostServices,omitempty"`
+	AuthorizedHostServices    []*protocol.HostServiceSpec `yaml:"authorizedHostServices,omitempty"`
+	HostServiceAuthRequired   bool                        `yaml:"hostServiceAuthRequired,omitempty"`
+	HostServiceAuthConfirmed  bool                        `yaml:"hostServiceAuthConfirmed,omitempty"`
+	UninstallPurgeStorageData *bool                       `yaml:"uninstallPurgeStorageData,omitempty"`
 }
 
 // PublishedManifestSnapshot converts a persisted manifest snapshot into the
 // shared lifecycle callback contract.
-func PublishedManifestSnapshot(snapshot *ManifestSnapshot) *pluginbridge.ManifestSnapshotV1 {
+func PublishedManifestSnapshot(snapshot *ManifestSnapshot) *protocol.ManifestSnapshotV1 {
 	if snapshot == nil {
 		return nil
 	}
-	return &pluginbridge.ManifestSnapshotV1{
+	return &protocol.ManifestSnapshotV1{
 		ID:                      snapshot.ID,
 		Name:                    snapshot.Name,
 		Version:                 snapshot.Version,

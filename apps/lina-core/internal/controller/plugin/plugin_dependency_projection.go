@@ -18,15 +18,11 @@ func buildPluginDependencyCheckResult(in *pluginsvc.DependencyCheckResult) *v1.P
 			CurrentVersion:  in.Framework.CurrentVersion,
 			Status:          v1.FrameworkStatus(in.Framework.Status),
 		},
-		Dependencies:          buildPluginDependencyItems(in.Dependencies),
-		AutoInstallPlan:       buildPluginDependencyAutoInstallItems(in.AutoInstallPlan),
-		AutoInstalled:         buildPluginDependencyAutoInstallItems(in.AutoInstalled),
-		ManualInstallRequired: buildPluginDependencyItems(in.ManualInstallRequired),
-		SoftUnsatisfied:       buildPluginDependencyItems(in.SoftUnsatisfied),
-		Blockers:              buildPluginDependencyBlockers(in.Blockers),
-		Cycle:                 cloneAPIStringSlice(in.Cycle),
-		ReverseDependents:     buildPluginDependencyReverseDependents(in.ReverseDependents),
-		ReverseBlockers:       buildPluginDependencyBlockers(in.ReverseBlockers),
+		Dependencies:      buildPluginDependencyItems(in.Dependencies),
+		Blockers:          buildPluginDependencyBlockers(in.Blockers),
+		Cycle:             cloneAPIStringSlice(in.Cycle),
+		ReverseDependents: buildPluginDependencyReverseDependents(in.ReverseDependents),
+		ReverseBlockers:   buildPluginDependencyBlockers(in.ReverseBlockers),
 	}
 }
 
@@ -43,30 +39,10 @@ func buildPluginDependencyItems(items []*pluginsvc.DependencyPluginCheck) []*v1.
 			DependencyName:  item.DependencyName,
 			RequiredVersion: item.RequiredVersion,
 			CurrentVersion:  item.CurrentVersion,
-			Required:        item.Required,
-			InstallMode:     v1.DependencyInstallMode(item.InstallMode),
 			Installed:       item.Installed,
 			Discovered:      item.Discovered,
 			Status:          v1.DependencyStatus(item.Status),
 			Chain:           cloneAPIStringSlice(item.Chain),
-		})
-	}
-	return out
-}
-
-// buildPluginDependencyAutoInstallItems converts auto-install plan DTOs.
-func buildPluginDependencyAutoInstallItems(items []*pluginsvc.DependencyAutoInstallItem) []*v1.PluginDependencyAutoInstallItem {
-	out := make([]*v1.PluginDependencyAutoInstallItem, 0, len(items))
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		out = append(out, &v1.PluginDependencyAutoInstallItem{
-			PluginId:   item.PluginID,
-			Name:       item.Name,
-			Version:    item.Version,
-			RequiredBy: item.RequiredBy,
-			Chain:      cloneAPIStringSlice(item.Chain),
 		})
 	}
 	return out

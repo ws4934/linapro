@@ -2,7 +2,7 @@
 
 package plugin
 
-import "lina-core/pkg/pluginhost"
+import "lina-core/pkg/plugin/pluginhost"
 
 // ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
 func (s *serviceImpl) ListSourceRouteBindings() []pluginhost.SourceRouteBinding {

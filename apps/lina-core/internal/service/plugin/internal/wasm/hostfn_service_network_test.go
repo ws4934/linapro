@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestHandleHostServiceInvokeNetworkRequestSuccess verifies successful network
@@ -45,7 +45,7 @@ func TestHandleHostServiceInvokeNetworkRequestSuccess(t *testing.T) {
 		context.Background(),
 		hcc,
 		server.URL+"/api/v1/ping?tenant=demo",
-		&pluginbridge.HostServiceNetworkRequest{
+		&protocol.HostServiceNetworkRequest{
 			Method: http.MethodPost,
 			Headers: map[string]string{
 				"x-request-id": "req-1",
@@ -53,11 +53,11 @@ func TestHandleHostServiceInvokeNetworkRequestSuccess(t *testing.T) {
 			Body: []byte(`{"name":"ticket"}`),
 		},
 	)
-	if response.Status != pluginbridge.HostCallStatusSuccess {
+	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 
-	payload, err := pluginbridge.UnmarshalHostServiceNetworkResponse(response.Payload)
+	payload, err := protocol.UnmarshalHostServiceNetworkResponse(response.Payload)
 	if err != nil {
 		t.Fatalf("payload decode failed: %v", err)
 	}
@@ -85,9 +85,9 @@ func TestHandleHostServiceInvokeNetworkRejectsUnauthorizedURL(t *testing.T) {
 		context.Background(),
 		hcc,
 		"https://evil.example.com/v1/ping",
-		&pluginbridge.HostServiceNetworkRequest{Method: http.MethodGet},
+		&protocol.HostServiceNetworkRequest{Method: http.MethodGet},
 	)
-	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected capability denied, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -109,14 +109,14 @@ func TestHandleHostServiceInvokeNetworkRejectsProtectedHeader(t *testing.T) {
 		context.Background(),
 		hcc,
 		server.URL+"/ping",
-		&pluginbridge.HostServiceNetworkRequest{
+		&protocol.HostServiceNetworkRequest{
 			Method: http.MethodGet,
 			Headers: map[string]string{
 				"Host": "evil.example.com",
 			},
 		},
 	)
-	if response.Status != pluginbridge.HostCallStatusInvalidRequest {
+	if response.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -139,9 +139,9 @@ func TestHandleHostServiceInvokeNetworkRejectsOversizedBody(t *testing.T) {
 		context.Background(),
 		hcc,
 		server.URL+"/ping",
-		&pluginbridge.HostServiceNetworkRequest{Method: http.MethodGet},
+		&protocol.HostServiceNetworkRequest{Method: http.MethodGet},
 	)
-	if response.Status != pluginbridge.HostCallStatusInvalidRequest {
+	if response.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -166,9 +166,9 @@ func TestHandleHostServiceInvokeNetworkTimeout(t *testing.T) {
 		ctx,
 		hcc,
 		server.URL+"/ping",
-		&pluginbridge.HostServiceNetworkRequest{Method: http.MethodGet},
+		&protocol.HostServiceNetworkRequest{Method: http.MethodGet},
 	)
-	if response.Status != pluginbridge.HostCallStatusInternalError {
+	if response.Status != protocol.HostCallStatusInternalError {
 		t.Fatalf("expected internal error, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
@@ -176,11 +176,11 @@ func TestHandleHostServiceInvokeNetworkTimeout(t *testing.T) {
 // TestMatchAuthorizedNetworkResourceSupportsWildcardHost verifies wildcard host
 // patterns can authorize nested subdomains under the same base domain.
 func TestMatchAuthorizedNetworkResourceSupportsWildcardHost(t *testing.T) {
-	specs := []*pluginbridge.HostServiceSpec{
+	specs := []*protocol.HostServiceSpec{
 		{
-			Service: pluginbridge.HostServiceNetwork,
-			Methods: []string{pluginbridge.HostServiceMethodNetworkRequest},
-			Resources: []*pluginbridge.HostServiceResourceSpec{
+			Service: protocol.HostServiceNetwork,
+			Methods: []string{protocol.HostServiceMethodNetworkRequest},
+			Resources: []*protocol.HostServiceResourceSpec{
 				{Ref: "https://*.example.com/api"},
 			},
 		},
@@ -198,13 +198,13 @@ func newNetworkHostCallContext(pattern string) *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-plugin-network",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityHTTPRequest: {},
+			protocol.CapabilityHTTPRequest: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceNetwork,
-				Methods: []string{pluginbridge.HostServiceMethodNetworkRequest},
-				Resources: []*pluginbridge.HostServiceResourceSpec{
+				Service: protocol.HostServiceNetwork,
+				Methods: []string{protocol.HostServiceMethodNetworkRequest},
+				Resources: []*protocol.HostServiceResourceSpec{
 					{Ref: pattern},
 				},
 			},
@@ -219,19 +219,19 @@ func invokeNetworkHostService(
 	ctx context.Context,
 	hcc *hostCallContext,
 	targetURL string,
-	request *pluginbridge.HostServiceNetworkRequest,
-) *pluginbridge.HostCallResponseEnvelope {
+	request *protocol.HostServiceNetworkRequest,
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	envelope := &pluginbridge.HostServiceRequestEnvelope{
-		Service:     pluginbridge.HostServiceNetwork,
-		Method:      pluginbridge.HostServiceMethodNetworkRequest,
+	envelope := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceNetwork,
+		Method:      protocol.HostServiceMethodNetworkRequest,
 		ResourceRef: targetURL,
-		Payload:     pluginbridge.MarshalHostServiceNetworkRequest(request),
+		Payload:     protocol.MarshalHostServiceNetworkRequest(request),
 	}
 	return handleHostServiceInvoke(
 		ctx,
 		hcc,
-		pluginbridge.MarshalHostServiceRequestEnvelope(envelope),
+		protocol.MarshalHostServiceRequestEnvelope(envelope),
 	)
 }

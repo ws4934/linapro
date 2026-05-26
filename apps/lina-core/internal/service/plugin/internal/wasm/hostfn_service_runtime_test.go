@@ -15,7 +15,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/dialect"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // createPluginStateTableSQL provisions the plugin runtime state table required
@@ -48,15 +48,15 @@ func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin-runtime-state",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityRuntime: {},
+			protocol.CapabilityRuntime: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
+				Service: protocol.HostServiceRuntime,
 				Methods: []string{
-					pluginbridge.HostServiceMethodRuntimeStateGet,
-					pluginbridge.HostServiceMethodRuntimeStateSet,
-					pluginbridge.HostServiceMethodRuntimeStateDelete,
+					protocol.HostServiceMethodRuntimeStateGet,
+					protocol.HostServiceMethodRuntimeStateSet,
+					protocol.HostServiceMethodRuntimeStateDelete,
 				},
 			},
 		},
@@ -69,26 +69,26 @@ func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	setResponse := invokeRuntimeHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodRuntimeStateSet,
-		pluginbridge.MarshalHostCallStateSetRequest(&pluginbridge.HostCallStateSetRequest{
+		protocol.HostServiceMethodRuntimeStateSet,
+		protocol.MarshalHostCallStateSetRequest(&protocol.HostCallStateSetRequest{
 			Key:   "demo",
 			Value: "value-1",
 		}),
 	)
-	if setResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if setResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected state.set success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
 	}
 
 	getResponse := invokeRuntimeHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodRuntimeStateGet,
-		pluginbridge.MarshalHostCallStateGetRequest(&pluginbridge.HostCallStateGetRequest{Key: "demo"}),
+		protocol.HostServiceMethodRuntimeStateGet,
+		protocol.MarshalHostCallStateGetRequest(&protocol.HostCallStateGetRequest{Key: "demo"}),
 	)
-	if getResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if getResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected state.get success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
 	}
-	getPayload, err := pluginbridge.UnmarshalHostCallStateGetResponse(getResponse.Payload)
+	getPayload, err := protocol.UnmarshalHostCallStateGetResponse(getResponse.Payload)
 	if err != nil {
 		t.Fatalf("expected state.get payload decode to succeed, got error: %v", err)
 	}
@@ -99,25 +99,25 @@ func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	updateResponse := invokeRuntimeHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodRuntimeStateSet,
-		pluginbridge.MarshalHostCallStateSetRequest(&pluginbridge.HostCallStateSetRequest{
+		protocol.HostServiceMethodRuntimeStateSet,
+		protocol.MarshalHostCallStateSetRequest(&protocol.HostCallStateSetRequest{
 			Key:   "demo",
 			Value: "value-2",
 		}),
 	)
-	if updateResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if updateResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected second state.set success, got status=%d payload=%s", updateResponse.Status, string(updateResponse.Payload))
 	}
 	getUpdatedResponse := invokeRuntimeHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodRuntimeStateGet,
-		pluginbridge.MarshalHostCallStateGetRequest(&pluginbridge.HostCallStateGetRequest{Key: "demo"}),
+		protocol.HostServiceMethodRuntimeStateGet,
+		protocol.MarshalHostCallStateGetRequest(&protocol.HostCallStateGetRequest{Key: "demo"}),
 	)
-	if getUpdatedResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if getUpdatedResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected updated state.get success, got status=%d payload=%s", getUpdatedResponse.Status, string(getUpdatedResponse.Payload))
 	}
-	getUpdatedPayload, err := pluginbridge.UnmarshalHostCallStateGetResponse(getUpdatedResponse.Payload)
+	getUpdatedPayload, err := protocol.UnmarshalHostCallStateGetResponse(getUpdatedResponse.Payload)
 	if err != nil {
 		t.Fatalf("expected updated state.get payload decode to succeed, got error: %v", err)
 	}
@@ -128,10 +128,10 @@ func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	deleteResponse := invokeRuntimeHostService(
 		t,
 		hcc,
-		pluginbridge.HostServiceMethodRuntimeStateDelete,
-		pluginbridge.MarshalHostCallStateDeleteRequest(&pluginbridge.HostCallStateDeleteRequest{Key: "demo"}),
+		protocol.HostServiceMethodRuntimeStateDelete,
+		protocol.MarshalHostCallStateDeleteRequest(&protocol.HostCallStateDeleteRequest{Key: "demo"}),
 	)
-	if deleteResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected state.delete success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
 	}
 }
@@ -142,26 +142,26 @@ func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin-runtime-info",
 		capabilities: map[string]struct{}{
-			pluginbridge.CapabilityRuntime: {},
+			protocol.CapabilityRuntime: {},
 		},
-		hostServices: []*pluginbridge.HostServiceSpec{
+		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: pluginbridge.HostServiceRuntime,
+				Service: protocol.HostServiceRuntime,
 				Methods: []string{
-					pluginbridge.HostServiceMethodRuntimeInfoNow,
-					pluginbridge.HostServiceMethodRuntimeInfoNode,
+					protocol.HostServiceMethodRuntimeInfoNow,
+					protocol.HostServiceMethodRuntimeInfoNode,
 				},
 			},
 		},
 	}
 
 	beforeMillis := time.Now().Add(-1 * time.Second).UnixMilli()
-	nowResponse := invokeRuntimeHostService(t, hcc, pluginbridge.HostServiceMethodRuntimeInfoNow, nil)
+	nowResponse := invokeRuntimeHostService(t, hcc, protocol.HostServiceMethodRuntimeInfoNow, nil)
 	afterMillis := time.Now().Add(1 * time.Second).UnixMilli()
-	if nowResponse.Status != pluginbridge.HostCallStatusSuccess {
+	if nowResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected info.now success, got status=%d payload=%s", nowResponse.Status, string(nowResponse.Payload))
 	}
-	nowPayload, err := pluginbridge.UnmarshalHostServiceValueResponse(nowResponse.Payload)
+	nowPayload, err := protocol.UnmarshalHostServiceValueResponse(nowResponse.Payload)
 	if err != nil {
 		t.Fatalf("expected info.now payload decode to succeed, got error: %v", err)
 	}
@@ -176,11 +176,11 @@ func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 		t.Fatalf("expected info.now value within test window, got %d outside [%d,%d]", nowMillis, beforeMillis, afterMillis)
 	}
 
-	nodeResponse := invokeRuntimeHostService(t, hcc, pluginbridge.HostServiceMethodRuntimeInfoNode, nil)
-	if nodeResponse.Status != pluginbridge.HostCallStatusSuccess {
+	nodeResponse := invokeRuntimeHostService(t, hcc, protocol.HostServiceMethodRuntimeInfoNode, nil)
+	if nodeResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected info.node success, got status=%d payload=%s", nodeResponse.Status, string(nodeResponse.Payload))
 	}
-	nodePayload, err := pluginbridge.UnmarshalHostServiceValueResponse(nodeResponse.Payload)
+	nodePayload, err := protocol.UnmarshalHostServiceValueResponse(nodeResponse.Payload)
 	if err != nil {
 		t.Fatalf("expected info.node payload decode to succeed, got error: %v", err)
 	}
@@ -196,15 +196,15 @@ func invokeRuntimeHostService(
 	hcc *hostCallContext,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *protocol.HostCallResponseEnvelope {
 	t.Helper()
 
-	request := &pluginbridge.HostServiceRequestEnvelope{
-		Service: pluginbridge.HostServiceRuntime,
+	request := &protocol.HostServiceRequestEnvelope{
+		Service: protocol.HostServiceRuntime,
 		Method:  method,
 		Payload: payload,
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // cleanupRuntimeStateKey deletes one plugin runtime state row so lifecycle

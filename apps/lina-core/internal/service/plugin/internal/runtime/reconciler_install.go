@@ -15,7 +15,7 @@ import (
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // applyInstall performs the first activation of a discovered dynamic plugin,

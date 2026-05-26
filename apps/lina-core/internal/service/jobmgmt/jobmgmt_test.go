@@ -23,9 +23,9 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
-	"lina-core/internal/service/orgcap"
 	"lina-core/internal/service/role"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // noopScheduler keeps job-management unit tests focused on validation and persistence.
@@ -195,7 +195,7 @@ func newTestServiceWithExplicitDependencies(
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
 	orgCapSvc := orgcap.New(nil)
 	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
-	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
 	return New(bizCtxSvc, configSvc, i18nSvc, registry, scheduler, scopeSvc).(*serviceImpl)
@@ -212,7 +212,7 @@ func setJobMgmtTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
 	orgCapSvc := orgcap.New(nil)
 	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
-	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
 	svc.scopeSvc = scopeSvc

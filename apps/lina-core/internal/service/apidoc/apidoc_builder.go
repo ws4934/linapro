@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/net/goai"
 
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Build builds one host-managed OpenAPI document from the current route table

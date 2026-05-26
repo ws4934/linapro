@@ -14,7 +14,7 @@ import (
 	internalauth "lina-core/internal/service/auth"
 	internalbizctx "lina-core/internal/service/bizctx"
 	internalsession "lina-core/internal/service/session"
-	plugincontract "lina-core/pkg/pluginservice/contract"
+	plugincontract "lina-core/pkg/plugin/capability/contract"
 )
 
 // TestAuthAdapterUsesTenantTokenIssuer verifies plugin auth calls depend on the narrowed token issuer.

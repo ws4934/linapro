@@ -9,7 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/locker"
-	pkgtenantcap "lina-core/pkg/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // Lock normalization constants shared by acquire, renew, and release paths.
@@ -84,7 +84,7 @@ func New(lockerSvc locker.Service) (Service, error) {
 // lock-name discriminator. Platform and anonymous executions use tenant 0.
 func TenantIDFromIdentity(tenantID int32) int64 {
 	if tenantID <= 0 {
-		return int64(pkgtenantcap.PLATFORM)
+		return int64(tenantcap.PLATFORM)
 	}
 	return int64(tenantID)
 }

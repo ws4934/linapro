@@ -69,8 +69,6 @@ function pluginRow(input: {
 
 function emptyDependencyCheck(pluginId: string) {
   return {
-    autoInstallPlan: [],
-    autoInstalled: [],
     blockers: [],
     cycle: [],
     dependencies: [],
@@ -79,10 +77,8 @@ function emptyDependencyCheck(pluginId: string) {
       requiredVersion: '',
       status: 'not_declared',
     },
-    manualInstallRequired: [],
     reverseBlockers: [],
     reverseDependents: [],
-    softUnsatisfied: [],
     targetId: pluginId,
   };
 }

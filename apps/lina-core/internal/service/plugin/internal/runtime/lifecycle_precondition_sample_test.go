@@ -10,7 +10,7 @@ import (
 
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
-	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestRunBundledDynamicSampleBeforeInstallLifecycleAllowsRuntimeLog verifies

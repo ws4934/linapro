@@ -42,14 +42,14 @@
 
 - **WHEN** 开发者运行`linactl ctrl`
 - **THEN** 父命令启动`linactl`隐藏 GoFrame 执行入口
-- **AND** 隐藏入口收到等价于`gf gen ctrl`的参数
+- **AND** 隐藏入口收到等价于`make ctrl`的参数
 - **AND** 父命令不在当前进程中直接执行 GoFrame 生成器对象
 
 #### Scenario: `dao` 分发到隐藏 GoFrame 入口
 
 - **WHEN** 开发者运行`linactl dao`
 - **THEN** 父命令启动`linactl`隐藏 GoFrame 执行入口
-- **AND** 隐藏入口收到等价于`gf gen dao`的参数
+- **AND** 隐藏入口收到等价于`make dao`的参数
 - **AND** 父命令不在当前进程中直接执行 GoFrame 生成器对象
 
 #### Scenario: 隐藏入口拒绝非生成命令
@@ -60,7 +60,7 @@
 
 ### Requirement: GoFrame 代码生成必须保持宿主工作目录语义
 
-系统 SHALL 在执行内嵌 GoFrame CLI 生成命令时保持`apps/lina-core`作为工作目录，使`hack/config.yaml`、`api/`、`internal/`和`go.mod`解析结果与原外部`gf gen ctrl`和`gf gen dao`流程一致。
+系统 SHALL 在执行内嵌 GoFrame CLI 生成命令时保持`apps/lina-core`作为工作目录，使`hack/config.yaml`、`api/`、`internal/`和`go.mod`解析结果与原外部`make ctrl`和`make dao`流程一致。
 
 #### Scenario: controller 生成使用宿主工作目录
 

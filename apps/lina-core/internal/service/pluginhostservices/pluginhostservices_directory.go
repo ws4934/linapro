@@ -3,8 +3,10 @@
 package pluginhostservices
 
 import (
-	"lina-core/pkg/pluginhost"
-	"lina-core/pkg/pluginservice/contract"
+	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/contract"
+	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // APIDoc returns the host API-documentation localization adapter.
@@ -73,6 +75,14 @@ func (s *directory) Notify() contract.NotifyService {
 	return s.notify
 }
 
+// Org returns the organization capability service.
+func (s *directory) Org() capabilityorgcap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.org
+}
+
 // PluginLifecycle returns the host plugin lifecycle orchestration adapter.
 func (s *directory) PluginLifecycle() contract.PluginLifecycleService {
 	if s == nil {
@@ -113,8 +123,16 @@ func (s *directory) TenantFilter() contract.TenantFilterService {
 	return s.tenantFilter
 }
 
+// Tenant returns the tenant capability service.
+func (s *directory) Tenant() capabilitytenantcap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.tenant
+}
+
 // ForPlugin returns a plugin-bound host service view.
-func (s *directory) ForPlugin(pluginID string) pluginhost.HostServices {
+func (s *directory) ForPlugin(pluginID string) capability.Services {
 	if s == nil {
 		return nil
 	}
@@ -199,6 +217,14 @@ func (s *scopedDirectory) Notify() contract.NotifyService {
 	return s.base.Notify()
 }
 
+// Org returns the delegated organization capability service.
+func (s *scopedDirectory) Org() capabilityorgcap.Service {
+	if s == nil || s.base == nil {
+		return nil
+	}
+	return s.base.Org()
+}
+
 // PluginLifecycle returns the delegated plugin lifecycle orchestration adapter.
 func (s *scopedDirectory) PluginLifecycle() contract.PluginLifecycleService {
 	if s == nil || s.base == nil {
@@ -237,4 +263,12 @@ func (s *scopedDirectory) TenantFilter() contract.TenantFilterService {
 		return nil
 	}
 	return s.base.TenantFilter()
+}
+
+// Tenant returns the delegated tenant capability service.
+func (s *scopedDirectory) Tenant() capabilitytenantcap.Service {
+	if s == nil || s.base == nil {
+		return nil
+	}
+	return s.base.Tenant()
 }

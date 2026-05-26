@@ -17,7 +17,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
-	bridgeartifact "lina-core/pkg/pluginbridge"
+	bridgeartifact "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (

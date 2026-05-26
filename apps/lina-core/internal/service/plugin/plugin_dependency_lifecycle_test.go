@@ -17,38 +17,43 @@ import (
 	"lina-core/pkg/bizerr"
 )
 
-// TestInstallAutoInstallsSourceDependencyBeforeTarget verifies the management
-// install path installs automatic dependencies before installing the requested
-// plugin and returns the auto-installed dependency list.
-func TestInstallAutoInstallsSourceDependencyBeforeTarget(t *testing.T) {
+// TestInstallBlocksUninstalledSourceDependency verifies the management install
+// path requires hard dependencies to be installed explicitly before the target.
+func TestInstallBlocksUninstalledSourceDependency(t *testing.T) {
 	var (
 		service      = newTestService()
 		ctx          = context.Background()
-		dependencyID = "plugin-dev-source-auto-dependency"
-		targetID     = "plugin-dev-source-auto-target"
+		dependencyID = "plugin-dev-source-hard-dependency"
+		targetID     = "plugin-dev-source-hard-target"
 	)
 
-	createTestSourceDependencyPlugin(t, dependencyID, "Source Auto Dependency", "v0.1.0", "")
+	createTestSourceDependencyPlugin(t, dependencyID, "Source Hard Dependency", "v0.1.0", "")
 	createTestSourceDependencyPlugin(
 		t,
 		targetID,
-		"Source Auto Target",
+		"Source Hard Target",
 		"v0.1.0",
 		"dependencies:\n"+
 			"  plugins:\n"+
 			"    - id: "+dependencyID+"\n"+
-			"      version: \">=0.1.0\"\n"+
-			"      required: true\n"+
-			"      install: auto\n",
+			"      version: \">=0.1.0\"\n",
 	)
 	cleanupTestPluginIDs(t, ctx, dependencyID, targetID)
 
+	_, err := service.Install(ctx, targetID, InstallOptions{})
+	if !bizerr.Is(err, CodePluginDependencyBlocked) {
+		t.Fatalf("expected uninstalled dependency to block target install, got error: %v", err)
+	}
+	assertPluginNoRegistryRow(t, ctx, service, targetID)
+	if _, err = service.Install(ctx, dependencyID, InstallOptions{}); err != nil {
+		t.Fatalf("expected explicit dependency install to succeed, got error: %v", err)
+	}
 	result, err := service.Install(ctx, targetID, InstallOptions{})
 	if err != nil {
-		t.Fatalf("expected target install with automatic dependency to succeed, got error: %v", err)
+		t.Fatalf("expected target install after explicit dependency install to succeed, got error: %v", err)
 	}
-	if result == nil || len(result.AutoInstalled) != 1 || result.AutoInstalled[0].PluginID != dependencyID {
-		t.Fatalf("expected auto-installed dependency %s, got %#v", dependencyID, result)
+	if result == nil || len(result.Blockers) != 0 {
+		t.Fatalf("expected successful dependency check without blockers, got %#v", result)
 	}
 	assertPluginInstalledState(t, ctx, service, dependencyID, catalog.InstalledYes, catalog.StatusDisabled)
 	assertPluginInstalledState(t, ctx, service, targetID, catalog.InstalledYes, catalog.StatusDisabled)
@@ -71,9 +76,7 @@ func TestInstallBlocksDependencyViolationBeforeSideEffects(t *testing.T) {
 		"dependencies:\n"+
 			"  plugins:\n"+
 			"    - id: plugin-dev-source-missing-manual\n"+
-			"      version: \">=0.1.0\"\n"+
-			"      required: true\n"+
-			"      install: manual\n",
+			"      version: \">=0.1.0\"\n",
 	)
 	cleanupTestPluginIDs(t, ctx, pluginID, "plugin-dev-source-missing-manual")
 
@@ -109,14 +112,15 @@ func TestUninstallBlocksInstalledReverseHardDependency(t *testing.T) {
 		"dependencies:\n"+
 			"  plugins:\n"+
 			"    - id: "+baseID+"\n"+
-			"      version: \">=0.1.0\"\n"+
-			"      required: true\n"+
-			"      install: auto\n",
+			"      version: \">=0.1.0\"\n",
 	)
 	cleanupTestPluginIDs(t, ctx, baseID, consumerID)
 
+	if _, err := service.Install(ctx, baseID, InstallOptions{}); err != nil {
+		t.Fatalf("expected base install to succeed, got error: %v", err)
+	}
 	if _, err := service.Install(ctx, consumerID, InstallOptions{}); err != nil {
-		t.Fatalf("expected consumer install to auto-install base, got error: %v", err)
+		t.Fatalf("expected consumer install after base install, got error: %v", err)
 	}
 
 	err := service.Uninstall(ctx, baseID, UninstallOptions{PurgeStorageData: true})
@@ -146,14 +150,15 @@ func TestCheckPluginDependenciesKeepsReverseBlockersOutOfInstallBlockers(t *test
 		"dependencies:\n"+
 			"  plugins:\n"+
 			"    - id: "+baseID+"\n"+
-			"      version: \">=0.1.0\"\n"+
-			"      required: true\n"+
-			"      install: auto\n",
+			"      version: \">=0.1.0\"\n",
 	)
 	cleanupTestPluginIDs(t, ctx, baseID, consumerID)
 
+	if _, err := service.Install(ctx, baseID, InstallOptions{}); err != nil {
+		t.Fatalf("expected base install to succeed, got error: %v", err)
+	}
 	if _, err := service.Install(ctx, consumerID, InstallOptions{}); err != nil {
-		t.Fatalf("expected consumer install to auto-install base, got error: %v", err)
+		t.Fatalf("expected consumer install after base install, got error: %v", err)
 	}
 
 	result, err := service.CheckPluginDependencies(ctx, baseID)
@@ -191,14 +196,15 @@ func TestCheckPluginDependenciesExposesUnknownReverseSnapshotBlocker(t *testing.
 		"dependencies:\n"+
 			"  plugins:\n"+
 			"    - id: "+baseID+"\n"+
-			"      version: \">=0.1.0\"\n"+
-			"      required: true\n"+
-			"      install: auto\n",
+			"      version: \">=0.1.0\"\n",
 	)
 	cleanupTestPluginIDs(t, ctx, baseID, consumerID)
 
+	if _, err := service.Install(ctx, baseID, InstallOptions{}); err != nil {
+		t.Fatalf("expected base install to succeed, got error: %v", err)
+	}
 	if _, err := service.Install(ctx, consumerID, InstallOptions{}); err != nil {
-		t.Fatalf("expected consumer install to auto-install base, got error: %v", err)
+		t.Fatalf("expected consumer install after base install, got error: %v", err)
 	}
 	consumerRegistry, err := service.getPluginRegistry(ctx, consumerID)
 	if err != nil {
@@ -265,10 +271,9 @@ func TestCheckPluginDependenciesIgnoresStaleRegistryRowsWithoutRelease(t *testin
 	}
 }
 
-// TestBootstrapAutoEnableInstallsDependencyWithoutImplicitEnable verifies
-// startup dependency pre-install keeps dependency enablement separate from the
-// explicit plugin.autoEnable target list.
-func TestBootstrapAutoEnableInstallsDependencyWithoutImplicitEnable(t *testing.T) {
+// TestBootstrapAutoEnableBlocksUninstalledDependency verifies startup
+// auto-enable does not install dependencies implicitly from plugin manifests.
+func TestBootstrapAutoEnableBlocksUninstalledDependency(t *testing.T) {
 	var (
 		service      = newTestService()
 		ctx          = context.Background()
@@ -285,9 +290,7 @@ func TestBootstrapAutoEnableInstallsDependencyWithoutImplicitEnable(t *testing.T
 		"dependencies:\n"+
 			"  plugins:\n"+
 			"    - id: "+dependencyID+"\n"+
-			"      version: \">=0.1.0\"\n"+
-			"      required: true\n"+
-			"      install: auto\n",
+			"      version: \">=0.1.0\"\n",
 	)
 	configsvc.SetPluginAutoEnableOverride([]string{targetID})
 	cleanupTestPluginIDs(t, ctx, dependencyID, targetID)
@@ -295,11 +298,11 @@ func TestBootstrapAutoEnableInstallsDependencyWithoutImplicitEnable(t *testing.T
 		configsvc.SetPluginAutoEnableOverride(nil)
 	})
 
-	if err := service.BootstrapAutoEnable(ctx); err != nil {
-		t.Fatalf("expected startup auto-enable with dependency to succeed, got error: %v", err)
+	err := service.BootstrapAutoEnable(ctx)
+	if !bizerr.Is(err, CodePluginDependencyBlocked) {
+		t.Fatalf("expected startup auto-enable to block on uninstalled dependency, got error: %v", err)
 	}
-	assertPluginInstalledState(t, ctx, service, dependencyID, catalog.InstalledYes, catalog.StatusDisabled)
-	assertPluginInstalledState(t, ctx, service, targetID, catalog.InstalledYes, catalog.StatusEnabled)
+	assertPluginInstalledState(t, ctx, service, targetID, catalog.InstalledNo, catalog.StatusDisabled)
 }
 
 // TestSourcePluginUpgradeBlocksUnsatisfiedDependency verifies explicit source
@@ -340,9 +343,7 @@ func TestSourcePluginUpgradeBlocksUnsatisfiedDependency(t *testing.T) {
 		"dependencies:\n"+
 			"  plugins:\n"+
 			"    - id: plugin-dev-source-upgrade-missing\n"+
-			"      version: \">=0.1.0\"\n"+
-			"      required: true\n"+
-			"      install: manual\n",
+			"      version: \">=0.1.0\"\n",
 	)
 	if err := service.SyncSourcePlugins(ctx); err != nil {
 		t.Fatalf("expected source rescan to prepare candidate release, got error: %v", err)
@@ -394,7 +395,7 @@ func TestDynamicPluginRefreshBlocksUnsatisfiedDependency(t *testing.T) {
 		"Dynamic Refresh Dependency Block",
 		version,
 		&catalog.DependencySpec{Plugins: []*catalog.PluginDependencySpec{
-			testPluginDependencySpec("plugin-dev-dynamic-refresh-missing", ">=0.1.0", true, catalog.DependencyInstallModeManual.String()),
+			testPluginDependencySpec("plugin-dev-dynamic-refresh-missing", ">=0.1.0"),
 		}},
 		buildVersionedRuntimeFrontendAssets("blocked"),
 	)
@@ -476,6 +477,25 @@ func assertPluginInstalledState(
 	}
 }
 
+// assertPluginNoRegistryRow checks that a blocked lifecycle path left no plugin
+// registry side effect.
+func assertPluginNoRegistryRow(
+	t *testing.T,
+	ctx context.Context,
+	service *serviceImpl,
+	pluginID string,
+) {
+	t.Helper()
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup for %s to succeed, got error: %v", pluginID, err)
+	}
+	if registry != nil {
+		t.Fatalf("expected no registry row for %s, got %#v", pluginID, registry)
+	}
+}
+
 // writeTestSourcePluginManifestWithExtra writes a source-plugin manifest with
 // the same menu convention as upgrade tests plus extra raw YAML content.
 func writeTestSourcePluginManifestWithExtra(
@@ -512,19 +532,14 @@ func writeTestSourcePluginManifestWithExtra(
 	)
 }
 
-// testPluginDependencySpec creates one dependency spec pointer with an explicit
-// required flag so tests do not rely on catalog normalization side effects.
+// testPluginDependencySpec creates one plugin dependency spec pointer.
 func testPluginDependencySpec(
 	pluginID string,
 	version string,
-	required bool,
-	install string,
 ) *catalog.PluginDependencySpec {
 	return &catalog.PluginDependencySpec{
-		ID:       pluginID,
-		Version:  version,
-		Required: &required,
-		Install:  install,
+		ID:      pluginID,
+		Version: version,
 	}
 }
 

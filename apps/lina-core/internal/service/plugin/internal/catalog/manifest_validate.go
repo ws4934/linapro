@@ -15,7 +15,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"lina-core/pkg/pluginfs"
+	"lina-core/internal/service/plugin/internal/resourcefs"
 )
 
 // defaultPublicAssetIndex is the fallback directory index file for one
@@ -119,30 +119,30 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 		return gerror.Wrapf(err, "plugin public asset metadata is invalid: %s", fileLabel)
 	}
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		if err := pluginfs.ValidateSQLPathsFromFS(embeddedFiles, s.ListInstallSQLPaths(manifest), false); err != nil {
+		if err := resourcefs.ValidateSQLPathsFromFS(embeddedFiles, s.ListInstallSQLPaths(manifest), false); err != nil {
 			return gerror.Wrapf(err, "plugin manifest install SQL constraint is invalid: %s", fileLabel)
 		}
-		if err := pluginfs.ValidateSQLPathsFromFS(embeddedFiles, s.ListUninstallSQLPaths(manifest), true); err != nil {
+		if err := resourcefs.ValidateSQLPathsFromFS(embeddedFiles, s.ListUninstallSQLPaths(manifest), true); err != nil {
 			return gerror.Wrapf(err, "plugin manifest uninstall SQL constraint is invalid: %s", fileLabel)
 		}
-		if err := pluginfs.ValidateVuePathsFromFS(embeddedFiles, s.ListFrontendPagePaths(manifest), "frontend/pages/"); err != nil {
+		if err := resourcefs.ValidateVuePathsFromFS(embeddedFiles, s.ListFrontendPagePaths(manifest), "frontend/pages/"); err != nil {
 			return gerror.Wrapf(err, "plugin manifest frontend page constraint is invalid: %s", fileLabel)
 		}
-		if err := pluginfs.ValidateVuePathsFromFS(embeddedFiles, s.ListFrontendSlotPaths(manifest), "frontend/slots/"); err != nil {
+		if err := resourcefs.ValidateVuePathsFromFS(embeddedFiles, s.ListFrontendSlotPaths(manifest), "frontend/slots/"); err != nil {
 			return gerror.Wrapf(err, "plugin manifest frontend slot constraint is invalid: %s", fileLabel)
 		}
 		return nil
 	}
-	if err := pluginfs.ValidateSQLPaths(rootDir, s.ListInstallSQLPaths(manifest), false); err != nil {
+	if err := resourcefs.ValidateSQLPaths(rootDir, s.ListInstallSQLPaths(manifest), false); err != nil {
 		return gerror.Wrapf(err, "plugin manifest install SQL constraint is invalid: %s", fileLabel)
 	}
-	if err := pluginfs.ValidateSQLPaths(rootDir, s.ListUninstallSQLPaths(manifest), true); err != nil {
+	if err := resourcefs.ValidateSQLPaths(rootDir, s.ListUninstallSQLPaths(manifest), true); err != nil {
 		return gerror.Wrapf(err, "plugin manifest uninstall SQL constraint is invalid: %s", fileLabel)
 	}
-	if err := pluginfs.ValidateVuePaths(rootDir, s.ListFrontendPagePaths(manifest), "frontend/pages/"); err != nil {
+	if err := resourcefs.ValidateVuePaths(rootDir, s.ListFrontendPagePaths(manifest), "frontend/pages/"); err != nil {
 		return gerror.Wrapf(err, "plugin manifest frontend page constraint is invalid: %s", fileLabel)
 	}
-	if err := pluginfs.ValidateVuePaths(rootDir, s.ListFrontendSlotPaths(manifest), "frontend/slots/"); err != nil {
+	if err := resourcefs.ValidateVuePaths(rootDir, s.ListFrontendSlotPaths(manifest), "frontend/slots/"); err != nil {
 		return gerror.Wrapf(err, "plugin manifest frontend slot constraint is invalid: %s", fileLabel)
 	}
 	return nil
@@ -332,7 +332,7 @@ func validatePublicAssetSourceExists(manifest *Manifest, rootDir string, source 
 		return gerror.Newf("dynamic runtime frontend asset prefix does not exist: %s", source)
 	}
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
-		if err := pluginfs.ValidateNoSymlinkPathFromFS(embeddedFiles, source); err != nil {
+		if err := resourcefs.ValidateNoSymlinkPathFromFS(embeddedFiles, source); err != nil {
 			return err
 		}
 		stat, err := fs.Stat(embeddedFiles, source)
@@ -344,7 +344,7 @@ func validatePublicAssetSourceExists(manifest *Manifest, rootDir string, source 
 		}
 		return nil
 	}
-	resolvedPath, err := pluginfs.ResolveResourcePath(rootDir, source)
+	resolvedPath, err := resourcefs.ResolveResourcePath(rootDir, source)
 	if err != nil {
 		return err
 	}

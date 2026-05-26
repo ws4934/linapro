@@ -32,16 +32,16 @@
 
 ### Requirement: pluginbridge 不得拥有宿主业务能力语义
 
-系统 SHALL 将`pluginbridge`限定为动态插件 transport 和 ABI 层。宿主业务能力的契约、授权资源语义、降级行为和消费 service MUST 归属于`pluginservice`或`frameworkcap`；`pluginbridge`不得新增与源码插件平行的业务能力目录。
+系统 SHALL 将`pluginbridge`限定为动态插件 transport 和 ABI 层。宿主业务能力的契约、授权资源语义、降级行为和消费 service MUST 归属于`pluginservice`及其能力组件；`pluginbridge`不得新增与源码插件平行的业务能力目录。
 
 #### Scenario: 动态插件调用框架能力
 
 - **WHEN** 动态插件调用`framework.org.v1`能力
 - **THEN** `pluginbridge`只负责编码、传输和解码 host service envelope
-- **AND** 能力授权、provider 激活、消费 DTO 和降级语义由`pluginservice`和`frameworkcap`处理
+- **AND** 能力授权、provider 激活、消费 DTO 和降级语义由`pluginservice`、`orgcap`或`tenantcap`处理
 
 #### Scenario: 新增宿主能力时不修改 ABI 语义 owner
 
 - **WHEN** 系统新增一个插件可消费宿主能力
-- **THEN** 该能力首先定义在`pluginservice`或`frameworkcap`
+- **THEN** 该能力首先定义在`pluginservice`或其独立能力组件
 - **AND** 动态插件仅在需要 transport 支持时扩展 bridge payload 或 handler 适配

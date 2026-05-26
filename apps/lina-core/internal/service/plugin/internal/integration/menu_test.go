@@ -18,7 +18,7 @@ import (
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/internal/service/startupstats"
-	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestSyncSourcePluginMenusFromManifest verifies source plugin menus are only
@@ -266,12 +266,13 @@ func TestSyncPluginMenusAndPermissionsNoopSkipsWritesAndTransactions(t *testing.
 				Component: "system/plugin/dynamic-page",
 			},
 		},
-		Routes: []*pluginbridge.RouteContract{
+		Routes: []*protocol.RouteContract{
 			{
-				Path:       "/api/v1/review-summary",
-				Method:     http.MethodGet,
-				Access:     pluginbridge.AccessLogin,
-				Permission: permission,
+				Path:        "/api/v1/review-summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessLogin,
+				Permission:  permission,
+				RequestType: "ReviewSummaryReq",
 			},
 		},
 	}
@@ -389,6 +390,9 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	if strings.ContainsAny(menu.Name, "动态路由权限") {
 		t.Fatalf("expected synthetic permission menu source name to avoid localized CJK text, got %q", menu.Name)
 	}
+	if menu.ParentId == 0 {
+		t.Fatal("expected synthetic permission menu to be nested under the plugin entry menu")
+	}
 
 	if err = services.Lifecycle.Uninstall(ctx, pluginID); err != nil {
 		t.Fatalf("expected runtime plugin uninstall to succeed, got error: %v", err)
@@ -400,6 +404,58 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	}
 	if menu != nil {
 		t.Fatal("expected synthetic permission menu to be deleted on uninstall")
+	}
+}
+
+// TestDynamicPluginRoutePermissionsRequirePluginEntryMenu verifies route
+// permissions are rejected when the manifest does not declare a current plugin
+// entry menu.
+func TestDynamicPluginRoutePermissionsRequirePluginEntryMenu(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID   = "plugin-dev-route-permission-no-entry"
+		permission = "plugin-dev-route-permission-no-entry:review:view"
+		version    = "v0.3.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
+		t,
+		pluginID,
+		"Runtime Route Permission No Entry Plugin",
+		version,
+		nil,
+		nil,
+		nil,
+	)
+	writeRuntimeArtifactWithRoutePermissionsOnly(
+		t,
+		artifactPath,
+		pluginID,
+		"Runtime Route Permission No Entry Plugin",
+		version,
+		permission,
+	)
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic runtime manifest to load, got error: %v", err)
+	}
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
+	}
+	err = services.Lifecycle.Install(ctx, pluginID)
+	if err == nil || !strings.Contains(err.Error(), "requires a plugin parent menu") {
+		t.Fatalf("expected missing plugin parent menu to be rejected, got %v", err)
 	}
 }
 
@@ -737,14 +793,37 @@ func writeRuntimeArtifactWithRoutePermissions(
 	permissions ...string,
 ) {
 	t.Helper()
+	writeRuntimeArtifactWithMenusAndRoutePermissions(
+		t,
+		artifactPath,
+		pluginID,
+		pluginName,
+		version,
+		defaultRuntimeRoutePermissionMenus(pluginID, pluginName, version),
+		permissions...,
+	)
+}
 
-	routes := make([]*pluginbridge.RouteContract, 0, len(permissions))
+// writeRuntimeArtifactWithRoutePermissionsOnly rewrites the runtime artifact
+// with route permissions and no manifest menu declarations.
+func writeRuntimeArtifactWithRoutePermissionsOnly(
+	t *testing.T,
+	artifactPath string,
+	pluginID string,
+	pluginName string,
+	version string,
+	permissions ...string,
+) {
+	t.Helper()
+
+	routes := make([]*protocol.RouteContract, 0, len(permissions))
 	for _, permission := range permissions {
-		routes = append(routes, &pluginbridge.RouteContract{
-			Path:       "/api/v1/review-summary",
-			Method:     http.MethodGet,
-			Access:     pluginbridge.AccessLogin,
-			Permission: permission,
+		routes = append(routes, &protocol.RouteContract{
+			Path:        "/api/v1/review-summary",
+			Method:      http.MethodGet,
+			Access:      protocol.AccessLogin,
+			Permission:  permission,
+			RequestType: "ReviewSummaryReq",
 		})
 	}
 
@@ -758,8 +837,8 @@ func writeRuntimeArtifactWithRoutePermissions(
 			Type:    catalog.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(testutil.DefaultTestRuntimeFrontendAssets()),
 			RouteCount:         len(routes),
 		},
@@ -768,14 +847,33 @@ func writeRuntimeArtifactWithRoutePermissions(
 		nil,
 		nil,
 		routes,
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
+}
+
+// defaultRuntimeRoutePermissionMenus returns the current minimal plugin entry
+// menu required before synthetic route-permission buttons can be attached.
+func defaultRuntimeRoutePermissionMenus(pluginID string, pluginName string, version string) []*catalog.MenuSpec {
+	menuKey := "plugin:" + pluginID + ":main-entry"
+	return []*catalog.MenuSpec{
+		{
+			Key:       menuKey,
+			Name:      pluginName,
+			Path:      "/x-assets/" + pluginID + "/" + version + "/index.html",
+			Perms:     pluginID + ":view",
+			Icon:      "ant-design:deployment-unit-outlined",
+			Type:      catalog.MenuTypePage.String(),
+			Sort:      -1,
+			Component: "system/plugin/dynamic-page",
+			Query:     map[string]interface{}{"pluginAccessMode": "embedded-mount"},
+		},
+	}
 }
 
 // writeRuntimeArtifactWithMenusAndRoutePermissions rewrites the test runtime
@@ -791,13 +889,14 @@ func writeRuntimeArtifactWithMenusAndRoutePermissions(
 ) {
 	t.Helper()
 
-	routes := make([]*pluginbridge.RouteContract, 0, len(permissions))
+	routes := make([]*protocol.RouteContract, 0, len(permissions))
 	for _, permission := range permissions {
-		routes = append(routes, &pluginbridge.RouteContract{
-			Path:       "/api/v1/review-summary",
-			Method:     http.MethodGet,
-			Access:     pluginbridge.AccessLogin,
-			Permission: permission,
+		routes = append(routes, &protocol.RouteContract{
+			Path:        "/api/v1/review-summary",
+			Method:      http.MethodGet,
+			Access:      protocol.AccessLogin,
+			Permission:  permission,
+			RequestType: "ReviewSummaryReq",
 		})
 	}
 
@@ -812,8 +911,8 @@ func writeRuntimeArtifactWithMenusAndRoutePermissions(
 			Menus:   menus,
 		},
 		&catalog.ArtifactSpec{
-			RuntimeKind:        pluginbridge.RuntimeKindWasm,
-			ABIVersion:         pluginbridge.SupportedABIVersion,
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
 			FrontendAssetCount: len(testutil.DefaultTestRuntimeFrontendAssets()),
 			RouteCount:         len(routes),
 		},
@@ -822,12 +921,12 @@ func writeRuntimeArtifactWithMenusAndRoutePermissions(
 		nil,
 		nil,
 		routes,
-		&pluginbridge.BridgeSpec{
-			ABIVersion:     pluginbridge.ABIVersionV1,
-			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
 			RouteExecution: true,
-			RequestCodec:   pluginbridge.CodecProtobuf,
-			ResponseCodec:  pluginbridge.CodecProtobuf,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
 		},
 	)
 }

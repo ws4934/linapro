@@ -39,15 +39,15 @@ import (
 	"lina-core/internal/service/menu"
 	"lina-core/internal/service/middleware"
 	"lina-core/internal/service/notify"
-	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/internal/service/sysconfig"
 	sysinfosvc "lina-core/internal/service/sysinfo"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/internal/service/user"
 	"lina-core/internal/service/usermsg"
+	"lina-core/pkg/plugin/capability/orgcap"
+	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // fakeApiDocService is the apidoc stub used by hosted OpenAPI binding tests.
@@ -83,7 +83,7 @@ func (f *fakeApiDocService) FindRouteTitleOperationKeys(_ context.Context, _ str
 // verifies the host-owned OpenAPI route replaces the built-in GoFrame endpoints.
 func TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath(t *testing.T) {
 	server := ghttp.GetServer("cmd-http-bind-openapi-" + t.Name())
-	server.SetOpenApiPath("/legacy-api.json")
+	server.SetOpenApiPath("/builtin-api.json")
 	server.SetSwaggerPath("/swagger")
 
 	testI18nSvc := i18nsvc.New(bizctx.New(), config.New(), cachecoord.Default(cluster.New(config.New().GetCluster(context.Background()))))
@@ -989,9 +989,12 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		panic(err)
 	}
 	orgCapSvc := orgcap.New(pluginSvc)
+	orgProjection := orgCapSvc
 	tenantSvc := tenantcapsvc.New(pluginSvc, bizCtxSvc)
-	pluginSvc.SetTenantCapability(tenantSvc)
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nService, nil, orgCapSvc, tenantSvc)
+	pluginSvc.SetTenantStartupCapability(tenantSvc)
+	pluginSvc.SetTenantProvisioningCapability(tenantSvc)
+	pluginSvc.SetTenantPlatformGovernanceCapability(tenantSvc)
+	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nService, nil, tenantSvc)
 	kvCacheSvc := kvcache.New()
 	dictSvc := dict.New(i18nService)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
@@ -1005,7 +1008,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	if err != nil {
 		panic(err)
 	}
-	userSvc := user.New(authSvc, bizCtxSvc, i18nService, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
+	userSvc := user.New(authSvc, bizCtxSvc, i18nService, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc)
 	userMsgSvc := usermsg.New(bizCtxSvc, notifySvc, i18nService)
 	jobRegistry := jobhandlersvc.New()
 	return &httpRuntime{
@@ -1017,6 +1020,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		bizCtxSvc:       bizCtxSvc,
 		i18nSvc:         i18nService,
 		orgCapSvc:       orgCapSvc,
+		orgProjection:   orgProjection,
 		roleSvc:         roleSvc,
 		sessionStore:    sessionStore,
 		tenantSvc:       tenantSvc,

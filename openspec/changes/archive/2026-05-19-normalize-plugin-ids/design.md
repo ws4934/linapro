@@ -108,7 +108,7 @@ plugin_linapro_demo_dynamic_record      -> plugin_linapro_demo_dynamic_record
 ## Risks / Trade-offs
 
 - [风险] 旧 ID 残留在配置或测试中导致启动自动启用失败或插件不可见。缓解：增加旧 ID 残留扫描，覆盖配置、Go、TS、Vue、JSON、YAML、README 和 OpenSpec 活跃文档。
-- [风险] Go module、import path、目录名和 generated DAO 不一致导致编译失败。缓解：按插件逐个重命名 module/import/replace，重新运行对应 `gf gen dao` 或等价生成流程，并执行插件聚合编译测试。
+- [风险] Go module、import path、目录名和 generated DAO 不一致导致编译失败。缓解：按插件逐个重命名 module/import/replace，重新运行对应 `make dao` 或等价生成流程，并执行插件聚合编译测试。
 - [风险] 业务表改名遗漏 mock/uninstall/DAO 访问点。缓解：以 SQL 表名清单驱动更新，补充插件包 Go 测试和 SQL/DAO 静态扫描。
 - [风险] 动态插件 artifact、资源 URL 和 E2E 测试使用旧 ID。缓解：重新构建动态插件 artifact，更新 `/plugin-assets/<id>/...` 与 `/api/v1/extensions/<id>/...` 断言。
 - [风险] i18n key 改名遗漏导致页面显示原始 key。缓解：运行 runtime i18n 扫描、JSON 校验和现有 i18n E2E。
