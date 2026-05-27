@@ -53,6 +53,75 @@ func HasResourceScopedHostServices(specs []*protocol.HostServiceSpec) bool {
 	return false
 }
 
+// migrateLegacyManifestSnapshotHostServices normalizes persisted release
+// snapshots that predate the hostConfig service rename. Runtime artifacts and
+// fresh manifests still use the strict pluginbridge validator.
+func migrateLegacyManifestSnapshotHostServices(specs []*protocol.HostServiceSpec) {
+	for _, spec := range specs {
+		if spec == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(spec.Service), "hostruntime") {
+			spec.Service = protocol.HostServiceHostConfig
+		}
+	}
+}
+
+// migrateLegacyManifestSnapshotNode rewrites legacy persisted host-service
+// names before decoding so the current codec can still hydrate resources.keys.
+func migrateLegacyManifestSnapshotNode(node *yaml.Node) {
+	if node == nil {
+		return
+	}
+	root := node
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	if root == nil || root.Kind != yaml.MappingNode {
+		return
+	}
+	for index := 0; index+1 < len(root.Content); index += 2 {
+		key := root.Content[index]
+		value := root.Content[index+1]
+		if key == nil || value == nil {
+			continue
+		}
+		if key.Value != "requestedHostServices" && key.Value != "authorizedHostServices" {
+			continue
+		}
+		migrateLegacyManifestSnapshotHostServiceSequence(value)
+	}
+}
+
+// migrateLegacyManifestSnapshotHostServiceSequence rewrites one host-service
+// sequence in-place while preserving the original resource envelope node.
+func migrateLegacyManifestSnapshotHostServiceSequence(node *yaml.Node) {
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return
+	}
+	for _, item := range node.Content {
+		migrateLegacyManifestSnapshotHostService(item)
+	}
+}
+
+// migrateLegacyManifestSnapshotHostService rewrites the legacy hostRuntime
+// service identifier on one persisted host-service mapping.
+func migrateLegacyManifestSnapshotHostService(node *yaml.Node) {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return
+	}
+	for index := 0; index+1 < len(node.Content); index += 2 {
+		key := node.Content[index]
+		value := node.Content[index+1]
+		if key == nil || value == nil || key.Value != "service" {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(value.Value), "hostruntime") {
+			value.Value = protocol.HostServiceHostConfig
+		}
+	}
+}
+
 // ParseManifestSnapshot unmarshals one persisted release manifest snapshot.
 func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, error) {
 	trimmed := strings.TrimSpace(content)
@@ -60,9 +129,16 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 		return nil, nil
 	}
 	snapshot := &ManifestSnapshot{}
-	if err := yaml.Unmarshal([]byte(trimmed), snapshot); err != nil {
+	root := &yaml.Node{}
+	if err := yaml.Unmarshal([]byte(trimmed), root); err != nil {
 		return nil, gerror.Wrap(err, "parse plugin release manifest_snapshot failed")
 	}
+	migrateLegacyManifestSnapshotNode(root)
+	if err := root.Decode(snapshot); err != nil {
+		return nil, gerror.Wrap(err, "decode plugin release manifest_snapshot failed")
+	}
+	migrateLegacyManifestSnapshotHostServices(snapshot.RequestedHostServices)
+	migrateLegacyManifestSnapshotHostServices(snapshot.AuthorizedHostServices)
 	requestedHostServices, err := protocol.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
 	if err != nil {
 		return nil, gerror.Wrap(err, "parse requested plugin host service snapshot failed")

@@ -249,6 +249,21 @@ func TestValidateHostServiceSpecsAcceptsHostConfigKeys(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsLegacyHostRuntimeName verifies fresh
+// declarations must use the current hostConfig service name. Legacy persisted
+// release snapshots are migrated by the plugin catalog before validation.
+func TestValidateHostServiceSpecsRejectsLegacyHostRuntimeName(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: "hostRuntime",
+		Methods: []string{HostServiceMethodHostConfigGet},
+		Keys:    []string{"workspace.basePath"},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err == nil {
+		t.Fatal("expected legacy hostRuntime declaration to be rejected for fresh host-service specs")
+	}
+}
+
 // TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys verifies key-scoped
 // runtime declarations must explicitly request public host keys.
 func TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys(t *testing.T) {

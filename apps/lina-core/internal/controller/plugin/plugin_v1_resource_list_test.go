@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/service/datascope"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
+	"lina-core/pkg/plugin/capability/contract"
 )
 
 // pluginResourceFakeBizCtx stores one mutable business context for controller tests.
@@ -28,6 +29,22 @@ func (f *pluginResourceFakeBizCtx) Init(_ *ghttp.Request, ctx *model.Context) {
 // Get returns the fake request business context.
 func (f *pluginResourceFakeBizCtx) Get(_ context.Context) *model.Context {
 	return f.ctx
+}
+
+// Current returns the plugin-visible business context projection.
+func (f *pluginResourceFakeBizCtx) Current(context.Context) contract.CurrentContext {
+	if f.ctx == nil {
+		return contract.CurrentContext{}
+	}
+	return contract.CurrentContext{
+		UserID:          f.ctx.UserId,
+		Username:        f.ctx.Username,
+		TenantID:        f.ctx.TenantId,
+		ActingUserID:    f.ctx.ActingUserId,
+		ActingAsTenant:  f.ctx.ActingAsTenant,
+		IsImpersonation: f.ctx.IsImpersonation,
+		PlatformBypass:  f.ctx.TenantId == 0,
+	}
 }
 
 // SetLocale records the current request locale.

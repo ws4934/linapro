@@ -31,6 +31,9 @@ func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
 	if _, err := s.syncAndList(ctx); err != nil {
 		return err
 	}
+	if err := s.runtimeSvc.RefreshInstalledRuntimePluginReleases(ctx); err != nil {
+		return err
+	}
 
 	entries := s.configSvc.GetPluginAutoEnableEntries(ctx)
 	if len(entries) == 0 {

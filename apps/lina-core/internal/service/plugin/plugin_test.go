@@ -17,8 +17,13 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/session"
+	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/contract"
+	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
+	capabilitypluginlifecycle "lina-core/pkg/plugin/capability/pluginlifecycle"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // newTestService constructs the root plugin facade with default single-node topology.
@@ -44,6 +49,7 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 		}
 		serviceImpl := service.(*serviceImpl)
 		tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
+		serviceImpl.SetCapabilities(newRootTestCapabilities(bizCtxProvider, serviceImpl))
 		serviceImpl.SetTenantStartupCapability(tenantSvc)
 		serviceImpl.SetTenantProvisioningCapability(tenantSvc)
 		serviceImpl.SetTenantPlatformGovernanceCapability(tenantSvc)
@@ -56,11 +62,116 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 	}
 	serviceImpl := service.(*serviceImpl)
 	tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
+	serviceImpl.SetCapabilities(newRootTestCapabilities(bizCtxProvider, serviceImpl))
 	serviceImpl.SetTenantStartupCapability(tenantSvc)
 	serviceImpl.SetTenantProvisioningCapability(tenantSvc)
 	serviceImpl.SetTenantPlatformGovernanceCapability(tenantSvc)
 	return serviceImpl
 }
+
+// rootTestCapabilities publishes the minimal host service directory required
+// by root-package plugin facade tests. It mirrors the production capability
+// wiring only for services used by provider construction and leaves unrelated
+// capability surfaces at nil or neutral fallback values.
+type rootTestCapabilities struct {
+	// bizCtx exposes the request business-context projection to provider plugins.
+	bizCtx contract.BizCtxService
+	// pluginLifecycle exposes nil-tolerant lifecycle hooks to tenant provider code.
+	pluginLifecycle contract.PluginLifecycleService
+}
+
+// Ensure rootTestCapabilities satisfies the source-plugin host service directory.
+var _ pluginhost.Services = (*rootTestCapabilities)(nil)
+
+// Ensure rootTestCapabilities can return plugin-scoped capability views.
+var _ capability.ScopedServicesFactory = (*rootTestCapabilities)(nil)
+
+// newRootTestCapabilities creates the minimal capability directory used by root tests.
+func newRootTestCapabilities(
+	bizCtxProvider bizctx.Service,
+	lifecycleRunner contract.PluginLifecycleRunner,
+) capability.Services {
+	return &rootTestCapabilities{
+		bizCtx:          bizCtxProvider,
+		pluginLifecycle: capabilitypluginlifecycle.New(lifecycleRunner),
+	}
+}
+
+// APIDoc returns no API-documentation service for root plugin facade tests.
+func (s *rootTestCapabilities) APIDoc() contract.APIDocService { return nil }
+
+// Auth returns no auth service for root plugin facade tests.
+func (s *rootTestCapabilities) Auth() contract.AuthService { return nil }
+
+// BizCtx returns the host business-context projection used by provider construction.
+func (s *rootTestCapabilities) BizCtx() contract.BizCtxService {
+	if s == nil {
+		return nil
+	}
+	return s.bizCtx
+}
+
+// Cache returns no cache service for root plugin facade tests.
+func (s *rootTestCapabilities) Cache() contract.CacheService { return nil }
+
+// Config returns no plugin configuration service for root plugin facade tests.
+func (s *rootTestCapabilities) Config() contract.ConfigService { return nil }
+
+// ForPlugin returns a plugin-bound capability view for provider construction.
+func (s *rootTestCapabilities) ForPlugin(_ string) capability.Services {
+	if s == nil {
+		return nil
+	}
+	return &rootTestCapabilities{
+		bizCtx:          s.bizCtx,
+		pluginLifecycle: s.pluginLifecycle,
+	}
+}
+
+// HostConfig returns no public host configuration service for root plugin facade tests.
+func (s *rootTestCapabilities) HostConfig() contract.HostConfigService { return nil }
+
+// I18n returns no translation service for root plugin facade tests.
+func (s *rootTestCapabilities) I18n() contract.I18nService { return nil }
+
+// Manifest returns no manifest resource service for root plugin facade tests.
+func (s *rootTestCapabilities) Manifest() contract.ManifestService { return nil }
+
+// Notify returns no notification service for root plugin facade tests.
+func (s *rootTestCapabilities) Notify() contract.NotifyService { return nil }
+
+// Org returns the default organization capability fallback service.
+func (s *rootTestCapabilities) Org() orgcapsvc.Service {
+	return orgcapsvc.New(nil)
+}
+
+// PluginLifecycle returns nil-tolerant lifecycle operations for tenant provider code.
+func (s *rootTestCapabilities) PluginLifecycle() contract.PluginLifecycleService {
+	if s == nil {
+		return nil
+	}
+	return s.pluginLifecycle
+}
+
+// PluginState returns no plugin-state service for root plugin facade tests.
+func (s *rootTestCapabilities) PluginState() contract.PluginStateService { return nil }
+
+// Route returns no dynamic-route metadata service for root plugin facade tests.
+func (s *rootTestCapabilities) Route() contract.RouteService { return nil }
+
+// Session returns no online-session service for root plugin facade tests.
+func (s *rootTestCapabilities) Session() contract.SessionService { return nil }
+
+// Tenant returns the default tenant capability fallback service.
+func (s *rootTestCapabilities) Tenant() tenantcapsvc.Service {
+	if s == nil {
+		return tenantcapsvc.New(nil, nil)
+	}
+	return tenantcapsvc.New(nil, s.bizCtx)
+}
+
+// TenantFilter returns no tenant-filter service for root plugin facade tests.
+func (s *rootTestCapabilities) TenantFilter() contract.TenantFilterService { return nil }
 
 // TestNewRequiresExplicitRuntimeDependencies verifies the root plugin service
 // returns a construction error when callers omit critical runtime dependencies.

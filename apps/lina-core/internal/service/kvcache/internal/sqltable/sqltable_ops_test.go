@@ -14,7 +14,7 @@ import (
 
 	"lina-core/internal/model/do"
 	"lina-core/pkg/dialect"
-	pkgtenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // currentSQLTableKVCacheDDL keeps package tests aligned with the delivered

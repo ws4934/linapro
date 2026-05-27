@@ -10,7 +10,10 @@ import (
 	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 
+	"github.com/gogf/gf/v2/container/gvar"
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 
@@ -72,6 +75,256 @@ func (d *scopedSourceServicesDirectory) scopedPluginID() string {
 		return ""
 	}
 	return d.pluginID
+}
+
+// APIDoc returns a fallback API-doc service required by source-plugin route registration.
+func (d *scopedSourceServicesDirectory) APIDoc() contract.APIDocService {
+	return scopedCapabilityAPIDoc{}
+}
+
+// Auth returns a no-op auth service required by tenant-core route registration.
+func (d *scopedSourceServicesDirectory) Auth() contract.AuthService {
+	return scopedCapabilityAuth{}
+}
+
+// BizCtx returns a minimal non-nil business context service required by source
+// plugin route registration callbacks in this test.
+func (d *scopedSourceServicesDirectory) BizCtx() contract.BizCtxService {
+	return scopedCapabilityBizCtx{}
+}
+
+// Config returns a defaulting plugin configuration service required by plugin cron registration.
+func (d *scopedSourceServicesDirectory) Config() contract.ConfigService {
+	return scopedCapabilityConfig{}
+}
+
+// Notify returns a no-op notification service required by content-notice route registration.
+func (d *scopedSourceServicesDirectory) Notify() contract.NotifyService {
+	return scopedCapabilityNotify{}
+}
+
+// I18n returns a fallback translator required by source-plugin route registration.
+func (d *scopedSourceServicesDirectory) I18n() contract.I18nService {
+	return scopedCapabilityI18n{}
+}
+
+// PluginLifecycle returns no-op lifecycle operations required by tenant-core route registration.
+func (d *scopedSourceServicesDirectory) PluginLifecycle() contract.PluginLifecycleService {
+	return scopedCapabilityPluginLifecycle{}
+}
+
+// PluginState returns a disabled-state reader required by global middleware registration.
+func (d *scopedSourceServicesDirectory) PluginState() contract.PluginStateService {
+	return scopedCapabilityPluginState{}
+}
+
+// Route returns a no-op dynamic-route metadata reader required by audit middleware registration.
+func (d *scopedSourceServicesDirectory) Route() contract.RouteService {
+	return scopedCapabilityRoute{}
+}
+
+// Session returns an empty session service required by monitor-online route registration.
+func (d *scopedSourceServicesDirectory) Session() contract.SessionService {
+	return scopedCapabilitySession{}
+}
+
+// TenantFilter returns a no-op tenant filter service required by source-plugin
+// registrations that construct tenant-aware services.
+func (d *scopedSourceServicesDirectory) TenantFilter() contract.TenantFilterService {
+	return scopedCapabilityTenantFilter{}
+}
+
+// scopedCapabilityAPIDoc is a fallback API-doc fixture for registration-only tests.
+type scopedCapabilityAPIDoc struct{}
+
+// ResolveRouteText returns the supplied fallback route text.
+func (scopedCapabilityAPIDoc) ResolveRouteText(_ context.Context, input contract.RouteTextInput) contract.RouteTextOutput {
+	return contract.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary}
+}
+
+// ResolveRouteTexts returns fallback route text for each input.
+func (scopedCapabilityAPIDoc) ResolveRouteTexts(_ context.Context, inputs []contract.RouteTextInput) []contract.RouteTextOutput {
+	outputs := make([]contract.RouteTextOutput, 0, len(inputs))
+	for _, input := range inputs {
+		outputs = append(outputs, contract.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary})
+	}
+	return outputs
+}
+
+// FindRouteTitleOperationKeys returns no matches in registration-only tests.
+func (scopedCapabilityAPIDoc) FindRouteTitleOperationKeys(context.Context, string) []string {
+	return nil
+}
+
+// scopedCapabilityAuth is a no-op auth fixture for registration-only tests.
+type scopedCapabilityAuth struct{}
+
+// SelectTenant returns an empty token output because registration-only tests never authenticate.
+func (scopedCapabilityAuth) SelectTenant(context.Context, contract.SelectTenantInput) (*contract.TenantTokenOutput, error) {
+	return &contract.TenantTokenOutput{}, nil
+}
+
+// SwitchTenant returns an empty token output because registration-only tests never authenticate.
+func (scopedCapabilityAuth) SwitchTenant(context.Context, contract.SwitchTenantInput) (*contract.TenantTokenOutput, error) {
+	return &contract.TenantTokenOutput{}, nil
+}
+
+// IssueImpersonationToken returns an empty token output for registration-only tests.
+func (scopedCapabilityAuth) IssueImpersonationToken(context.Context, contract.ImpersonationTokenIssueInput) (*contract.ImpersonationTokenOutput, error) {
+	return &contract.ImpersonationTokenOutput{}, nil
+}
+
+// RevokeImpersonationToken performs no revocation in registration-only tests.
+func (scopedCapabilityAuth) RevokeImpersonationToken(context.Context, contract.ImpersonationTokenRevokeInput) error {
+	return nil
+}
+
+// scopedCapabilityBizCtx is a minimal plugin-visible business-context fixture.
+type scopedCapabilityBizCtx struct{}
+
+// Current returns a platform-scoped context for registration-only tests.
+func (scopedCapabilityBizCtx) Current(context.Context) contract.CurrentContext {
+	return contract.CurrentContext{PlatformBypass: true}
+}
+
+// scopedCapabilityConfig is a defaulting config fixture for registration-only tests.
+type scopedCapabilityConfig struct{}
+
+// Get returns no configured value.
+func (scopedCapabilityConfig) Get(context.Context, string) (*gvar.Var, error) {
+	return nil, nil
+}
+
+// Exists reports that no config key exists.
+func (scopedCapabilityConfig) Exists(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+// Scan leaves target unchanged because no test config is present.
+func (scopedCapabilityConfig) Scan(context.Context, string, any) error {
+	return nil
+}
+
+// String returns the supplied default value.
+func (scopedCapabilityConfig) String(_ context.Context, _ string, defaultValue string) (string, error) {
+	return defaultValue, nil
+}
+
+// Bool returns the supplied default value.
+func (scopedCapabilityConfig) Bool(_ context.Context, _ string, defaultValue bool) (bool, error) {
+	return defaultValue, nil
+}
+
+// Int returns the supplied default value.
+func (scopedCapabilityConfig) Int(_ context.Context, _ string, defaultValue int) (int, error) {
+	return defaultValue, nil
+}
+
+// Duration returns the supplied default value.
+func (scopedCapabilityConfig) Duration(_ context.Context, _ string, defaultValue time.Duration) (time.Duration, error) {
+	return defaultValue, nil
+}
+
+// scopedCapabilityNotify is a no-op notification fixture for registration-only tests.
+type scopedCapabilityNotify struct{}
+
+// SendNoticePublication records no messages in registration-only tests.
+func (scopedCapabilityNotify) SendNoticePublication(context.Context, contract.NoticePublishInput) (*contract.SendOutput, error) {
+	return &contract.SendOutput{}, nil
+}
+
+// DeleteBySource removes no messages in registration-only tests.
+func (scopedCapabilityNotify) DeleteBySource(context.Context, contract.SourceType, []string) error {
+	return nil
+}
+
+// scopedCapabilityI18n is a fallback translator fixture for registration-only tests.
+type scopedCapabilityI18n struct{}
+
+// GetLocale returns the default locale used by registration-only tests.
+func (scopedCapabilityI18n) GetLocale(context.Context) string {
+	return "zh-CN"
+}
+
+// Translate returns fallback text because registration-only tests do not render messages.
+func (scopedCapabilityI18n) Translate(_ context.Context, _ string, fallback string) string {
+	return fallback
+}
+
+// FindMessageKeys returns no keys because registration-only tests do not search messages.
+func (scopedCapabilityI18n) FindMessageKeys(context.Context, string, string) []string {
+	return nil
+}
+
+// scopedCapabilityPluginLifecycle is a no-op lifecycle fixture for registration-only tests.
+type scopedCapabilityPluginLifecycle struct{}
+
+// EnsureTenantPluginDisableAllowed always allows tenant plugin disable in registration-only tests.
+func (scopedCapabilityPluginLifecycle) EnsureTenantPluginDisableAllowed(context.Context, string, int) error {
+	return nil
+}
+
+// NotifyTenantPluginDisabled records no notification in registration-only tests.
+func (scopedCapabilityPluginLifecycle) NotifyTenantPluginDisabled(context.Context, string, int) {}
+
+// EnsureTenantDeleteAllowed always allows tenant delete in registration-only tests.
+func (scopedCapabilityPluginLifecycle) EnsureTenantDeleteAllowed(context.Context, int) error {
+	return nil
+}
+
+// NotifyTenantDeleted records no notification in registration-only tests.
+func (scopedCapabilityPluginLifecycle) NotifyTenantDeleted(context.Context, int) {}
+
+// scopedCapabilityPluginState is a disabled-state fixture for registration-only tests.
+type scopedCapabilityPluginState struct{}
+
+// IsEnabled reports false because registration-only tests never execute plugin branches.
+func (scopedCapabilityPluginState) IsEnabled(context.Context, string) bool {
+	return false
+}
+
+// IsProviderEnabled reports false because registration-only tests never activate providers.
+func (scopedCapabilityPluginState) IsProviderEnabled(context.Context, string) bool {
+	return false
+}
+
+// IsEnabledAuthoritative reports false for registration-only global middleware fixtures.
+func (scopedCapabilityPluginState) IsEnabledAuthoritative(context.Context, string) bool {
+	return false
+}
+
+// scopedCapabilityRoute is a no-op route metadata fixture for registration-only tests.
+type scopedCapabilityRoute struct{}
+
+// DynamicRouteMetadata returns no dynamic-route metadata.
+func (scopedCapabilityRoute) DynamicRouteMetadata(*ghttp.Request) *contract.DynamicRouteMetadata {
+	return nil
+}
+
+// scopedCapabilitySession is an empty session fixture for registration-only tests.
+type scopedCapabilitySession struct{}
+
+// ListPage returns an empty session page.
+func (scopedCapabilitySession) ListPage(context.Context, *contract.ListFilter, int, int) (*contract.ListResult, error) {
+	return &contract.ListResult{Items: []*contract.Session{}, Total: 0}, nil
+}
+
+// Revoke records no revocation in registration-only tests.
+func (scopedCapabilitySession) Revoke(context.Context, string) error {
+	return nil
+}
+
+// scopedCapabilityTenantFilter is a no-op tenant filter fixture for registration-only tests.
+type scopedCapabilityTenantFilter struct{}
+
+// Context returns a platform-bypass tenant context for registration-only tests.
+func (scopedCapabilityTenantFilter) Context(context.Context) contract.TenantFilterContext {
+	return contract.TenantFilterContext{PlatformBypass: true}
+}
+
+// Apply returns the model unchanged because registration-only tests never query plugin tables.
+func (scopedCapabilityTenantFilter) Apply(_ context.Context, model *gdb.Model, _ string) *gdb.Model {
+	return model
 }
 
 // emptySourceServicesDirectory is a minimal Services test double.
@@ -219,7 +472,21 @@ func TestSourcePluginCallbacksUsePluginScopedServices(t *testing.T) {
 		rootGroup = group
 	})
 
-	if err = services.Integration.RegisterHTTPRoutes(ctx, server, rootGroup, nil); err != nil {
+	noopMiddleware := func(req *ghttp.Request) {
+		req.Middleware.Next()
+	}
+	middlewares := pluginhost.NewRouteMiddlewares(
+		noopMiddleware,
+		noopMiddleware,
+		noopMiddleware,
+		noopMiddleware,
+		noopMiddleware,
+		noopMiddleware,
+		noopMiddleware,
+		noopMiddleware,
+	)
+
+	if err = services.Integration.RegisterHTTPRoutes(ctx, server, rootGroup, middlewares); err != nil {
 		t.Fatalf("expected route registration to receive scoped services, got error: %v", err)
 	}
 

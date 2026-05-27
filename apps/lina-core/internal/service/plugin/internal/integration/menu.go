@@ -380,12 +380,14 @@ func (s *serviceImpl) buildDynamicRoutePermissionMenuSpecs(manifest *catalog.Man
 }
 
 // dynamicRoutePermissionParentKey returns the plugin menu that should own
-// synthetic route-permission buttons. The first non-button root menu is the
-// plugin entry point for current manifests.
+// synthetic route-permission buttons. Prefer a non-button plugin root menu, and
+// fall back to the first non-button plugin menu when the plugin mounts under a
+// stable host catalog such as the extension center.
 func dynamicRoutePermissionParentKey(manifest *catalog.Manifest) string {
 	if manifest == nil {
 		return ""
 	}
+	fallbackKey := ""
 	for _, spec := range manifest.Menus {
 		if spec == nil || strings.TrimSpace(spec.Key) == "" {
 			continue
@@ -393,11 +395,15 @@ func dynamicRoutePermissionParentKey(manifest *catalog.Manifest) string {
 		if catalog.NormalizeMenuType(spec.Type) == catalog.MenuTypeButton {
 			continue
 		}
+		key := strings.TrimSpace(spec.Key)
+		if fallbackKey == "" {
+			fallbackKey = key
+		}
 		if strings.TrimSpace(spec.ParentKey) == "" {
-			return strings.TrimSpace(spec.Key)
+			return key
 		}
 	}
-	return ""
+	return fallbackKey
 }
 
 // resolveDynamicRoutePermissionParentID maps the synthetic permission menu's

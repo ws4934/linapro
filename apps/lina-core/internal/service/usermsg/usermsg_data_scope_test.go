@@ -17,6 +17,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/notify"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/contract"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -75,6 +76,22 @@ func (s userMsgScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 
 // Get returns the configured business context.
 func (s userMsgScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
+
+// Current returns the plugin-visible business context projection.
+func (s userMsgScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+	if s.ctx == nil {
+		return contract.CurrentContext{}
+	}
+	return contract.CurrentContext{
+		UserID:          s.ctx.UserId,
+		Username:        s.ctx.Username,
+		TenantID:        s.ctx.TenantId,
+		ActingUserID:    s.ctx.ActingUserId,
+		ActingAsTenant:  s.ctx.ActingAsTenant,
+		IsImpersonation: s.ctx.IsImpersonation,
+		PlatformBypass:  s.ctx.TenantId == 0,
+	}
+}
 
 // SetLocale is unused by user-message tests.
 func (s userMsgScopeStaticBizCtx) SetLocale(context.Context, string) {}

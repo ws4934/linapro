@@ -27,6 +27,7 @@ const routeHealthPath = `/x/${pluginID}/api/v1/healthz`;
 const routeAuditPath = `/x/${pluginID}/api/v1/audit-log`;
 const routePermission = `${pluginID}:review:query`;
 const routeAuditPermission = `${pluginID}:audit:query`;
+const pluginMenuKey = `plugin:${pluginID}:review`;
 
 type PluginListItem = {
   authorizedHostServices?: Array<{
@@ -127,6 +128,8 @@ function runtimeStorageArtifactPath() {
 function cleanupPluginRows() {
   const escapedId = pgEscapeLiteral(pluginID);
   execPgSQLStatements([
+    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedId}:%');`,
+    `DELETE FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedId}:%';`,
     `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedId}';`,
     `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedId}';`,
     `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedId}';`,
@@ -177,6 +180,20 @@ function writeAuthorizationReviewArtifact() {
       JSON.stringify({
         description: pluginDescription,
         id: pluginID,
+        menus: [
+          {
+            key: pluginMenuKey,
+            parent_key: "extension",
+            name: "授权评审示例",
+            path: "host-service-authorization-review",
+            component: "system/plugin/dynamic-page",
+            perms: routePermission,
+            icon: "lucide:shield-check",
+            type: "M",
+            sort: -1,
+            remark: "Dynamic plugin authorization review menu.",
+          },
+        ],
         name: "Host Service Authorization Review Plugin",
         type: "dynamic",
         scopeNature: "tenant_aware",
@@ -244,6 +261,7 @@ function writeAuthorizationReviewArtifact() {
           method: "GET",
           path: "/api/v1/review-summary",
           permission: routePermission,
+          requestType: "ReviewSummaryReq",
           summary: "查询评审摘要",
         },
         {
@@ -251,6 +269,7 @@ function writeAuthorizationReviewArtifact() {
           description: "返回动态插件公开探活结果。",
           method: "GET",
           path: "/api/v1/healthz",
+          requestType: "HealthzReq",
           summary: "公开健康检查",
         },
         {
@@ -259,6 +278,7 @@ function writeAuthorizationReviewArtifact() {
           method: "GET",
           path: "/api/v1/audit-log",
           permission: routeAuditPermission,
+          requestType: "AuditLogReq",
           summary: "审计日志回放",
         },
       ]),

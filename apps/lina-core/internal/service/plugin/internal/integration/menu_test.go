@@ -543,6 +543,103 @@ func TestDynamicPluginRoutePermissionMenusAttachToPluginMenu(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginRoutePermissionMenusAttachWhenPluginMenuUsesHostParent verifies
+// route-permission buttons still attach to the plugin menu when that menu is
+// mounted under a host stable catalog such as the extension center.
+func TestDynamicPluginRoutePermissionMenusAttachWhenPluginMenuUsesHostParent(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID   = "plugin-dev-route-ext-parent"
+		menuKey    = "plugin:plugin-dev-route-ext-parent:main-entry"
+		permission = "plugin-dev-route-ext-parent:review:view"
+		version    = "v0.3.0"
+	)
+
+	hostParent, err := testutil.QueryMenuByKey(ctx, menusvc.Extension)
+	if err != nil {
+		t.Fatalf("expected host extension menu query to succeed, got error: %v", err)
+	}
+	if hostParent == nil {
+		t.Fatalf("expected host stable parent menu %s to exist", menusvc.Extension)
+	}
+
+	menus := []*catalog.MenuSpec{
+		{
+			Key:       menuKey,
+			Name:      "Runtime Route Permission External Parent Plugin",
+			ParentKey: menusvc.Extension,
+			Path:      "/x-assets/plugin-dev-route-ext-parent/v0.3.0/index.html",
+			Perms:     "plugin-dev-route-ext-parent:view",
+			Icon:      "ant-design:deployment-unit-outlined",
+			Type:      catalog.MenuTypePage.String(),
+			Sort:      -1,
+			Component: "system/plugin/dynamic-page",
+		},
+	}
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
+		t,
+		pluginID,
+		"Runtime Route Permission External Parent Plugin",
+		version,
+		menus,
+		nil,
+		nil,
+	)
+	writeRuntimeArtifactWithMenusAndRoutePermissions(
+		t,
+		artifactPath,
+		pluginID,
+		"Runtime Route Permission External Parent Plugin",
+		version,
+		menus,
+		permission,
+	)
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic runtime manifest to load, got error: %v", err)
+	}
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
+	}
+	if err = services.Lifecycle.Install(ctx, pluginID); err != nil {
+		t.Fatalf("expected runtime plugin install to succeed, got error: %v", err)
+	}
+
+	parentMenu, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected plugin menu query to succeed, got error: %v", err)
+	}
+	if parentMenu == nil {
+		t.Fatal("expected parent plugin menu to be created")
+	}
+	if parentMenu.ParentId != hostParent.Id {
+		t.Fatalf("expected plugin menu to mount under host parent %d, got %d", hostParent.Id, parentMenu.ParentId)
+	}
+
+	permissionMenuKey := integration.BuildDynamicRoutePermissionMenuKey(pluginID, permission)
+	permissionMenu, err := testutil.QueryMenuByKey(ctx, permissionMenuKey)
+	if err != nil {
+		t.Fatalf("expected synthetic permission menu query to succeed, got error: %v", err)
+	}
+	if permissionMenu == nil {
+		t.Fatal("expected synthetic permission menu to be created")
+	}
+	if permissionMenu.ParentId != parentMenu.Id {
+		t.Fatalf("expected synthetic permission menu parent %d, got %d", parentMenu.Id, permissionMenu.ParentId)
+	}
+}
+
 // TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh verifies a
 // same-version refresh cleans up superseded synthetic permission menus.
 func TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh(t *testing.T) {

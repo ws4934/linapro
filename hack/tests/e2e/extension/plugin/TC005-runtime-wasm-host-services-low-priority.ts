@@ -409,11 +409,12 @@ function buildPluginRuntimeMain(moduleName: string) {
   return `package main
 
 import (
-	"lina-core/pkg/pluginbridge"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 	dynamicbackend "${moduleName}/backend"
 )
 
-var guestRuntime = pluginbridge.NewGuestRuntime(dynamicbackend.HandleRequest)
+var guestRuntime = bridgeguest.NewGuestRuntime(dynamicbackend.HandleRequest)
 
 //go:wasmexport lina_dynamic_route_alloc
 func linaDynamicRouteAlloc(size uint32) uint32 {
@@ -424,7 +425,7 @@ func linaDynamicRouteAlloc(size uint32) uint32 {
 func linaDynamicRouteExecute(size uint32) uint64 {
 	responsePointer, responseLength, err := guestRuntime.Execute(size)
 	if err != nil {
-		fallback, _ := pluginbridge.EncodeResponseEnvelope(pluginbridge.NewInternalErrorResponse(err.Error()))
+		fallback, _ := protocol.EncodeResponseEnvelope(protocol.NewInternalErrorResponse(err.Error()))
 		responsePointer, responseLength, _ = guestRuntime.ExposeResponseBuffer(fallback)
 	}
 	return uint64(responsePointer)<<32 | uint64(responseLength)
@@ -450,19 +451,64 @@ var EmbeddedFiles embed.FS
 }
 
 function buildBackendPluginFile(moduleName: string) {
-  return `package backend
+  return `//go:build !wasip1
+
+package backend
 
 import (
-	"lina-core/pkg/pluginbridge"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"${moduleName}/backend/internal/controller/dynamic"
 )
 
-var guestRouteDispatcher = pluginbridge.MustNewGuestControllerRouteDispatcher(dynamic.New())
+var guestRouteDispatcher = bridgeguest.MustNewGuestControllerRouteDispatcher(dynamic.New())
 
 func HandleRequest(
-	request *pluginbridge.BridgeRequestEnvelopeV1,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+	request *protocol.BridgeRequestEnvelopeV1,
+) (*protocol.BridgeResponseEnvelopeV1, error) {
 	return guestRouteDispatcher.HandleRequest(request)
+}
+`;
+}
+
+function buildBackendWasmDispatcherFile(moduleName: string, pluginID: string) {
+  const cases =
+    pluginID === successPluginID
+      ? `\tcase "LowPriorityHostServicesReq":
+\t\treturn controller.LowPriorityHostServices(request)
+`
+      : `\tcase "CacheLimitReq":
+\t\treturn controller.CacheLimit(request)
+\tcase "LockDeniedReq":
+\t\treturn controller.LockDenied(request)
+\tcase "NotifyDeniedReq":
+\t\treturn controller.NotifyDenied(request)
+`;
+
+  return `//go:build wasip1
+
+package backend
+
+import (
+\t"strings"
+
+\t"${moduleName}/backend/internal/controller/dynamic"
+\t"lina-core/pkg/plugin/pluginbridge/protocol"
+)
+
+func HandleRequest(
+\trequest *protocol.BridgeRequestEnvelopeV1,
+) (*protocol.BridgeResponseEnvelopeV1, error) {
+\tif request == nil || request.Route == nil {
+\t\treturn protocol.NewBadRequestResponse("Dynamic bridge request is missing route metadata"), nil
+\t}
+\tcontroller := dynamic.New()
+\tswitch strings.TrimSpace(request.Route.RequestType) {
+${cases}\tcase "":
+\t\treturn protocol.NewBadRequestResponse("Dynamic bridge request is missing route request type"), nil
+\tdefault:
+\t\treturn protocol.NewNotFoundResponse("Dynamic bridge route not found"), nil
+\t}
 }
 `;
 }
@@ -480,6 +526,10 @@ function buildSuccessPluginSource() {
   writeTestFile(path.join(pluginDir, "plugin_embed.go"), buildPluginEmbedFile());
   writeTestFile(path.join(pluginDir, "backend", "plugin.go"), buildBackendPluginFile(moduleName));
   writeTestFile(
+    path.join(pluginDir, "backend", "plugin_wasip1.go"),
+    buildBackendWasmDispatcherFile(moduleName, successPluginID),
+  );
+  writeTestFile(
     path.join(pluginDir, "plugin.yaml"),
     `id: ${successPluginID}
 name: Low Priority Host Services E2E
@@ -488,6 +538,16 @@ type: dynamic
 scope_nature: tenant_aware
 supports_multi_tenant: false
 default_install_mode: global
+menus:
+  - key: plugin:${successPluginID}:low-priority-host
+    parent_key: extension
+    name: Low Priority Host Services E2E
+    path: low-priority-host-services-e2e
+    component: system/plugin/dynamic-page
+    perms: ${successPluginID}:host:view
+    icon: lucide:plug
+    type: M
+    sort: -1
 hostServices:
   - service: cache
     methods:
@@ -543,7 +603,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/pluginbridge"
+	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
@@ -551,11 +612,11 @@ const (
 	lockName = "e2e-lock"
 )
 
-func (c *Controller) LowPriorityHostServices(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		cacheSvc = pluginbridge.Cache()
-		lockSvc = pluginbridge.Lock()
-		notifySvc = pluginbridge.Notify()
+		cacheSvc = capabilityguest.Cache()
+		lockSvc = capabilityguest.Lock()
+		notifySvc = capabilityguest.Notify()
 	)
 
 	cacheSetValue, err := cacheSvc.Set(cacheNamespace, "profile", request.PluginID, 60)
@@ -603,7 +664,7 @@ func (c *Controller) LowPriorityHostServices(request *pluginbridge.BridgeRequest
 	if err != nil {
 		return nil, gerror.Wrap(err, "marshal notify payload failed")
 	}
-	notifyResult, err := notifySvc.Send("inbox", &pluginbridge.HostServiceNotifySendRequest{
+	notifyResult, err := notifySvc.Send("inbox", &protocol.HostServiceNotifySendRequest{
 		Title: "低优先级宿主服务测试通知",
 		Content: "cache/lock/notify success",
 		SourceType: "plugin",
@@ -642,7 +703,7 @@ func (c *Controller) LowPriorityHostServices(request *pluginbridge.BridgeRequest
 	if err != nil {
 		return nil, gerror.Wrap(err, "marshal low priority host services payload failed")
 	}
-	return pluginbridge.NewJSONResponse(200, content), nil
+	return protocol.NewJSONResponse(200, content), nil
 }
 `,
   );
@@ -670,6 +731,10 @@ function buildDeniedPluginSource() {
   writeTestFile(path.join(pluginDir, "plugin_embed.go"), buildPluginEmbedFile());
   writeTestFile(path.join(pluginDir, "backend", "plugin.go"), buildBackendPluginFile(moduleName));
   writeTestFile(
+    path.join(pluginDir, "backend", "plugin_wasip1.go"),
+    buildBackendWasmDispatcherFile(moduleName, deniedPluginID),
+  );
+  writeTestFile(
     path.join(pluginDir, "plugin.yaml"),
     `id: ${deniedPluginID}
 name: Low Priority Host Services Denied E2E
@@ -678,6 +743,16 @@ type: dynamic
 scope_nature: tenant_aware
 supports_multi_tenant: false
 default_install_mode: global
+menus:
+  - key: plugin:${deniedPluginID}:low-priority-denied
+    parent_key: extension
+    name: Low Priority Host Services Denied E2E
+    path: low-priority-host-services-denied-e2e
+    component: system/plugin/dynamic-page
+    perms: ${deniedPluginID}:host:view
+    icon: lucide:shield-alert
+    type: M
+    sort: -1
 hostServices:
   - service: cache
     methods:
@@ -733,27 +808,28 @@ func New() *Controller {
 import (
 	"strings"
 
-	"lina-core/pkg/pluginbridge"
+	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-func (c *Controller) CacheLimit(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	_, err := pluginbridge.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
+func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
+	_, err := capabilityguest.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
 	if err != nil {
 		return nil, err
 	}
-	return pluginbridge.NewJSONResponse(200, []byte("{}")), nil
+	return protocol.NewJSONResponse(200, []byte("{}")), nil
 }
 
-func (c *Controller) LockDenied(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	_, err := pluginbridge.Lock().Acquire("blocked-lock", 1000)
+func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
+	_, err := capabilityguest.Lock().Acquire("blocked-lock", 1000)
 	if err != nil {
 		return nil, err
 	}
-	return pluginbridge.NewJSONResponse(200, []byte("{}")), nil
+	return protocol.NewJSONResponse(200, []byte("{}")), nil
 }
 
-func (c *Controller) NotifyDenied(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	_, err := pluginbridge.Notify().Send("ops-webhook", &pluginbridge.HostServiceNotifySendRequest{
+func (c *Controller) NotifyDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
+	_, err := capabilityguest.Notify().Send("ops-webhook", &protocol.HostServiceNotifySendRequest{
 		Title: "denied notify",
 		Content: "blocked",
 		RecipientUserIDs: []int64{1},
@@ -761,7 +837,7 @@ func (c *Controller) NotifyDenied(request *pluginbridge.BridgeRequestEnvelopeV1)
 	if err != nil {
 		return nil, err
 	}
-	return pluginbridge.NewJSONResponse(200, []byte("{}")), nil
+	return protocol.NewJSONResponse(200, []byte("{}")), nil
 }
 `,
   );

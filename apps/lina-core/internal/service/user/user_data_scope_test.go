@@ -104,6 +104,7 @@ func TestUserDataScopeDeptUnavailableFallsBackToSelf(t *testing.T) {
 
 	svc := newUserTestService().(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
+	setUserTestOrgCap(svc, userDataScopeStaticOrgCap{})
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
 	if err != nil {

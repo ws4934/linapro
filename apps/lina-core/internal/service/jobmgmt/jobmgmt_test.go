@@ -24,6 +24,7 @@ import (
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/role"
+	"lina-core/pkg/plugin/capability/contract"
 	"lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
@@ -59,6 +60,22 @@ func (s jobmgmtStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 
 // Get returns the configured business context.
 func (s jobmgmtStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
+
+// Current returns the plugin-visible business context projection.
+func (s jobmgmtStaticBizCtx) Current(context.Context) contract.CurrentContext {
+	if s.ctx == nil {
+		return contract.CurrentContext{}
+	}
+	return contract.CurrentContext{
+		UserID:          s.ctx.UserId,
+		Username:        s.ctx.Username,
+		TenantID:        s.ctx.TenantId,
+		ActingUserID:    s.ctx.ActingUserId,
+		ActingAsTenant:  s.ctx.ActingAsTenant,
+		IsImpersonation: s.ctx.IsImpersonation,
+		PlatformBypass:  s.ctx.TenantId == 0,
+	}
+}
 
 // SetLocale is unused by job-management service tests.
 func (s jobmgmtStaticBizCtx) SetLocale(context.Context, string) {}

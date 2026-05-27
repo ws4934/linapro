@@ -564,6 +564,7 @@ func newGitRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	runGit(t, root, "init", "-q")
+	runGit(t, root, "symbolic-ref", "HEAD", "refs/heads/master")
 	runGit(t, root, "config", "user.email", "linactl@example.com")
 	runGit(t, root, "config", "user.name", "linactl")
 	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")

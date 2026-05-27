@@ -101,6 +101,59 @@ func (s *serviceImpl) ReconcileRuntimePlugins(ctx context.Context) error {
 	return firstErr
 }
 
+// RefreshInstalledRuntimePluginReleases repairs already installed dynamic
+// releases whose active archive no longer matches the staged same-version
+// artifact. It deliberately skips installs, uninstalls, and enablement changes.
+func (s *serviceImpl) RefreshInstalledRuntimePluginReleases(ctx context.Context) error {
+	reconcileMu.Lock()
+	defer reconcileMu.Unlock()
+
+	registries, err := s.listRuntimeRegistries(ctx)
+	if err != nil {
+		return err
+	}
+	if !s.isPrimaryNode() {
+		return nil
+	}
+
+	var firstErr error
+	for _, registry := range registries {
+		if err = s.refreshInstalledRuntimePluginRelease(ctx, registry); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// refreshInstalledRuntimePluginRelease executes the same-version refresh path
+// only when an installed dynamic release is already bound to the discovered
+// manifest version and the archived artifact/snapshot is stale.
+func (s *serviceImpl) refreshInstalledRuntimePluginRelease(ctx context.Context, registry *entity.SysPlugin) error {
+	if registry == nil ||
+		catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
+		registry.Installed != catalog.InstalledYes {
+		return nil
+	}
+	desiredManifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
+	if err != nil {
+		return err
+	}
+	if desiredManifest == nil || catalog.NormalizeType(desiredManifest.Type) != catalog.TypeDynamic {
+		return nil
+	}
+	if strings.TrimSpace(desiredManifest.Version) != strings.TrimSpace(registry.Version) {
+		return nil
+	}
+	if !s.shouldRefreshInstalledRelease(ctx, registry, desiredManifest) {
+		return nil
+	}
+	desiredState := strings.TrimSpace(registry.DesiredState)
+	if desiredState == "" {
+		desiredState = catalog.BuildStableHostState(registry)
+	}
+	return s.applyRefresh(ctx, registry, desiredManifest, desiredState)
+}
+
 // reconcileDynamicPluginRequest records the requested target state and lets the
 // primary node converge the addressed plugin immediately.
 func (s *serviceImpl) reconcileDynamicPluginRequest(

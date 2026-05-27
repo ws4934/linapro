@@ -277,11 +277,12 @@ function buildPluginRuntimeMain(moduleName: string) {
   return `package main
 
 import (
-	"lina-core/pkg/pluginbridge"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 	dynamicbackend "${moduleName}/backend"
 )
 
-var guestRuntime = pluginbridge.NewGuestRuntime(dynamicbackend.HandleRequest)
+var guestRuntime = bridgeguest.NewGuestRuntime(dynamicbackend.HandleRequest)
 
 //go:wasmexport lina_dynamic_route_alloc
 func linaDynamicRouteAlloc(size uint32) uint32 {
@@ -292,7 +293,7 @@ func linaDynamicRouteAlloc(size uint32) uint32 {
 func linaDynamicRouteExecute(size uint32) uint64 {
 	responsePointer, responseLength, err := guestRuntime.Execute(size)
 	if err != nil {
-		fallback, _ := pluginbridge.EncodeResponseEnvelope(pluginbridge.NewInternalErrorResponse(err.Error()))
+		fallback, _ := protocol.EncodeResponseEnvelope(protocol.NewInternalErrorResponse(err.Error()))
 		responsePointer, responseLength, _ = guestRuntime.ExposeResponseBuffer(fallback)
 	}
 	return uint64(responsePointer)<<32 | uint64(responseLength)
@@ -318,19 +319,64 @@ var EmbeddedFiles embed.FS
 }
 
 function buildBackendPluginFile(moduleName: string) {
-  return `package backend
+  return `//go:build !wasip1
+
+package backend
 
 import (
-	"lina-core/pkg/pluginbridge"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"${moduleName}/backend/internal/controller/dynamic"
 )
 
-var guestRouteDispatcher = pluginbridge.MustNewGuestControllerRouteDispatcher(dynamic.New())
+var guestRouteDispatcher = bridgeguest.MustNewGuestControllerRouteDispatcher(dynamic.New())
 
 func HandleRequest(
-	request *pluginbridge.BridgeRequestEnvelopeV1,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+	request *protocol.BridgeRequestEnvelopeV1,
+) (*protocol.BridgeResponseEnvelopeV1, error) {
 	return guestRouteDispatcher.HandleRequest(request)
+}
+`;
+}
+
+function buildBackendWasmDispatcherFile(moduleName: string, pluginID: string) {
+  const cases =
+    pluginID === successPluginID
+      ? `\tcase "HostServicesReq":
+\t\treturn controller.HostServices(request)
+`
+      : `\tcase "DeniedMethodReq":
+\t\treturn controller.DeniedMethod(request)
+\tcase "DeniedResourceReq":
+\t\treturn controller.DeniedResource(request)
+\tcase "DeniedServiceReq":
+\t\treturn controller.DeniedService(request)
+`;
+
+  return `//go:build wasip1
+
+package backend
+
+import (
+\t"strings"
+
+\t"${moduleName}/backend/internal/controller/dynamic"
+\t"lina-core/pkg/plugin/pluginbridge/protocol"
+)
+
+func HandleRequest(
+\trequest *protocol.BridgeRequestEnvelopeV1,
+) (*protocol.BridgeResponseEnvelopeV1, error) {
+\tif request == nil || request.Route == nil {
+\t\treturn protocol.NewBadRequestResponse("Dynamic bridge request is missing route metadata"), nil
+\t}
+\tcontroller := dynamic.New()
+\tswitch strings.TrimSpace(request.Route.RequestType) {
+${cases}\tcase "":
+\t\treturn protocol.NewBadRequestResponse("Dynamic bridge request is missing route request type"), nil
+\tdefault:
+\t\treturn protocol.NewNotFoundResponse("Dynamic bridge route not found"), nil
+\t}
 }
 `;
 }
@@ -348,6 +394,10 @@ function buildSuccessPluginSource(upstreamBaseURL: string) {
   writeTestFile(path.join(pluginDir, "plugin_embed.go"), buildPluginEmbedFile());
   writeTestFile(path.join(pluginDir, "backend", "plugin.go"), buildBackendPluginFile(moduleName));
   writeTestFile(
+    path.join(pluginDir, "backend", "plugin_wasip1.go"),
+    buildBackendWasmDispatcherFile(moduleName, successPluginID),
+  );
+  writeTestFile(
     path.join(pluginDir, "plugin.yaml"),
     `id: ${successPluginID}
 name: Host Services E2E
@@ -356,6 +406,16 @@ type: dynamic
 scope_nature: tenant_aware
 supports_multi_tenant: false
 default_install_mode: global
+menus:
+  - key: plugin:${successPluginID}:host-services
+    parent_key: extension
+    name: Host Services E2E
+    path: host-services-e2e
+    component: system/plugin/dynamic-page
+    perms: ${successPluginID}:host-services:view
+    icon: lucide:plug
+    type: M
+    sort: -1
 hostServices:
   - service: runtime
     methods:
@@ -426,8 +486,9 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugindb"
-	"lina-core/pkg/pluginbridge"
+	plugindata "lina-core/pkg/plugin/capability/data"
+	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
@@ -435,12 +496,12 @@ const (
 	dataTable  = "sys_plugin_node_state"
 )
 
-func (c *Controller) HostServices(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		runtimeSvc = pluginbridge.Runtime()
-		storageSvc = pluginbridge.Storage()
-		httpSvc    = pluginbridge.HTTP()
-		dataSvc    = plugindb.Open()
+		runtimeSvc = capabilityguest.Runtime()
+		storageSvc = capabilityguest.Storage()
+		httpSvc    = capabilityguest.Network()
+		dataSvc    = plugindata.Open()
 	)
 
 	nowValue, err := runtimeSvc.Now()
@@ -477,7 +538,7 @@ func (c *Controller) HostServices(request *pluginbridge.BridgeRequestEnvelopeV1)
 	if stateFoundAfterDelete {
 		return nil, gerror.New("runtime state delete failed")
 	}
-	if err = runtimeSvc.Log(int(pluginbridge.LogLevelInfo), "host services e2e success", map[string]string{
+	if err = runtimeSvc.Log(int(protocol.LogLevelInfo), "host services e2e success", map[string]string{
 		"pluginId": request.PluginID,
 		"requestId": request.RequestID,
 		"demoKey": uuidValue,
@@ -517,7 +578,7 @@ func (c *Controller) HostServices(request *pluginbridge.BridgeRequestEnvelopeV1)
 		return nil, err
 	}
 
-	networkResponse, err := httpSvc.Request(networkURL+"/ping?plugin="+request.PluginID, &pluginbridge.HostServiceNetworkRequest{
+	networkResponse, err := httpSvc.Request(networkURL+"/ping?plugin="+request.PluginID, &protocol.HostServiceNetworkRequest{
 		Method: "GET",
 		Headers: map[string]string{
 			"x-request-id": request.RequestID,
@@ -527,7 +588,7 @@ func (c *Controller) HostServices(request *pluginbridge.BridgeRequestEnvelopeV1)
 		return nil, err
 	}
 
-	err = dataSvc.Transaction(func(tx *plugindb.Tx) error {
+	err = dataSvc.Transaction(func(tx *plugindata.Tx) error {
 		_, txErr := tx.Table(dataTable).Insert(map[string]any{
 			"pluginId": request.PluginID,
 			"releaseId": 0,
@@ -554,7 +615,7 @@ func (c *Controller) HostServices(request *pluginbridge.BridgeRequestEnvelopeV1)
 		return nil, err
 	}
 	if listTotal != 1 || len(listRecords) != 1 {
-		return nil, gerror.New("plugindb list did not return one record")
+		return nil, gerror.New("data capability list did not return one record")
 	}
 	recordKey := listRecords[0]["id"]
 	countTotal, err := dataSvc.Table(dataTable).
@@ -619,7 +680,7 @@ func (c *Controller) HostServices(request *pluginbridge.BridgeRequestEnvelopeV1)
 	if err != nil {
 		return nil, gerror.Wrap(err, "marshal host services payload failed")
 	}
-	return pluginbridge.NewJSONResponse(200, content), nil
+	return protocol.NewJSONResponse(200, content), nil
 }
 `,
   );
@@ -647,6 +708,10 @@ function buildDeniedPluginSource() {
   writeTestFile(path.join(pluginDir, "plugin_embed.go"), buildPluginEmbedFile());
   writeTestFile(path.join(pluginDir, "backend", "plugin.go"), buildBackendPluginFile(moduleName));
   writeTestFile(
+    path.join(pluginDir, "backend", "plugin_wasip1.go"),
+    buildBackendWasmDispatcherFile(moduleName, deniedPluginID),
+  );
+  writeTestFile(
     path.join(pluginDir, "plugin.yaml"),
     `id: ${deniedPluginID}
 name: Host Services Denied E2E
@@ -655,6 +720,16 @@ type: dynamic
 scope_nature: tenant_aware
 supports_multi_tenant: false
 default_install_mode: global
+menus:
+  - key: plugin:${deniedPluginID}:denied-routes
+    parent_key: extension
+    name: Host Services Denied E2E
+    path: host-services-denied-e2e
+    component: system/plugin/dynamic-page
+    perms: ${deniedPluginID}:denied-method:view
+    icon: lucide:shield-alert
+    type: M
+    sort: -1
 hostServices:
   - service: storage
     methods:
@@ -699,32 +774,33 @@ func New() *Controller {
     `package dynamic
 
 import (
-	"lina-core/pkg/plugindb"
-	"lina-core/pkg/pluginbridge"
+	plugindata "lina-core/pkg/plugin/capability/data"
+	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-func (c *Controller) DeniedMethod(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	_, _, _, err := pluginbridge.Storage().Get("authorized-files/blocked.txt")
+func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
+	_, _, _, err := capabilityguest.Storage().Get("authorized-files/blocked.txt")
 	if err != nil {
 		return nil, err
 	}
-	return pluginbridge.NewJSONResponse(200, []byte("{}")), nil
+	return protocol.NewJSONResponse(200, []byte("{}")), nil
 }
 
-func (c *Controller) DeniedResource(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	_, err := pluginbridge.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
+func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
+	_, err := capabilityguest.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
 	if err != nil {
 		return nil, err
 	}
-	return pluginbridge.NewJSONResponse(200, []byte("{}")), nil
+	return protocol.NewJSONResponse(200, []byte("{}")), nil
 }
 
-func (c *Controller) DeniedService(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	_, _, err := plugindb.Open().Table("sys_plugin_node_state").Page(1, 1).All()
+func (c *Controller) DeniedService(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
+	_, _, err := plugindata.Open().Table("sys_plugin_node_state").Page(1, 1).All()
 	if err != nil {
 		return nil, err
 	}
-	return pluginbridge.NewJSONResponse(200, []byte("{}")), nil
+	return protocol.NewJSONResponse(200, []byte("{}")), nil
 }
 `,
   );
@@ -845,17 +921,15 @@ function buildRawSQLInvalidArtifact() {
   );
   appendCustomSection(
     bytes,
-    "lina.plugin.backend.capabilities",
-    Buffer.from(JSON.stringify(["host:runtime", "host:db:query"])),
-  );
-  appendCustomSection(
-    bytes,
     "lina.plugin.backend.host-services",
     Buffer.from(
       JSON.stringify([
         {
-          service: "runtime",
-          methods: ["info.uuid"],
+          service: "data",
+          methods: ["rawSql"],
+          resources: {
+            tables: ["sys_plugin_node_state"],
+          },
         },
       ]),
     ),
@@ -1062,7 +1136,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     await expectApiFailure(
       response,
       "raw SQL 旧能力必须被宿主拒绝",
-      "host:db:query",
+      "host-service declarations",
     );
     expect(await findPlugin(adminApi!, rawSQLPluginID)).toBeNull();
   });

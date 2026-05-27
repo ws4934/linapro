@@ -14,7 +14,9 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/notify"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/pluginhostservices"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability/orgcap"
@@ -41,7 +43,29 @@ func newUserTestService(tenantRuntimes ...tenantcapsvc.ProviderRuntime) Service 
 	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
-	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvcache.New())
+	kvCacheSvc := kvcache.New()
+	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+	notifySvc := notify.New(tenantSvc)
+	capabilities, err := pluginhostservices.New(
+		nil,
+		authSvc,
+		nil,
+		bizCtxSvc,
+		configSvc,
+		scopeSvc,
+		i18nSvc,
+		pluginSvc,
+		pluginSvc,
+		sessionStore,
+		orgCapSvc,
+		tenantSvc,
+		notifySvc,
+		kvCacheSvc,
+	)
+	if err != nil {
+		panic(err)
+	}
+	pluginSvc.SetCapabilities(capabilities)
 	return New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc).(*serviceImpl)
 }
 
