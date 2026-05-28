@@ -101,6 +101,7 @@
 - [x] **FB-1**: 将`013-auth-client-type-session-metadata.sql`整理回原始在线会话 SQL 数据文件
 - [x] **FB-2**: 修复在线会话`client_type`必填后 CI mock 数据初始化失败
 - [x] **FB-3**: 修复 CI 冒烟登录请求缺少必填`clientType`
+- [x] **FB-4**: 修复 E2E 直接登录请求缺少必填`clientType`
 
 ### Feedback 执行记录
 
@@ -153,3 +154,24 @@
 - 已读取规则文件：`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/architecture.md`、`.agents/rules/api-contract.md`、`.agents/rules/cache-consistency.md`、`.agents/rules/data-permission.md`、`.agents/rules/testing.md`、`.agents/rules/i18n.md`、`.agents/rules/dev-tooling.md`；技能：`lina-feedback`、`lina-review`。
 - 规则域结论：OpenSpec 反馈先记录根因再修复且任务完成；CI composite action 和 Bash smoke 属于 CI/Linux 专属入口，已记录跨平台边界；登录请求与必填`clientType`接口契约一致；无运行时 UI、API 文档源文本、语言包、缓存、数据权限或生产后端行为变更。
 - 验证证据：`openspec validate auth-client-type-session-metadata --strict`通过；静态检索确认两个 smoke 登录 payload 均包含`clientType:"web"`；`git diff --check`通过。严重问题 0，警告 0。
+
+#### FB-4：修复 E2E 直接登录请求缺少`clientType`
+
+- 根因确认：GitHub Actions run `26518762946`中 Go 单测、前端单测、命令 smoke 和构建 smoke均通过，失败集中在 E2E 矩阵；失败日志显示多个用例在`hack/tests/support/api/job.ts:157`断言登录响应`payload.code`时收到业务码`51`。`POST /api/v1/auth/login`已按本变更收紧为必须显式提交`clientType`，前端登录适配层和 CI smoke 已补齐，但宿主 E2E helper、宿主插件框架 E2E、源码插件 E2E 和插件测试 support 中仍有多处直接调用`auth/login`只传`username/password`，导致 E2E 前置 API 登录按新契约被拒绝。
+- 修复内容：为所有 E2E 直接登录请求补齐`clientType:"web"`，覆盖宿主共享 helper、宿主插件框架用例、配置/菜单/用户下拉用例，以及`linapro-content-notice`、`linapro-demo-dynamic`、`linapro-demo-source`、`linapro-monitor-online`、`linapro-ops-demo-guard`、`linapro-tenant-core`插件测试路径。同步增强`hack/tests/scripts/validate-e2e.mjs`，将宿主测试资产和插件`hack/tests/{e2e,pages,support}`中的直接`auth/login`请求纳入治理校验，后续缺少`clientType`会在`pnpm -C hack/tests test:validate`中失败。
+- `i18n`影响：无运行时用户可见文案、API 文档源文本、错误消息、插件清单、语言包或翻译缓存变更；仅修复测试请求体和测试治理校验。
+- 缓存一致性影响：无缓存 key、payload、失效、刷新、跨实例同步或故障降级策略变更；E2E 登录仍使用正常 Web 用户会话路径。
+- 数据权限影响：无新增接口、数据操作、租户边界或存在性暴露；租户插件测试保持原有租户隔离断言，只补齐同一登录请求的必填客户端类型。
+- 插件边界影响：插件目录均未发现本地`AGENTS.md`；变更仅发生在插件自有`hack/tests`测试资产中，不改插件生产后端、清单、host service、WASM bridge 或插件能力契约。
+- 前端 UI 影响：不修改页面、路由、组件、表单、按钮、布局或用户可观察交互；仅修复 Playwright APIRequestContext/fetch 直连后端的测试前置登录。
+- 开发工具跨平台影响：修改 Node E2E 治理脚本`validate-e2e.mjs`，该脚本由`pnpm -C hack/tests test:validate`调用，使用 Node 标准库和现有治理工具函数，适用于 macOS/Linux/Windows 的 Node 运行环境；无新增 Bash/PowerShell/Makefile/`linactl`入口。
+- 测试策略：这是 E2E 测试和治理脚本修复，不新增业务 E2E 用例编号；使用 TypeScript 编译、E2E 结构校验、静态扫描、OpenSpec 严格校验和格式检查验证。未运行完整 Playwright 矩阵，原因是该矩阵依赖完整服务启动和插件分片，成本高且本次缺陷可由登录请求静态门禁直接覆盖。
+- 已读取规则：`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/architecture.md`、`.agents/rules/api-contract.md`、`.agents/rules/cache-consistency.md`、`.agents/rules/data-permission.md`、`.agents/rules/plugin.md`、`.agents/rules/frontend-ui.md`、`.agents/rules/testing.md`、`.agents/rules/i18n.md`、`.agents/rules/dev-tooling.md`；技能：`lina-feedback`、`lina-e2e`。
+- 验证记录：`pnpm -C hack/tests exec tsc --noEmit`通过；`pnpm -C hack/tests test:validate`通过，校验 238 个 E2E 文件；静态扫描确认 37 个包含`auth/login`的文件中，测试直接请求窗口均包含`clientType`；`openspec validate auth-client-type-session-metadata --strict`通过；`git diff --check`覆盖宿主 E2E、插件 E2E/support、治理脚本和本任务记录通过。`gh run view 26518762946 --repo linaproai/linapro --log-failed`已确认旧提交失败点为 E2E 登录响应业务码`51`；E2E artifact zip 下载曾因网络读超时失败，但不影响日志证据。
+
+##### FB-4 Lina 审查记录
+
+- 审查范围：反馈级，文件包括宿主`hack/tests`下 14 个 E2E/helper/治理脚本文件、插件仓库`linapro-content-notice`、`linapro-demo-dynamic`、`linapro-demo-source`、`linapro-monitor-online`、`linapro-ops-demo-guard`、`linapro-tenant-core`下 11 个测试文件，以及本`tasks.md`记录。
+- 已读取规则文件：`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/architecture.md`、`.agents/rules/api-contract.md`、`.agents/rules/cache-consistency.md`、`.agents/rules/data-permission.md`、`.agents/rules/plugin.md`、`.agents/rules/frontend-ui.md`、`.agents/rules/testing.md`、`.agents/rules/i18n.md`、`.agents/rules/dev-tooling.md`；技能：`lina-feedback`、`lina-review`、`lina-e2e`。
+- 规则域结论：OpenSpec 反馈已先记录根因再修复并补充验证记录；E2E 直接登录请求与必填`clientType`接口契约一致；插件目录本地规范检查通过且仅改插件自有测试资产；治理脚本使用 Node 标准库和既有执行入口，跨平台边界清晰；无生产后端、数据库、缓存、数据权限、运行时 UI 或`i18n`资源变更。
+- 验证证据：复查`pnpm -C hack/tests exec tsc --noEmit`通过；复查`pnpm -C hack/tests test:validate`通过；复查静态扫描确认测试直接`auth/login`请求均包含`clientType`；复查`openspec validate auth-client-type-session-metadata --strict`通过；复查`git diff --check`通过。严重问题 0，警告 0。剩余风险：未本地运行完整 Playwright E2E 矩阵，需由 GitHub Actions 或后续手动全量 E2E 覆盖服务启动后的端到端页面行为。
