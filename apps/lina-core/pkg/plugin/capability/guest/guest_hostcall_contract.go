@@ -109,17 +109,17 @@ type CronHostService interface {
 	Register(contract *protocol.CronContract) error
 }
 
-// HostConfigHostService exposes guest-side helpers for whitelisted public host config.
+// HostConfigHostService exposes guest-side helpers for authorized host config reads.
 type HostConfigHostService interface {
-	// Get reads one whitelisted public host config value as JSON.
+	// Get reads one authorized host config value as JSON.
 	Get(key string) (string, bool, error)
-	// String reads one whitelisted public host config value as a string.
+	// String reads one authorized host config value as a string.
 	String(key string) (string, bool, error)
-	// Bool reads one whitelisted public host config value as a bool.
+	// Bool reads one authorized host config value as a bool.
 	Bool(key string) (bool, bool, error)
-	// Int reads one whitelisted public host config value as an int.
+	// Int reads one authorized host config value as an int.
 	Int(key string) (int, bool, error)
-	// Duration reads one whitelisted public host config value as a duration.
+	// Duration reads one authorized host config value as a duration.
 	Duration(key string) (time.Duration, bool, error)
 }
 

@@ -130,7 +130,7 @@ func (s *rootTestCapabilities) ForPlugin(_ string) capability.Services {
 	}
 }
 
-// HostConfig returns no public host configuration service for root plugin facade tests.
+// HostConfig returns no host configuration service for root plugin facade tests.
 func (s *rootTestCapabilities) HostConfig() contract.HostConfigService { return nil }
 
 // I18n returns no translation service for root plugin facade tests.

@@ -12,7 +12,7 @@ import (
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// trackingHostConfigService records public host config reads.
+// trackingHostConfigService records host config reads.
 type trackingHostConfigService struct {
 	values      map[string]any
 	getCalls    int

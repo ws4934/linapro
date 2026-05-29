@@ -68,9 +68,9 @@ type HostServiceChange struct {
 	FromPaths []string
 	// ToPaths is the target storage path set after upgrade.
 	ToPaths []string
-	// FromKeys is the effective public host config key set before upgrade.
+	// FromKeys is the effective authorized host config key set before upgrade.
 	FromKeys []string
-	// ToKeys is the target public host config key set after upgrade.
+	// ToKeys is the target authorized host config key set after upgrade.
 	ToKeys []string
 }
 
@@ -335,7 +335,7 @@ func hostServicePaths(spec *protocol.HostServiceSpec) []string {
 	return spec.Paths
 }
 
-// hostServiceKeys returns normalized public host config keys from one spec.
+// hostServiceKeys returns normalized authorized host config keys from one spec.
 func hostServiceKeys(spec *protocol.HostServiceSpec) []string {
 	if spec == nil {
 		return nil

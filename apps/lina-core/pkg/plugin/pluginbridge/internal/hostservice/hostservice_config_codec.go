@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
-// HostServiceConfigKeyRequest carries one plugin-local config or public host config key.
+// HostServiceConfigKeyRequest carries one plugin-local config or host config key.
 // Empty key and "." are rejected by host-side services.
 type HostServiceConfigKeyRequest struct {
 	// Key is the requested configuration key.

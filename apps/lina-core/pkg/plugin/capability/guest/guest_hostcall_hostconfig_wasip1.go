@@ -1,6 +1,6 @@
 //go:build wasip1
 
-// This file provides guest-side helpers for public host config reads.
+// This file provides guest-side helpers for authorized host config reads.
 
 package guest
 
@@ -21,17 +21,17 @@ type hostConfigHostService struct{}
 // defaultHostConfigHostService stores the singleton hostConfig client.
 var defaultHostConfigHostService HostConfigHostService = &hostConfigHostService{}
 
-// HostConfig returns the public host config guest client.
+// HostConfig returns the host config guest client.
 func HostConfig() HostConfigHostService {
 	return defaultHostConfigHostService
 }
 
-// Get reads one whitelisted public host config value as JSON.
+// Get reads one authorized host config value as JSON.
 func (*hostConfigHostService) Get(key string) (string, bool, error) {
 	return hostConfigValue(key)
 }
 
-// String reads one whitelisted public host config value as a string.
+// String reads one authorized host config value as a string.
 func (*hostConfigHostService) String(key string) (string, bool, error) {
 	value, found, err := hostConfigValue(key)
 	if err != nil || !found {
@@ -44,7 +44,7 @@ func (*hostConfigHostService) String(key string) (string, bool, error) {
 	return strings.Trim(value, `"`), true, nil
 }
 
-// Bool reads one whitelisted public host config value as a bool.
+// Bool reads one authorized host config value as a bool.
 func (*hostConfigHostService) Bool(key string) (bool, bool, error) {
 	value, found, err := hostConfigValue(key)
 	if err != nil || !found {
@@ -61,7 +61,7 @@ func (*hostConfigHostService) Bool(key string) (bool, bool, error) {
 	return parsed, true, nil
 }
 
-// Int reads one whitelisted public host config value as an int.
+// Int reads one authorized host config value as an int.
 func (*hostConfigHostService) Int(key string) (int, bool, error) {
 	value, found, err := hostConfigValue(key)
 	if err != nil || !found {
@@ -78,7 +78,7 @@ func (*hostConfigHostService) Int(key string) (int, bool, error) {
 	return parsed, true, nil
 }
 
-// Duration reads one whitelisted public host config value as a duration.
+// Duration reads one authorized host config value as a duration.
 func (*hostConfigHostService) Duration(key string) (time.Duration, bool, error) {
 	value, found, err := hostConfigValue(key)
 	if err != nil || !found {

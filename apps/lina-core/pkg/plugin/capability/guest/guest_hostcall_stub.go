@@ -79,7 +79,7 @@ func Cron() CronHostService {
 	return defaultCronHostService
 }
 
-// HostConfig returns the public host config guest client.
+// HostConfig returns the host config guest client.
 func HostConfig() HostConfigHostService {
 	return defaultHostConfigHostService
 }

@@ -39,7 +39,7 @@ func (directory) Notify() NotifyHostService { return Notify() }
 // Cron returns the cron declaration host service guest client.
 func (directory) Cron() CronHostService { return Cron() }
 
-// HostConfig returns the public host config guest client.
+// HostConfig returns the host config guest client.
 func (directory) HostConfig() HostConfigHostService { return HostConfig() }
 
 // Manifest returns the plugin manifest-resource guest client.

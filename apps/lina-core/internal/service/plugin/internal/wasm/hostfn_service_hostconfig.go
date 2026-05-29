@@ -13,11 +13,11 @@ import (
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// hostConfigService is the shared public host config reader used by wasm host calls.
+// hostConfigService is the shared host config reader used by wasm host calls.
 var hostConfigService contract.HostConfigService
 
-// ConfigureHostConfigService replaces the public host config reader used by
-// wasm host calls. The service must be non-nil.
+// ConfigureHostConfigService replaces the host config reader used by wasm host
+// calls. The service must be non-nil.
 func ConfigureHostConfigService(service contract.HostConfigService) error {
 	if service == nil {
 		return gerror.New("wasm host config service requires a non-nil adapter")
@@ -26,7 +26,7 @@ func ConfigureHostConfigService(service contract.HostConfigService) error {
 	return nil
 }
 
-// dispatchHostConfigService routes hostConfig.get calls to the public host config reader.
+// dispatchHostConfigService routes hostConfig.get calls to the host config reader.
 func dispatchHostConfigService(
 	ctx context.Context,
 	_ *hostCallContext,
@@ -52,7 +52,7 @@ func dispatchHostConfigService(
 	}
 }
 
-// handleHostConfigGet reads one whitelisted public host config value and returns JSON.
+// handleHostConfigGet reads one authorized host config value and returns JSON.
 func handleHostConfigGet(ctx context.Context, reader contract.HostConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {

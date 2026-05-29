@@ -36,7 +36,7 @@ type Services interface {
 	// Cron returns the cron declaration host service guest client used during
 	// dynamic-plugin discovery and registration.
 	Cron() CronHostService
-	// HostConfig returns the whitelisted public host config guest client.
+	// HostConfig returns the authorized host config guest client.
 	HostConfig() HostConfigHostService
 	// Manifest returns the plugin-scoped manifest-resource guest client.
 	Manifest() ManifestHostService

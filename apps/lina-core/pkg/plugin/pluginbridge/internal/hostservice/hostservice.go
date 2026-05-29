@@ -31,7 +31,7 @@ const (
 	CapabilityNotify = "host:notify"
 	// CapabilityConfig grants access to read-only host configuration services.
 	CapabilityConfig = "host:config"
-	// CapabilityHostConfig grants access to whitelisted public host config.
+	// CapabilityHostConfig grants access to authorized host config keys.
 	CapabilityHostConfig = "host:hostconfig"
 	// CapabilityManifest grants access to plugin-scoped manifest resources.
 	CapabilityManifest = "host:manifest"
@@ -68,7 +68,7 @@ const (
 	HostServiceNotify = "notify"
 	// HostServiceConfig is the read-only configuration host service identifier.
 	HostServiceConfig = "config"
-	// HostServiceHostConfig is the public host config service identifier.
+	// HostServiceHostConfig is the host config service identifier.
 	HostServiceHostConfig = "hostconfig"
 	// HostServiceManifest is the plugin-scoped manifest resource service identifier.
 	HostServiceManifest = "manifest"
@@ -190,9 +190,9 @@ const (
 	HostServiceMethodConfigDuration = "duration"
 )
 
-// HostConfig host-service methods describe whitelisted public host config reads.
+// HostConfig host-service methods describe authorized host config reads.
 const (
-	// HostServiceMethodHostConfigGet reads one whitelisted public host config value.
+	// HostServiceMethodHostConfigGet reads one authorized host config value.
 	HostServiceMethodHostConfigGet = "get"
 )
 
@@ -264,7 +264,7 @@ type HostServiceSpec struct {
 	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`
 	// Tables lists the authorized table names for the data host service.
 	Tables []string `json:"tables,omitempty" yaml:"tables,omitempty"`
-	// Keys lists the authorized public host config keys for the hostConfig service.
+	// Keys lists the authorized host config keys for the hostConfig service.
 	Keys []string `json:"keys,omitempty" yaml:"keys,omitempty"`
 	// Resources lists governed resource declarations bound to the host service.
 	// For network service, Ref stores the authorized URL pattern.

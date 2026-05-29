@@ -28,7 +28,7 @@ type Services interface {
 	Cache() contract.CacheService
 	// Config returns the plugin-scoped static config service.
 	Config() contract.ConfigService
-	// HostConfig returns the public host configuration service.
+	// HostConfig returns the host configuration service.
 	HostConfig() contract.HostConfigService
 	// I18n returns the runtime translation service.
 	I18n() contract.I18nService

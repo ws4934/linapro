@@ -35,7 +35,7 @@ type HostServiceAuthorizationDecision struct {
 	ResourceRefs []string
 	// Tables lists the confirmed data tables for this service.
 	Tables []string
-	// Keys lists the confirmed public host config keys for this service.
+	// Keys lists the confirmed host config keys for this service.
 	Keys []string
 }
 

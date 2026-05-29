@@ -39,20 +39,20 @@ type ConfigServiceFactory interface {
 	WithArtifactConfig(pluginID string, artifactContent []byte) ConfigServiceFactory
 }
 
-// HostConfigService defines whitelisted public host config values that plugins may read.
+// HostConfigService defines read-only host config values that source plugins may read.
 type HostConfigService interface {
-	// Get returns the raw public host config value for a whitelisted key.
+	// Get returns the raw host config value for the requested key or root snapshot.
 	Get(ctx context.Context, key string) (*gvar.Var, error)
-	// Exists reports whether a whitelisted public host config key is available.
+	// Exists reports whether a host config key is available.
 	Exists(ctx context.Context, key string) (bool, error)
-	// String reads a public host config string value or returns defaultValue when
+	// String reads a host config string value or returns defaultValue when
 	// the key is absent or blank.
 	String(ctx context.Context, key string, defaultValue string) (string, error)
-	// Bool reads a public host config bool value or returns defaultValue when the key is absent.
+	// Bool reads a host config bool value or returns defaultValue when the key is absent.
 	Bool(ctx context.Context, key string, defaultValue bool) (bool, error)
-	// Int reads a public host config int value or returns defaultValue when the key is absent.
+	// Int reads a host config int value or returns defaultValue when the key is absent.
 	Int(ctx context.Context, key string, defaultValue int) (int, error)
-	// Duration reads a public host config duration value or returns defaultValue when
+	// Duration reads a host config duration value or returns defaultValue when
 	// the key is absent or blank.
 	Duration(ctx context.Context, key string, defaultValue time.Duration) (time.Duration, error)
 }

@@ -45,7 +45,7 @@ func (s *directory) Config() contract.ConfigService {
 	return nil
 }
 
-// HostConfig returns the whitelisted public host config adapter.
+// HostConfig returns the host config adapter.
 func (s *directory) HostConfig() contract.HostConfigService {
 	if s == nil {
 		return nil
@@ -182,7 +182,7 @@ func (s *scopedDirectory) Config() contract.ConfigService {
 	return s.base.config.ForPlugin(s.pluginID)
 }
 
-// HostConfig returns the delegated public host config adapter.
+// HostConfig returns the delegated host config adapter.
 func (s *scopedDirectory) HostConfig() contract.HostConfigService {
 	if s == nil || s.base == nil {
 		return nil

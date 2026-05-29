@@ -265,7 +265,7 @@ func TestValidateHostServiceSpecsRejectsLegacyHostRuntimeName(t *testing.T) {
 }
 
 // TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys verifies key-scoped
-// runtime declarations must explicitly request public host keys.
+// runtime declarations must explicitly request authorized host config keys.
 func TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceHostConfig,
