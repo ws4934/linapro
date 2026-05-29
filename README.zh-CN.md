@@ -30,14 +30,8 @@
 | 资源 | 地址 |
 |------|------|
 | **开源仓库** | https://github.com/linaproai/linapro |
-| **后台演示** | http://demo.linapro.ai/ <br/>账号：`admin` <br/>密码：`admin123`|
+| **后台演示** | http://demo.linapro.ai/admin <br/>账号：`admin` <br/>密码：`admin123`|
 | **官方网站** | https://linapro.ai/ |
-
-# 默认入口
-
-内置管理工作台默认从`/admin`提供访问，因此根路径`/`默认会留给源码插件或宿主部署自行维护的公开路由使用。若部署方为管理后台配置独立域名，可以将`workspace.basePath`设置为`/`，让工作台占用该域名根路径。
-
-宿主控制面接口继续使用`/api/v1`。源码插件和动态插件的插件接口统一使用`/x/{plugin-id}/api/v1`，插件在`plugin.yaml`的`public_assets`中声明的公开静态资源会通过`/x-assets/{plugin-id}/{version}/...`提供访问。
 
 # 项目定位
 
