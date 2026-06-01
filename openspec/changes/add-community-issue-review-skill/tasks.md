@@ -24,3 +24,16 @@
 - 变更范围检查：`git diff --name-only -- .github apps manifest hack Makefile make.cmd`无输出，确认未修改`.github/workflows/`、后端、前端、数据库、插件运行时代码、构建入口或长期脚本。
 - 影响分析：`i18n`仅影响技能生成`GitHub`评论时的语言选择，不修改运行时语言包、接口文档翻译或翻译缓存；缓存一致性无影响；数据权限无影响；模块启停无影响；核心宿主接口契约无影响；开发工具跨平台无新增长期脚本、`Makefile`目标或`linactl`命令；未新增运行期依赖，`DI`来源无影响。
 - `lina-review`结果：审查范围为`.agents/skills/lina-community-issue-review/SKILL.md`和`openspec/changes/add-community-issue-review-skill/`下的`OpenSpec`文件。已按`git status --short --untracked-files=all`展开未跟踪目录，并读取`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/i18n.md`和`.agents/instructions/markdown-format.instructions.md`。审查中发现成功评论模板会声明标签或关闭状态，若先发布评论再执行`GitHub`状态变更，权限失败时可能留下不准确评论；已修正技能和增量规范，要求先完成标签、保持开放或关闭等状态变更，再发布最终成功评论。修正后重新运行`openspec validate add-community-issue-review-skill --strict`、`git diff --check`和`Ruby YAML`检查均通过。未发现阻塞问题；剩余风险：本次未对线上`Issue`执行真实评论、标签或关闭操作，验证以静态治理检查为主。
+
+## Feedback
+
+- [x] **FB-1**: 功能或`Bug`已在当前项目中处理时需要评论说明并关闭`Issue`
+
+### FB-1 执行记录
+
+- 根因：首版`lina-community-issue-review`只定义了可行功能需求打`feature`标签、可行`Bug`打`bug`标签并保持开放的流程，但没有在进入待实现或待修复队列前强制核对当前项目是否已经具备等价功能或已经修复对应问题，可能导致已解决问题被重复处理。
+- 修复：已更新`.agents/skills/lina-community-issue-review/SKILL.md`，新增“已处理核对”流程，要求功能需求和`Bug`类`Issue`在打`feature`或`bug`标签前检查当前项目规范、源码、测试和变更记录；确认已处理时不添加`feature`或`bug`标签，关闭`Issue`并发布带`status=resolved`隐藏标记的评论。已同步更新`proposal.md`、`design.md`和`specs/community-issue-review-skill/spec.md`。
+- 已读取规则文件：`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/i18n.md`和`.agents/instructions/markdown-format.instructions.md`；同时按`skill-creator`读取技能创建与更新规范。
+- 验证命令：`openspec validate add-community-issue-review-skill --strict`通过；`git diff --check`通过；`quick_validate.py`因本地`Python`环境缺少`PyYAML`无法运行，已用`Ruby YAML`等价检查`SKILL.md`的`frontmatter`，确认`name`为`lina-community-issue-review`、`description`非空、无尖括号且长度为`397`；静态检索确认技能和规范覆盖`resolved`、已处理核对、已经存在、已经修复、避免重复处理和关闭流程。
+- 影响分析：`i18n`仅影响技能生成`GitHub`评论时的语言选择，不修改运行时语言包、接口文档翻译或翻译缓存；缓存一致性无影响；数据权限无影响；模块启停无影响；核心宿主接口契约无影响；开发工具跨平台无新增长期脚本、`Makefile`目标或`linactl`命令；未新增运行期依赖，`DI`来源无影响；测试策略为项目治理类反馈，使用`openspec validate`、静态检索、`frontmatter`检查和格式检查验证。
+- `lina-review`结果：审查范围为`.agents/skills/lina-community-issue-review/SKILL.md`、`openspec/changes/add-community-issue-review-skill/proposal.md`、`design.md`、`tasks.md`和`specs/community-issue-review-skill/spec.md`。已按`git status --short --untracked-files=all`和`git ls-files --others --exclude-standard`确认当前工作区范围，并读取`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/i18n.md`和`.agents/instructions/markdown-format.instructions.md`。审查确认已处理功能或`Bug`的`resolved`流程在技能、提案、设计、增量规范和任务记录中一致，验证证据覆盖当前工作区。未发现阻塞问题；剩余风险：本次仍未对线上`Issue`执行真实评论、标签或关闭操作，验证以静态治理检查为主。

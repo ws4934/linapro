@@ -9,6 +9,7 @@
 - 技能跳过已经由本技能评论且带有`question`、`feature`或`bug`任一标签的`Issue`，避免重复审查。
 - 技能根据项目规范和源码实现将`Issue`分类为疑问、功能需求、`Bug`或无效内容。
 - 疑问类`Issue`回答后添加`question`标签并关闭。
+- 功能需求或`Bug`反馈已经在当前项目中处理时，技能评论说明已处理原因和证据，并关闭`Issue`，避免重复处理。
 - 可行功能需求添加`feature`标签后发布评估评论，保持开放等待实现。
 - 可行`Bug`添加`bug`标签后发布原因评估评论，保持开放等待修复。
 - 模糊、骚扰或广告类`Issue`完成关闭处理，并发布说明原因或补充要求的评论。
@@ -19,7 +20,7 @@
 
 ### New Capabilities
 
-- `community-issue-review-skill`：定义`lina-community-issue-review`技能的触发、仓库范围、`Issue`遍历、重复审查跳过、可信上下文加载、分类处理、评论语言、标签和关闭契约。
+- `community-issue-review-skill`：定义`lina-community-issue-review`技能的触发、仓库范围、`Issue`遍历、重复审查跳过、可信上下文加载、已处理核对、分类处理、评论语言、标签和关闭契约。
 
 ### Modified Capabilities
 
