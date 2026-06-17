@@ -1214,6 +1214,35 @@
   },
   "multiTenant": {
     "platformScope": "平台",
+    "domain": {
+      "tableTitle": "租户域名",
+      "fields": {
+        "domain": "域名",
+        "isPrimary": "主域名",
+        "isVerified": "已验证"
+      },
+      "status": {
+        "active": "启用",
+        "disabled": "停用"
+      },
+      "verified": {
+        "yes": "已验证",
+        "no": "未验证"
+      },
+      "actions": {
+        "create": "新增域名"
+      },
+      "empty": {
+        "domains": "暂无域名"
+      },
+      "messages": {
+        "verifiedUpdated": "域名验证状态已更新",
+        "deleteDomainConfirm": "确认删除域名 {domain}？",
+        "tenantRequired": "请输入所属租户 ID",
+        "domainRequired": "请输入域名",
+        "domainRule": "域名长度不能超过 255 个字符"
+      }
+    },
     "placeholders": {
       "selectTenant": "请选择租户"
     },

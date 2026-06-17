@@ -22,7 +22,7 @@
 - [x] 4.2 域名`service`（`internal/service/domain`）：List/Create/Delete/SetVerified，typed 插入/更新结构，域名归一化+全局唯一校验，操作前可见性校验，bizerr 错误码集中于`domain_code.go`
 - [x] 4.3 `make ctrl`生成`IPlatformV1`与控制器骨架并填充 4 个域名方法；`platform.go`加`domainSvc`与`toAPIDomain`；`plugin.go`装配`domainSvc`并绑定
 - [x] 4.4 `plugin.yaml`新增 4 个域名隐藏权限点（list/add/remove/verify）；`manifest/i18n/{en-US,zh-CN}/apidoc/platform/domain.json`补 apidoc 翻译。可见菜单随前端页一并落地
-- [ ] 4.5 `frontend/pages`域名管理页（列表、创建、删除、验证）——延后，与可见菜单一并落地
+- [x] 4.5 `frontend/pages`域名管理页（`domain-client.ts` + `domain-management.vue` + `domain-modal.vue`）+ 可见菜单（`plugin.yaml`域名菜单+按钮）+ `menu.json`与 lina-vben `pages.json`双语文案；镜像既有租户页模式，JSON 合法、复用键存在。前端 vite 构建、`vue-tsc`类型检查与 E2E 须在前端环境验证（本环境无 vben 工具链）
 
 ## 5. 测试
 
@@ -37,4 +37,5 @@
 - [x] 6.2 SQL 幂等性：建表/索引均`IF NOT EXISTS`；数据分类：仅 DDL 无 Seed；软删除与时间维护由`deleted_at`/`created_at`/`updated_at`自动处理，未手写
 - [x] 6.3 数据权限例外：域名映射为平台治理数据，管理按平台权限`system:tenant:domain:*`门控，不施加行级租户数据范围（与既有平台租户管理同构）；host-only 公开解析权威边界=仅`verified`+`active`、未匹配即拒绝、永不平台，单测覆盖
 - [x] 6.4 DI 来源检查：`domainSvc`owner=`registerRoutes`启动装配，经`domainsvc.New(services.BizCtx())`创建并构造注入平台控制器，无运行期`New()`独立服务图、无共享缓存状态
-- [x] 6.5 影响分析：`i18n`新增 4 权限点与域名 apidoc 双语（待`make i18n.check`治理验证）；缓存一致性无影响；开发工具跨平台无影响；测试覆盖解析与 service 路径
+- [x] 6.5 影响分析：`i18n`新增 4 权限点、域名 apidoc 双语、菜单与 lina-vben 页面文案双语；缓存一致性无影响；开发工具跨平台无影响；后端测试覆盖解析与 service 路径
+- [ ] 6.6 前端验证（须前端环境）：lina-vben `pnpm` 构建与 `vue-tsc` 类型检查、`make i18n.check` frontend-keys、域名管理页 E2E（`testing.md`）

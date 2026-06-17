@@ -1214,6 +1214,35 @@
   },
   "multiTenant": {
     "platformScope": "Platform",
+    "domain": {
+      "tableTitle": "Tenant Domains",
+      "fields": {
+        "domain": "Domain",
+        "isPrimary": "Primary",
+        "isVerified": "Verified"
+      },
+      "status": {
+        "active": "Active",
+        "disabled": "Disabled"
+      },
+      "verified": {
+        "yes": "Verified",
+        "no": "Unverified"
+      },
+      "actions": {
+        "create": "Create Domain"
+      },
+      "empty": {
+        "domains": "No domains"
+      },
+      "messages": {
+        "verifiedUpdated": "Domain verification updated",
+        "deleteDomainConfirm": "Delete domain {domain}?",
+        "tenantRequired": "Tenant ID is required",
+        "domainRequired": "Domain is required",
+        "domainRule": "Domain must have at most 255 characters"
+      }
+    },
     "placeholders": {
       "selectTenant": "Select tenant"
     },
