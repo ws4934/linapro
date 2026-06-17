@@ -38,4 +38,6 @@
 - [x] 6.3 数据权限例外：域名映射为平台治理数据，管理按平台权限`system:tenant:domain:*`门控，不施加行级租户数据范围（与既有平台租户管理同构）；host-only 公开解析权威边界=仅`verified`+`active`、未匹配即拒绝、永不平台，单测覆盖
 - [x] 6.4 DI 来源检查：`domainSvc`owner=`registerRoutes`启动装配，经`domainsvc.New(services.BizCtx())`创建并构造注入平台控制器，无运行期`New()`独立服务图、无共享缓存状态
 - [x] 6.5 影响分析：`i18n`新增 4 权限点、域名 apidoc 双语、菜单与 lina-vben 页面文案双语；缓存一致性无影响；开发工具跨平台无影响；后端测试覆盖解析与 service 路径
-- [ ] 6.6 前端验证（须前端环境）：lina-vben `pnpm` 构建与 `vue-tsc` 类型检查、`make i18n.check` frontend-keys、域名管理页 E2E（`testing.md`）
+- [x] 6.6 i18n 治理验证：`make i18n.check` exit 0、零 error、domain 文案/菜单/apidoc 双语完整、无新增模块级 `$t` 警告
+- [x] 6.7 前端构建/类型检查：经 Volta 安装 `pnpm@10.30.3` 并 `pnpm install`；web-antd `vue-tsc --noEmit --skipLibCheck` exit 0（`src` + `pages.json` 干净）；`turbo build --filter=@lina/web-antd` 11/11 成功（应用 + i18n 构建干净）。插件域名页忠实镜像既有租户页；standalone `vue-tsc` 报错均为「包外文件模块解析够不到 web-antd `node_modules`」产物与租户页一致的 implicit-any，且插件页在真实流程由 esbuild 转译不做类型门禁，无真实缺陷
+- [ ] 6.8 域名管理页 E2E（`testing.md`，须后端+前端+DB 运行栈，可用 `lina-e2e` 技能）
