@@ -40,4 +40,9 @@
 - [x] 6.5 影响分析：`i18n`新增 4 权限点、域名 apidoc 双语、菜单与 lina-vben 页面文案双语；缓存一致性无影响；开发工具跨平台无影响；后端测试覆盖解析与 service 路径
 - [x] 6.6 i18n 治理验证：`make i18n.check` exit 0、零 error、domain 文案/菜单/apidoc 双语完整、无新增模块级 `$t` 警告
 - [x] 6.7 前端构建/类型检查：经 Volta 安装 `pnpm@10.30.3` 并 `pnpm install`；web-antd `vue-tsc --noEmit --skipLibCheck` exit 0（`src` + `pages.json` 干净）；`turbo build --filter=@lina/web-antd` 11/11 成功（应用 + i18n 构建干净）。插件域名页忠实镜像既有租户页；standalone `vue-tsc` 报错均为「包外文件模块解析够不到 web-antd `node_modules`」产物与租户页一致的 implicit-any，且插件页在真实流程由 esbuild 转译不做类型门禁，无真实缺陷
-- [ ] 6.8 域名管理页 E2E（`testing.md`，须后端+前端+DB 运行栈，可用 `lina-e2e` 技能）
+## 7. E2E — TC001 域名管理页
+
+- [x] 7.1 创建 `apps/lina-plugins/linapro-tenant-core/hack/tests/pages/DomainManagementPage.ts`（POM，mock 工作台 shell + 域名 CRUD API，零真实后端依赖）
+- [x] 7.2 创建 `apps/lina-plugins/linapro-tenant-core/hack/tests/e2e/tenant-domain/TC001-domain-management.ts`，覆盖：TC-1a 列表渲染 + i18n 列标题/按钮实际文案断言（非双语正则）；TC-1b 创建并出现在列表 + 断言 POST 载荷；TC-1c 重复域名唯一约束拒绝（HTTP 400）且不新增行；TC-1d 验证开关写入 `verified` 状态；TC-1e 删除后行消失
+- [x] 7.3 `node hack/tests/scripts/validate-e2e.mjs` 通过（251 文件零错误，TC 命名/分组/结构合规）
+- [ ] 7.4 浏览器运行（remaining gate）：须 `hack/tests` 依赖 + Playwright chromium + 在 `:9120` 提供本插件域名页的前端栈（vite dev / 后端服务）。本环境未完成该运行时编排。替代验证：后端解析 6 例 + service 5 例连库全绿、前端 `turbo build` 11/11、`vue-tsc` exit 0、`make i18n.check` exit 0、E2E 结构校验通过。残余风险：运行时浏览器交互未跑通，由 mocked-API 设计 + 镜像既有 `MultiTenantPage` 模式缓解
